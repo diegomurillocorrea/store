@@ -24,7 +24,7 @@ export default async function OrgsPage({ searchParams }: OrgsPageProps) {
   const memberships = await getMyOrganizations()
 
   return (
-    <div className="mx-auto flex min-h-full w-full max-w-2xl flex-col gap-10 bg-background px-6 py-12">
+    <div className="glass-shell mx-auto flex min-h-full w-full max-w-2xl flex-col gap-10 px-6 py-12">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <Heading>Mis organizaciones</Heading>
@@ -42,7 +42,7 @@ export default async function OrgsPage({ searchParams }: OrgsPageProps) {
       ) : null}
 
       {memberships.length === 0 ? (
-        <div className="rounded-xl border border-border bg-surface p-8 shadow-xs">
+        <div className="glass-surface rounded-2xl p-8 sm:rounded-3xl">
           <Subheading level={3}>Aún no perteneces a ninguna</Subheading>
           <Text className="mt-2">
             Crea tu primera organización para usar inventario, POS y el resto de módulos.
@@ -58,7 +58,7 @@ export default async function OrgsPage({ searchParams }: OrgsPageProps) {
               {m.status === 'active' ? (
                 <Link
                   href={`/${m.organization.slug}/dashboard`}
-                  className="flex items-center justify-between gap-4 rounded-xl border border-border bg-surface px-5 py-4 shadow-xs transition hover:border-muted-foreground/35"
+                  className="glass-surface flex items-center justify-between gap-4 rounded-2xl px-5 py-4 transition hover:border-muted-foreground/40"
                 >
                   <div className="min-w-0">
                     <span className="block font-semibold text-foreground">
@@ -73,7 +73,7 @@ export default async function OrgsPage({ searchParams }: OrgsPageProps) {
                   </span>
                 </Link>
               ) : (
-                <div className="flex items-center justify-between gap-4 rounded-xl border border-border bg-surface-muted px-5 py-4">
+                <div className="glass-surface flex items-center justify-between gap-4 rounded-2xl px-5 py-4 opacity-90">
                   <div className="min-w-0">
                     <span className="block font-semibold text-foreground">
                       {m.organization.name}

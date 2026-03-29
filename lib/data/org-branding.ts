@@ -14,6 +14,7 @@ export async function getOrganizationBranding(
     .select(
       `
       logo_url,
+      panel_wallpaper_url,
       primary_color_light,
       primary_color_dark,
       accent_color_light,
@@ -37,6 +38,7 @@ export async function getOrganizationBranding(
 
   const row = data as {
     logo_url: string | null
+    panel_wallpaper_url: string | null
     primary_color_light: string | null
     primary_color_dark: string | null
     accent_color_light: string | null
@@ -65,6 +67,7 @@ export async function getOrganizationBranding(
 
   return {
     logoUrl: row.logo_url?.trim() || null,
+    panelWallpaperUrl: row.panel_wallpaper_url?.trim() || null,
     primaryColorLight: pl,
     primaryColorDark: pd,
     accentColorLight: al,

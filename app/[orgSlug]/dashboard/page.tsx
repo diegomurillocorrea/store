@@ -16,7 +16,7 @@ export default async function DashboardPage({ params }: DashboardPageProps) {
           Resumen del negocio. Aquí conectarás métricas, alertas de inventario y accesos rápidos al POS.
         </Text>
       </div>
-      <div className="rounded-lg border border-border bg-surface-muted/80 p-4 dark:bg-surface-muted/50">
+      <div className="glass-surface rounded-xl p-4 sm:rounded-2xl">
         <Subheading level={3} className="text-sm">
           Contexto multi-tenant
         </Subheading>

@@ -35,7 +35,7 @@ export default function RootLayout({
       <head>
         <ThemeInitScript />
       </head>
-      <body className="relative min-h-full flex flex-col font-sans">
+      <body className="liquid-app relative min-h-dvh flex flex-col font-sans antialiased">
         {children}
         <div className="pointer-events-none fixed right-4 top-4 z-200 sm:right-5 sm:top-5">
           <div className="pointer-events-auto">

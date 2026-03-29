@@ -2,6 +2,7 @@
 
 import * as Headless from '@headlessui/react'
 import React, { useState } from 'react'
+import { getProxiedLogoSrc } from '@/lib/theme/branding'
 import { NavbarItem } from './navbar'
 
 function OpenMenuIcon() {
@@ -25,13 +26,13 @@ function MobileSidebar({ open, close, children }: React.PropsWithChildren<{ open
     <Headless.Dialog open={open} onClose={close} className="lg:hidden">
       <Headless.DialogBackdrop
         transition
-        className="fixed inset-0 bg-black/30 transition data-closed:opacity-0 data-enter:duration-300 data-enter:ease-out data-leave:duration-200 data-leave:ease-in"
+        className="fixed inset-0 bg-black/25 backdrop-blur-sm transition data-closed:opacity-0 data-enter:duration-300 data-enter:ease-out data-leave:duration-200 data-leave:ease-in dark:bg-black/45"
       />
       <Headless.DialogPanel
         transition
         className="fixed inset-y-0 w-full max-w-80 p-2 transition duration-300 ease-in-out data-closed:-translate-x-full"
       >
-        <div className="flex h-full flex-col rounded-lg bg-surface shadow-xs ring-1 ring-border/70 dark:ring-border/80">
+        <div className="glass-surface flex h-full flex-col rounded-2xl">
           <div className="-mb-3 px-4 pt-3">
             <Headless.CloseButton as={NavbarItem} aria-label="Close navigation">
               <CloseMenuIcon />
@@ -48,11 +49,23 @@ export function SidebarLayout({
   navbar,
   sidebar,
   children,
-}: React.PropsWithChildren<{ navbar: React.ReactNode; sidebar: React.ReactNode }>) {
+  panelWallpaperUrl,
+}: React.PropsWithChildren<{
+  navbar: React.ReactNode
+  sidebar: React.ReactNode
+  /** Imagen de fondo del área de contenido (estilo WhatsApp) */
+  panelWallpaperUrl?: string | null
+}>) {
   let [showSidebar, setShowSidebar] = useState(false)
 
+  const wallpaperSrc =
+    panelWallpaperUrl && panelWallpaperUrl.trim().length > 0
+      ? getProxiedLogoSrc(panelWallpaperUrl.trim())
+      : null
+  const panelGlassClass = wallpaperSrc ? 'glass-surface-wallpaper' : 'glass-surface'
+
   return (
-    <div className="relative isolate flex min-h-svh w-full bg-surface max-lg:flex-col lg:bg-surface-muted dark:bg-background dark:lg:bg-background">
+    <div className="glass-shell relative isolate flex min-h-svh w-full max-lg:flex-col">
       {/* Sidebar on desktop */}
       <div className="fixed inset-y-0 left-0 w-64 max-lg:hidden">{sidebar}</div>
 
@@ -62,7 +75,7 @@ export function SidebarLayout({
       </MobileSidebar>
 
       {/* Navbar on mobile */}
-      <header className="flex items-center px-4 lg:hidden">
+      <header className="glass-shell sticky top-0 z-30 flex items-center border-b border-white/15 px-4 backdrop-blur-xl dark:border-white/10 lg:hidden">
         <div className="py-2.5">
           <NavbarItem onClick={() => setShowSidebar(true)} aria-label="Open navigation">
             <OpenMenuIcon />
@@ -73,8 +86,19 @@ export function SidebarLayout({
 
       {/* Content */}
       <main className="flex flex-1 flex-col pb-2 lg:min-w-0 lg:pt-2 lg:pr-2 lg:pl-64">
-        <div className="grow p-6 lg:rounded-lg lg:bg-surface lg:p-10 lg:shadow-xs lg:ring-1 lg:ring-border/70 dark:lg:bg-surface dark:lg:ring-border/80">
-          <div className="mx-auto max-w-6xl">{children}</div>
+        <div className="relative mx-2 mb-3 flex min-h-0 grow flex-col overflow-hidden rounded-2xl sm:mx-3 lg:mx-0 lg:mb-0 lg:rounded-2xl">
+          {wallpaperSrc ? (
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-0 z-0 bg-cover bg-center bg-no-repeat [transform:scale(1.08)]"
+              style={{ backgroundImage: `url(${JSON.stringify(wallpaperSrc)})` }}
+            />
+          ) : null}
+          <div
+            className={`relative z-10 flex min-h-0 flex-1 flex-col rounded-2xl p-6 lg:p-10 ${panelGlassClass}`}
+          >
+            <div className="mx-auto min-h-0 w-full max-w-6xl flex-1">{children}</div>
+          </div>
         </div>
       </main>
     </div>

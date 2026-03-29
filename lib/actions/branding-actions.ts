@@ -21,6 +21,7 @@ export async function updateOrganizationBrandingAction(
   }
 
   const logoRaw = String(formData.get('logo_url') ?? '').trim()
+  const wallpaperRaw = String(formData.get('panel_wallpaper_url') ?? '').trim()
 
   const pl = normalizeHex(String(formData.get('primary_color_light') ?? ''))
   const pd = normalizeHex(String(formData.get('primary_color_dark') ?? ''))
@@ -37,6 +38,13 @@ export async function updateOrganizationBrandingAction(
     return { error: 'La URL del logo debe ser http(s) y tener como máximo 2048 caracteres.', ok: false }
   }
 
+  if (!isValidLogoUrl(wallpaperRaw)) {
+    return {
+      error: 'La URL del fondo del panel debe ser http(s) y tener como máximo 2048 caracteres (o déjala vacía).',
+      ok: false,
+    }
+  }
+
   if (!pl || !pd || !al || !ad || !ml || !md || !sbl || !sbd || !ssl || !ssd) {
     return { error: 'Todos los colores deben ser hex válidos (#rgb o #rrggbb).', ok: false }
   }
@@ -46,6 +54,7 @@ export async function updateOrganizationBrandingAction(
     .from('organization_settings')
     .update({
       logo_url: logoRaw.length > 0 ? logoRaw : null,
+      panel_wallpaper_url: wallpaperRaw.length > 0 ? wallpaperRaw : null,
       primary_color_light: pl,
       primary_color_dark: pd,
       accent_color_light: al,

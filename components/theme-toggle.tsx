@@ -42,7 +42,7 @@ export function ThemeToggle() {
   if (!mounted) {
     return (
       <span
-        className="inline-flex size-10 items-center justify-center rounded-full border border-border bg-surface/95 shadow-sm backdrop-blur-sm"
+        className="glass-pill inline-flex size-10 items-center justify-center rounded-full"
         aria-hidden
       />
     )
@@ -55,7 +55,7 @@ export function ThemeToggle() {
       onKeyDown={handleKeyDown}
       aria-label={isDark ? 'Activar modo claro' : 'Activar modo oscuro'}
       aria-pressed={isDark}
-      className="inline-flex size-10 items-center justify-center rounded-full border border-border bg-surface/95 text-foreground shadow-sm backdrop-blur-sm transition hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+      className="glass-pill inline-flex size-10 items-center justify-center rounded-full text-foreground transition hover:opacity-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
     >
       {isDark ? (
         <SunIcon className="size-5" aria-hidden data-slot="icon" />

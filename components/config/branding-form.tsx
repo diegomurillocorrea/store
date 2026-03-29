@@ -69,6 +69,7 @@ export function BrandingForm({ orgSlug, initial }: BrandingFormProps) {
   const [state, formAction, pending] = useActionState(boundAction, initialState)
 
   const [logoUrl, setLogoUrl] = useState(initial.logoUrl ?? '')
+  const [panelWallpaperUrl, setPanelWallpaperUrl] = useState(initial.panelWallpaperUrl ?? '')
   const [pl, setPl] = useState(initial.primaryColorLight)
   const [pd, setPd] = useState(initial.primaryColorDark)
   const [al, setAl] = useState(initial.accentColorLight)
@@ -106,6 +107,22 @@ export function BrandingForm({ orgSlug, initial }: BrandingFormProps) {
               URLs de Instagram/Facebook se cargan por un proxy del servidor (Meta a veces bloquea imágenes
               directas en la web). Si no ves el logo, descarga la imagen y súbela a{' '}
               <strong>Supabase Storage</strong> o a tu CDN y pega una URL estable.
+            </Text>
+          </Field>
+          <Field>
+            <Label>Fondo del panel (imagen)</Label>
+            <Input
+              type="url"
+              name="panel_wallpaper_url"
+              placeholder="https://… (opcional)"
+              value={panelWallpaperUrl}
+              onChange={(e) => setPanelWallpaperUrl(e.target.value)}
+            />
+            <Text className="mt-2 text-xs leading-relaxed">
+              Como en WhatsApp: la foto se ve detrás del contenido principal con efecto cristal. Sube la imagen a{' '}
+              <strong>Supabase Storage</strong> (bucket público) u otro hosting con URL{' '}
+              <code className="text-xs">https</code>, luego pégala aquí. Deja vacío para quitar el fondo. Instagram
+              / Facebook usan el mismo proxy que el logo.
             </Text>
           </Field>
         </FieldGroup>

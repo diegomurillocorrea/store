@@ -16,8 +16,8 @@ export default async function Home() {
   }
 
   return (
-    <div className="flex min-h-full flex-1 flex-col items-center justify-center bg-background px-6 py-16">
-      <div className="w-full max-w-lg rounded-xl border border-border bg-surface p-8 shadow-xs ring-1 ring-border/70 dark:ring-border/80">
+    <div className="glass-shell flex min-h-full flex-1 flex-col items-center justify-center px-6 py-16">
+      <div className="glass-surface w-full max-w-lg rounded-2xl p-8 sm:rounded-3xl">
         <Heading>Store</Heading>
         <Text className="mt-3">
           Punto de venta e inventario multi-tenant con Supabase. Inicia sesión para entrar a tus organizaciones.

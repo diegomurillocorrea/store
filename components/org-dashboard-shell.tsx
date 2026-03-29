@@ -66,7 +66,7 @@ export function OrgDashboardShell({ orgSlug, orgName, branding, children }: OrgD
   )
 
   const sidebar = (
-    <div className="flex h-full flex-col border-border bg-surface pt-5 pr-2 pb-4 pl-6 lg:border-r">
+    <div className="glass-surface flex h-full flex-col pt-5 pr-2 pb-4 pl-6 lg:mr-2 lg:rounded-r-2xl">
       <Sidebar>
         <SidebarHeader
           className="border-b pb-4"
@@ -161,7 +161,7 @@ export function OrgDashboardShell({ orgSlug, orgName, branding, children }: OrgD
   )
 
   return (
-    <SidebarLayout navbar={navbar} sidebar={sidebar}>
+    <SidebarLayout navbar={navbar} panelWallpaperUrl={branding.panelWallpaperUrl} sidebar={sidebar}>
       {children}
     </SidebarLayout>
   )

@@ -1,5 +1,7 @@
 export interface OrganizationBranding {
   logoUrl: string | null
+  /** Imagen de fondo del panel principal (tipo WhatsApp); URL https pública */
+  panelWallpaperUrl: string | null
   /** Título / nombre destacado — modo claro */
   primaryColorLight: string
   /** Título / nombre destacado — modo oscuro */
@@ -25,6 +27,7 @@ export interface OrganizationBranding {
 /** Fallback si aún no hay fila en `organization_settings` (la fuente de verdad es la BD). */
 export const DEFAULT_BRANDING: OrganizationBranding = {
   logoUrl: null,
+  panelWallpaperUrl: null,
   primaryColorLight: '#27272a',
   primaryColorDark: '#e4e4e7',
   accentColorLight: '#2563eb',

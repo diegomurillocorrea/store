@@ -13,6 +13,9 @@
   --border: oklch(0.86 0.022 72);
   --muted: oklch(0.46 0.028 68);
   --ring: oklch(0.55 0.16 255);
+  --glass-blur: 36px;
+  --glass-blur-strong: 48px;
+  --glass-saturate: 1.75;
 }
 
 html.dark {
@@ -38,7 +41,136 @@ html.dark {
   --font-mono: var(--font-geist-mono);
 }
 
-body {
-  background: var(--background);
+/* —— Liquid glass (estilo Apple): malla ambiental + paneles con blur —— */
+body.liquid-app {
+  min-height: 100dvh;
+  background-color: var(--background);
+  background-image:
+    radial-gradient(ellipse 130% 90% at 0% -10%, oklch(0.78 0.12 285 / 0.28), transparent 55%),
+    radial-gradient(ellipse 100% 80% at 100% 20%, oklch(0.85 0.09 210 / 0.22), transparent 50%),
+    radial-gradient(ellipse 70% 55% at 45% 100%, oklch(0.9 0.07 145 / 0.18), transparent 48%);
+  background-attachment: fixed;
   color: var(--foreground);
+}
+
+html.dark body.liquid-app {
+  background-image:
+    radial-gradient(ellipse 120% 90% at 5% 0%, oklch(0.4 0.18 290 / 0.45), transparent 58%),
+    radial-gradient(ellipse 90% 70% at 100% 35%, oklch(0.38 0.14 260 / 0.35), transparent 52%),
+    radial-gradient(ellipse 80% 60% at 35% 100%, oklch(0.42 0.1 200 / 0.28), transparent 50%);
+}
+
+/* Lienzo difuminado detrás de capas de vidrio */
+.glass-shell {
+  background: color-mix(in srgb, var(--surface-muted) 42%, transparent);
+  -webkit-backdrop-filter: blur(24px) saturate(1.45);
+  backdrop-filter: blur(24px) saturate(1.45);
+}
+
+html.dark .glass-shell {
+  background: color-mix(in srgb, var(--background) 58%, transparent);
+  -webkit-backdrop-filter: blur(28px) saturate(1.35);
+  backdrop-filter: blur(28px) saturate(1.35);
+}
+
+/* Paneles flotantes (tarjetas, contenido, sidebar) */
+.glass-surface {
+  background: color-mix(in srgb, var(--surface) 62%, transparent);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  border: 1px solid color-mix(in srgb, #ffffff 52%, transparent);
+  box-shadow:
+    0 10px 44px color-mix(in srgb, var(--foreground) 6%, transparent),
+    0 2px 12px color-mix(in srgb, var(--foreground) 4%, transparent),
+    inset 0 1px 1px color-mix(in srgb, #ffffff 62%, transparent);
+}
+
+html.dark .glass-surface {
+  background: color-mix(in srgb, var(--surface) 45%, transparent);
+  border: 1px solid color-mix(in srgb, #ffffff 12%, transparent);
+  box-shadow:
+    0 16px 56px color-mix(in srgb, #000 42%, transparent),
+    0 4px 16px color-mix(in srgb, #000 28%, transparent),
+    inset 0 1px 0 color-mix(in srgb, #ffffff 14%, transparent);
+}
+
+/* Panel con foto detrás (WhatsApp): vidrio más claro para que se vea la imagen */
+.glass-surface-wallpaper {
+  background: color-mix(in srgb, var(--surface) 38%, transparent);
+  -webkit-backdrop-filter: blur(26px) saturate(1.6);
+  backdrop-filter: blur(26px) saturate(1.6);
+  border: 1px solid color-mix(in srgb, #ffffff 50%, transparent);
+  box-shadow:
+    0 10px 44px color-mix(in srgb, var(--foreground) 8%, transparent),
+    inset 0 1px 1px color-mix(in srgb, #ffffff 58%, transparent);
+}
+
+html.dark .glass-surface-wallpaper {
+  background: color-mix(in srgb, var(--surface) 30%, transparent);
+  border: 1px solid color-mix(in srgb, #ffffff 14%, transparent);
+  box-shadow:
+    0 16px 56px color-mix(in srgb, #000 48%, transparent),
+    inset 0 1px 0 color-mix(in srgb, #ffffff 12%, transparent);
+}
+
+/* Controles compactos (toggle tema, chips) */
+.glass-pill {
+  background: color-mix(in srgb, var(--surface) 50%, transparent);
+  -webkit-backdrop-filter: blur(20px) saturate(1.6);
+  backdrop-filter: blur(20px) saturate(1.6);
+  border: 1px solid color-mix(in srgb, #ffffff 45%, transparent);
+  box-shadow:
+    0 4px 20px color-mix(in srgb, var(--foreground) 5%, transparent),
+    inset 0 1px 0 color-mix(in srgb, #ffffff 50%, transparent);
+}
+
+html.dark .glass-pill {
+  background: color-mix(in srgb, var(--surface) 38%, transparent);
+  border: 1px solid color-mix(in srgb, #ffffff 10%, transparent);
+  box-shadow:
+    0 6px 24px color-mix(in srgb, #000 35%, transparent),
+    inset 0 1px 0 color-mix(in srgb, #ffffff 10%, transparent);
+}
+
+/* Modal: capa de vidrio sobre el contenido */
+.glass-modal-panel {
+  background: color-mix(in srgb, var(--surface) 58%, transparent);
+  -webkit-backdrop-filter: blur(var(--glass-blur-strong)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(var(--glass-blur-strong)) saturate(var(--glass-saturate));
+  border: 1px solid color-mix(in srgb, #ffffff 48%, transparent);
+  box-shadow:
+    0 24px 80px color-mix(in srgb, var(--foreground) 12%, transparent),
+    inset 0 1px 1px color-mix(in srgb, #ffffff 55%, transparent);
+}
+
+html.dark .glass-modal-panel {
+  background: color-mix(in srgb, var(--surface) 42%, transparent);
+  border: 1px solid color-mix(in srgb, #ffffff 12%, transparent);
+  box-shadow:
+    0 28px 90px color-mix(in srgb, #000 55%, transparent),
+    inset 0 1px 0 color-mix(in srgb, #ffffff 12%, transparent);
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .glass-shell,
+  .glass-surface,
+  .glass-surface-wallpaper,
+  .glass-pill,
+  .glass-modal-panel {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background: var(--surface);
+  }
+
+  html.dark .glass-shell,
+  html.dark .glass-surface,
+  html.dark .glass-surface-wallpaper,
+  html.dark .glass-pill,
+  html.dark .glass-modal-panel {
+    background: var(--surface);
+  }
+
+  html.dark .glass-shell {
+    background: var(--background);
+  }
 }

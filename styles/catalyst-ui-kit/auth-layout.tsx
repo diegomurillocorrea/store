@@ -2,8 +2,8 @@ import type React from 'react'
 
 export function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
-    <main className="flex min-h-dvh flex-col bg-background p-2">
-      <div className="flex grow items-center justify-center p-6 lg:rounded-lg lg:bg-surface lg:p-10 lg:shadow-xs lg:ring-1 lg:ring-border/70 dark:lg:ring-border/80">
+    <main className="glass-shell flex min-h-dvh flex-col p-3 sm:p-4">
+      <div className="glass-surface flex flex-1 flex-col items-center justify-center rounded-2xl p-6 sm:rounded-3xl lg:p-10">
         {children}
       </div>
     </main>

@@ -22,8 +22,8 @@ export default async function MarcaPage({ params }: MarcaPageProps) {
     <div>
       <Heading>Marca y colores</Heading>
       <Text className="mt-2 max-w-2xl">
-        Personaliza el logo y la paleta de esta organización. Los cambios se aplican en la barra lateral y
-        elementos destacados para todos los usuarios del negocio.
+        Personaliza el logo, un fondo de imagen tipo WhatsApp para el panel de contenido, colores del lienzo y la
+        paleta de marca. Los cambios se aplican para todos los usuarios de esta organización.
       </Text>
       <div className="mt-10">
         <BrandingForm orgSlug={orgSlug} initial={branding} />
