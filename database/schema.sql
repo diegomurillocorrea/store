@@ -1,0 +1,6 @@
+-- El esquema oficial para Supabase está en:
+--   supabase/migrations/20260328120000_initial_schema.sql
+--   supabase/migrations/20260328120001_rls_policies.sql
+--
+-- Aplica en orden: SQL Editor del dashboard (New query → pegar cada archivo)
+-- o CLI: supabase link && supabase db push
