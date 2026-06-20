@@ -64,11 +64,11 @@ export default async function OrgsPage({ searchParams }: OrgsPageProps) {
                     <span className="block font-semibold text-foreground">
                       {m.organization.name}
                     </span>
-                    <span className="text-sm text-muted-foreground">
+                    <span className="text-sm text-foreground">
                       /{m.organization.slug}
                     </span>
                   </div>
-                  <span className="shrink-0 text-sm font-medium text-muted-foreground">
+                  <span className="shrink-0 text-sm font-medium text-foreground">
                     Entrar →
                   </span>
                 </Link>
@@ -78,7 +78,7 @@ export default async function OrgsPage({ searchParams }: OrgsPageProps) {
                     <span className="block font-semibold text-foreground">
                       {m.organization.name}
                     </span>
-                    <span className="text-sm text-muted-foreground">
+                    <span className="text-sm text-foreground">
                       /{m.organization.slug}
                     </span>
                   </div>

@@ -19,7 +19,7 @@ export function CreateOrgForm() {
         <Heading>Nueva organización</Heading>
         <Text className="mt-2">
           Crea el espacio de tu negocio. El slug define la URL{' '}
-          <code className="text-sm text-zinc-800 dark:text-zinc-200">/tu-slug/dashboard</code>.
+          <code className="text-sm text-foreground">/tu-slug/dashboard</code>.
         </Text>
       </div>
       <Fieldset>

@@ -1,0 +1,112 @@
+'use server'
+
+import { revalidatePath } from 'next/cache'
+import {
+  getActiveMemberIdForOrganization,
+} from '@/lib/data/categories'
+import { getOrgAccessBySlug } from '@/lib/data/organizations'
+import { createSupabaseServerClient } from '@/lib/supabase/server'
+
+export interface CategoryFormState {
+  error: string | null
+  ok: boolean
+}
+
+function parseCategoryName(formData: FormData): { error: string } | { name: string } {
+  const name = String(formData.get('name') ?? '').trim()
+
+  if (name.length < 2) {
+    return { error: 'El nombre es obligatorio (mín. 2 caracteres).' }
+  }
+
+  return { name }
+}
+
+export async function createCategoryAction(
+  orgSlug: string,
+  _prevState: CategoryFormState,
+  formData: FormData
+): Promise<CategoryFormState> {
+  const access = await getOrgAccessBySlug(orgSlug)
+  if (!access) {
+    return { error: 'Sin acceso a esta organización.', ok: false }
+  }
+
+  const parsed = parseCategoryName(formData)
+  if ('error' in parsed) {
+    return { error: parsed.error, ok: false }
+  }
+
+  const memberId = await getActiveMemberIdForOrganization(access.organization.id)
+
+  const supabase = await createSupabaseServerClient()
+  const { error } = await supabase.from('categories').insert({
+    organization_id: access.organization.id,
+    name: parsed.name,
+    created_by: memberId,
+  })
+
+  if (error) {
+    return { error: error.message || 'No se pudo crear la categoría.', ok: false }
+  }
+
+  revalidatePath(`/${orgSlug}/categorias`)
+  return { error: null, ok: true }
+}
+
+export async function updateCategoryAction(
+  orgSlug: string,
+  categoryId: string,
+  _prevState: CategoryFormState,
+  formData: FormData
+): Promise<CategoryFormState> {
+  const access = await getOrgAccessBySlug(orgSlug)
+  if (!access) {
+    return { error: 'Sin acceso a esta organización.', ok: false }
+  }
+
+  const parsed = parseCategoryName(formData)
+  if ('error' in parsed) {
+    return { error: parsed.error, ok: false }
+  }
+
+  const supabase = await createSupabaseServerClient()
+  const { error } = await supabase
+    .from('categories')
+    .update({ name: parsed.name })
+    .eq('id', categoryId)
+    .eq('organization_id', access.organization.id)
+
+  if (error) {
+    return { error: error.message || 'No se pudo actualizar la categoría.', ok: false }
+  }
+
+  revalidatePath(`/${orgSlug}/categorias`)
+  return { error: null, ok: true }
+}
+
+export async function deleteCategoryAction(
+  orgSlug: string,
+  categoryId: string,
+  _prevState: CategoryFormState,
+  _formData: FormData
+): Promise<CategoryFormState> {
+  const access = await getOrgAccessBySlug(orgSlug)
+  if (!access) {
+    return { error: 'Sin acceso a esta organización.', ok: false }
+  }
+
+  const supabase = await createSupabaseServerClient()
+  const { error } = await supabase
+    .from('categories')
+    .delete()
+    .eq('id', categoryId)
+    .eq('organization_id', access.organization.id)
+
+  if (error) {
+    return { error: error.message || 'No se pudo eliminar la categoría.', ok: false }
+  }
+
+  revalidatePath(`/${orgSlug}/categorias`)
+  return { error: null, ok: true }
+}

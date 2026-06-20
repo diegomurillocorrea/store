@@ -7,11 +7,11 @@
 :root {
   color-scheme: light;
   --background: oklch(0.965 0.014 78);
-  --foreground: oklch(0.24 0.028 72);
+  --foreground: #000000;
   --surface: oklch(0.99 0.01 78);
   --surface-muted: oklch(0.925 0.022 76);
   --border: oklch(0.86 0.022 72);
-  --muted: oklch(0.46 0.028 68);
+  --muted: #000000;
   --ring: oklch(0.55 0.16 255);
   --glass-blur: 36px;
   --glass-blur-strong: 48px;
@@ -21,11 +21,11 @@
 html.dark {
   color-scheme: dark;
   --background: oklch(0.18 0.022 65);
-  --foreground: oklch(0.96 0.012 78);
+  --foreground: #ffffff;
   --surface: oklch(0.22 0.024 65);
   --surface-muted: oklch(0.26 0.026 65);
   --border: oklch(0.34 0.022 60);
-  --muted: oklch(0.64 0.02 72);
+  --muted: #ffffff;
   --ring: oklch(0.62 0.14 255);
 }
 
@@ -39,6 +39,60 @@ html.dark {
   --color-ring: var(--ring);
   --font-sans: var(--font-poppins), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono);
+}
+
+@layer base {
+  html,
+  body {
+    color: var(--foreground);
+  }
+
+  :where(
+    p,
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6,
+    li,
+    td,
+    th,
+    label,
+    dd,
+    dt,
+    caption,
+    figcaption,
+    code,
+    [data-slot='text'],
+    [data-slot='legend'],
+    [data-slot='label'],
+    [data-slot='description']
+  ) {
+    color: var(--foreground);
+  }
+}
+
+/* Residual zinc/muted utilities (p. ej. bundle cacheado) → negro / blanco puro */
+@layer utilities {
+  .text-zinc-400,
+  .text-zinc-500,
+  .text-zinc-600,
+  .text-zinc-700,
+  .text-zinc-800,
+  .text-zinc-950,
+  .text-muted-foreground {
+    color: var(--foreground) !important;
+  }
+}
+
+html.dark :where(.dark\:text-zinc-200, .dark\:text-zinc-300, .dark\:text-zinc-400, .dark\:text-zinc-500) {
+  color: var(--foreground) !important;
+}
+
+/* Botones con fondo claro en dark mode conservan texto oscuro */
+html.dark :where(button, a).dark\:text-zinc-950 {
+  color: #000000 !important;
 }
 
 /* —— Liquid glass (estilo Apple): malla ambiental + paneles con blur —— */

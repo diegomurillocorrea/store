@@ -78,10 +78,7 @@ export function OrgDashboardShell({ orgSlug, orgName, branding, children }: OrgD
               <span className="org-brand-muted-text text-xs font-medium tracking-wide uppercase">
                 Organización
               </span>
-              <span
-                className="truncate text-base/6 font-semibold"
-                style={{ color: 'var(--org-brand-primary)' }}
-              >
+              <span className="truncate text-base/6 font-semibold text-foreground">
                 {orgName}
               </span>
               <span className="org-brand-muted-text truncate text-xs">/{orgSlug}</span>
@@ -141,17 +138,14 @@ export function OrgDashboardShell({ orgSlug, orgName, branding, children }: OrgD
   const navbar = (
     <Navbar>
       <NavbarSection className="min-w-0 lg:hidden">
-        <span
-          className="truncate text-sm font-semibold"
-          style={{ color: 'var(--org-brand-primary)' }}
-        >
+        <span className="truncate text-sm font-semibold text-foreground">
           {orgName}
         </span>
       </NavbarSection>
       <NavbarSpacer />
       <NavbarSection>
         <NavbarItem href="/orgs" aria-label="Mis organizaciones">
-          <span className="max-lg:hidden font-medium text-[color:var(--org-brand-accent)]">
+          <span className="max-lg:hidden font-medium text-foreground">
             Organizaciones
           </span>
         </NavbarItem>

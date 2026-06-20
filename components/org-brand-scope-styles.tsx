@@ -28,10 +28,10 @@ html.dark .org-brand-scope {
   fill: var(--org-brand-accent);
 }
 .org-brand-scope .org-brand-muted-text {
-  color: var(--org-brand-muted);
+  color: var(--foreground);
 }
 .org-brand-scope [data-slot="section"] > h3 {
-  color: var(--org-brand-muted) !important;
+  color: var(--foreground) !important;
 }
 `
 

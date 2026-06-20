@@ -4,7 +4,7 @@ import { AuthLayout } from '@/styles/catalyst-ui-kit/auth-layout'
 
 function LoginFallback() {
   return (
-    <div className="text-center text-sm text-zinc-500 dark:text-zinc-400" role="status">
+    <div className="text-center text-sm text-foreground" role="status">
       Cargando formulario…
     </div>
   )

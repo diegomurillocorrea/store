@@ -22,7 +22,7 @@ export default async function DashboardPage({ params }: DashboardPageProps) {
         </Subheading>
         <Text className="mt-1">
           Estás en la organización <Strong>{orgSlug}</Strong>. Las rutas bajo{' '}
-          <code className="text-sm text-muted-foreground">/{orgSlug}/…</code> comparten este espacio
+          <code className="text-sm text-foreground">/{orgSlug}/…</code> comparten este espacio
           aislado cuando conectes la base de datos.
         </Text>
       </div>

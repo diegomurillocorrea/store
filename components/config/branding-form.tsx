@@ -132,7 +132,7 @@ export function BrandingForm({ orgSlug, initial }: BrandingFormProps) {
         <Subheading level={3} className="mb-2">
           Lienzo del panel
         </Subheading>
-        <Text className="mb-4 text-sm text-muted-foreground">
+        <Text className="mb-4 text-sm">
           Fondo general del escritorio y color del panel donde va el contenido (y la barra lateral). Se aplica a
           todos los usuarios de esta organización.
         </Text>

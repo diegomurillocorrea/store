@@ -85,15 +85,12 @@ CREATE INDEX idx_organization_members_user ON organization_members (user_id);
 CREATE TABLE categories (
   id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id  UUID NOT NULL REFERENCES organizations (id) ON DELETE CASCADE,
-  parent_id        UUID REFERENCES categories (id) ON DELETE SET NULL,
   name             TEXT NOT NULL,
-  slug             TEXT NOT NULL,
-  sort_order       INT NOT NULL DEFAULT 0,
-  created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE (organization_id, slug)
+  created_by       UUID REFERENCES organization_members (id) ON DELETE SET NULL,
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_categories_org_parent ON categories (organization_id, parent_id);
+CREATE INDEX idx_categories_org ON categories (organization_id);
 
 CREATE TABLE customers (
   id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
