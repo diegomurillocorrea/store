@@ -115,6 +115,7 @@ CREATE TABLE suppliers (
   phone            TEXT,
   tax_id           TEXT,
   notes            TEXT,
+  created_by       UUID REFERENCES organization_members (id) ON DELETE SET NULL,
   created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at       TIMESTAMPTZ NOT NULL DEFAULT now()
 );

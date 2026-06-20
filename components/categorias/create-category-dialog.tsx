@@ -1,11 +1,11 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
-import { useActionState, useEffect } from 'react'
+import { useActionState } from 'react'
 import {
   createCategoryAction,
   type CategoryFormState,
 } from '@/lib/actions/category-actions'
+import { useFormActionSuccess } from '@/lib/hooks/use-form-action-success'
 import { Button } from '@/styles/catalyst-ui-kit/button'
 import {
   Dialog,
@@ -27,15 +27,10 @@ interface CreateCategoryDialogProps {
 }
 
 export function CreateCategoryDialog({ orgSlug, open, onClose }: CreateCategoryDialogProps) {
-  const router = useRouter()
   const boundAction = createCategoryAction.bind(null, orgSlug)
   const [state, formAction, pending] = useActionState(boundAction, initialState)
 
-  useEffect(() => {
-    if (!state.ok) return
-    onClose()
-    router.refresh()
-  }, [state.ok, onClose, router])
+  useFormActionSuccess(state.ok, onClose)
 
   return (
     <Dialog open={open} onClose={onClose} size="md">

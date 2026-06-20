@@ -2,11 +2,11 @@
 
 import { useActionState } from 'react'
 import {
-  deleteCategoryAction,
-  type CategoryFormState,
-} from '@/lib/actions/category-actions'
+  deleteSupplierAction,
+  type SupplierFormState,
+} from '@/lib/actions/supplier-actions'
 import { useFormActionSuccess } from '@/lib/hooks/use-form-action-success'
-import type { CategoryRow } from '@/lib/data/categories'
+import type { SupplierRow } from '@/lib/data/suppliers'
 import { Button } from '@/styles/catalyst-ui-kit/button'
 import {
   Alert,
@@ -16,23 +16,23 @@ import {
 } from '@/styles/catalyst-ui-kit/alert'
 import { Text } from '@/styles/catalyst-ui-kit/text'
 
-const initialState: CategoryFormState = { error: null, ok: false }
+const initialState: SupplierFormState = { error: null, ok: false }
 
-interface DeleteCategoryDialogProps {
+interface DeleteSupplierDialogProps {
   orgSlug: string
-  category: CategoryRow | null
+  supplier: SupplierRow | null
   open: boolean
   onClose: () => void
 }
 
-export function DeleteCategoryDialog({
+export function DeleteSupplierDialog({
   orgSlug,
-  category,
+  supplier,
   open,
   onClose,
-}: DeleteCategoryDialogProps) {
-  const boundAction = category
-    ? deleteCategoryAction.bind(null, orgSlug, category.id)
+}: DeleteSupplierDialogProps) {
+  const boundAction = supplier
+    ? deleteSupplierAction.bind(null, orgSlug, supplier.id)
     : null
   const [state, formAction, pending] = useActionState(
     boundAction ?? (async () => initialState),
@@ -41,14 +41,14 @@ export function DeleteCategoryDialog({
 
   useFormActionSuccess(state.ok, onClose)
 
-  if (!category || !boundAction) return null
+  if (!supplier || !boundAction) return null
 
   return (
     <Alert open={open} onClose={onClose} size="md">
-      <AlertTitle>Eliminar categoría</AlertTitle>
+      <AlertTitle>Eliminar proveedor</AlertTitle>
       <AlertDescription>
-        ¿Seguro que deseas eliminar <strong>{category.name}</strong>? Los productos asociados
-        quedarán sin categoría. Esta acción no se puede deshacer.
+        ¿Seguro que deseas eliminar <strong>{supplier.name}</strong>? Esta acción no se puede
+        deshacer.
       </AlertDescription>
 
       {state.error ? (

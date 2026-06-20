@@ -2,11 +2,10 @@
 
 import { useActionState } from 'react'
 import {
-  updateCategoryAction,
-  type CategoryFormState,
-} from '@/lib/actions/category-actions'
+  createSupplierAction,
+  type SupplierFormState,
+} from '@/lib/actions/supplier-actions'
 import { useFormActionSuccess } from '@/lib/hooks/use-form-action-success'
-import type { CategoryRow } from '@/lib/data/categories'
 import { Button } from '@/styles/catalyst-ui-kit/button'
 import {
   Dialog,
@@ -19,48 +18,60 @@ import { Field, FieldGroup, Fieldset, Label } from '@/styles/catalyst-ui-kit/fie
 import { Input } from '@/styles/catalyst-ui-kit/input'
 import { Text } from '@/styles/catalyst-ui-kit/text'
 
-const initialState: CategoryFormState = { error: null, ok: false }
+const initialState: SupplierFormState = { error: null, ok: false }
 
-interface EditCategoryDialogProps {
+interface CreateSupplierDialogProps {
   orgSlug: string
-  category: CategoryRow | null
   open: boolean
   onClose: () => void
 }
 
-export function EditCategoryDialog({ orgSlug, category, open, onClose }: EditCategoryDialogProps) {
-  const boundAction = category
-    ? updateCategoryAction.bind(null, orgSlug, category.id)
-    : null
-  const [state, formAction, pending] = useActionState(
-    boundAction ?? (async () => initialState),
-    initialState
-  )
+export function CreateSupplierDialog({ orgSlug, open, onClose }: CreateSupplierDialogProps) {
+  const boundAction = createSupplierAction.bind(null, orgSlug)
+  const [state, formAction, pending] = useActionState(boundAction, initialState)
 
   useFormActionSuccess(state.ok, onClose)
 
-  if (!category || !boundAction) return null
-
   return (
     <Dialog open={open} onClose={onClose} size="md">
-      <DialogTitle>Editar categoría</DialogTitle>
+      <DialogTitle>Nuevo proveedor</DialogTitle>
       <DialogDescription>
-        Modifica el nombre de <strong>{category.name}</strong>.
+        Registra un proveedor con su información de contacto.
       </DialogDescription>
 
-      <form action={formAction} key={category.id}>
+      <form action={formAction}>
         <DialogBody>
           <Fieldset>
             <FieldGroup>
               <Field>
-                <Label htmlFor="edit-category-name">Nombre</Label>
+                <Label htmlFor="supplier-name">Nombre</Label>
                 <Input
-                  id="edit-category-name"
+                  id="supplier-name"
                   name="name"
                   required
                   minLength={2}
-                  autoComplete="off"
-                  defaultValue={category.name}
+                  autoComplete="organization"
+                  placeholder="Ej. Distribuidora Norte"
+                />
+              </Field>
+              <Field>
+                <Label htmlFor="supplier-phone">Teléfono</Label>
+                <Input
+                  id="supplier-phone"
+                  name="phone"
+                  type="tel"
+                  autoComplete="tel"
+                  placeholder="Ej. 55 1234 5678"
+                />
+              </Field>
+              <Field>
+                <Label htmlFor="supplier-email">Correo electrónico</Label>
+                <Input
+                  id="supplier-email"
+                  name="email"
+                  type="email"
+                  autoComplete="email"
+                  placeholder="Ej. contacto@proveedor.com"
                 />
               </Field>
             </FieldGroup>
@@ -81,7 +92,7 @@ export function EditCategoryDialog({ orgSlug, category, open, onClose }: EditCat
             Cancelar
           </Button>
           <Button type="submit" color="dark/zinc" disabled={pending}>
-            {pending ? 'Guardando…' : 'Guardar cambios'}
+            {pending ? 'Guardando…' : 'Crear proveedor'}
           </Button>
         </DialogActions>
       </form>
