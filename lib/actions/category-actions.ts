@@ -56,7 +56,6 @@ export async function createCategoryAction(
 
 export async function updateCategoryAction(
   orgSlug: string,
-  categoryId: string,
   _prevState: CategoryFormState,
   formData: FormData
 ): Promise<CategoryFormState> {
@@ -65,20 +64,31 @@ export async function updateCategoryAction(
     return { error: 'Sin acceso a esta organización.', ok: false }
   }
 
+  const categoryId = String(formData.get('categoryId') ?? '').trim()
+  if (!categoryId) {
+    return { error: 'Categoría no válida.', ok: false }
+  }
+
   const parsed = parseCategoryName(formData)
   if ('error' in parsed) {
     return { error: parsed.error, ok: false }
   }
 
   const supabase = await createSupabaseServerClient()
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('categories')
     .update({ name: parsed.name })
     .eq('id', categoryId)
     .eq('organization_id', access.organization.id)
+    .select('id')
+    .maybeSingle()
 
   if (error) {
     return { error: error.message || 'No se pudo actualizar la categoría.', ok: false }
+  }
+
+  if (!data) {
+    return { error: 'No se encontró la categoría.', ok: false }
   }
 
   revalidatePath(`/${orgSlug}/categorias`)

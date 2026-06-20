@@ -2,10 +2,11 @@
 
 import { useActionState } from 'react'
 import {
-  createSupplierAction,
-  type SupplierFormState,
-} from '@/lib/actions/supplier-actions'
+  updateCustomerAction,
+  type CustomerFormState,
+} from '@/lib/actions/customer-actions'
 import { useFormActionSuccess } from '@/lib/hooks/use-form-action-success'
+import { getCustomerFullName, type CustomerRow } from '@/lib/data/customer-types'
 import { Button } from '@/styles/catalyst-ui-kit/button'
 import {
   Dialog,
@@ -18,60 +19,81 @@ import { Field, FieldGroup, Fieldset, Label } from '@/styles/catalyst-ui-kit/fie
 import { Input } from '@/styles/catalyst-ui-kit/input'
 import { Text } from '@/styles/catalyst-ui-kit/text'
 
-const initialState: SupplierFormState = { error: null, ok: false }
+const initialState: CustomerFormState = { error: null, ok: false }
 
-interface CreateSupplierDialogProps {
+interface EditCustomerDialogProps {
   orgSlug: string
+  customer: CustomerRow | null
   open: boolean
   onClose: () => void
 }
 
-export function CreateSupplierDialog({ orgSlug, open, onClose }: CreateSupplierDialogProps) {
-  const boundAction = createSupplierAction.bind(null, orgSlug)
-  const [state, formAction, pending] = useActionState(boundAction, initialState)
+export function EditCustomerDialog({ orgSlug, customer, open, onClose }: EditCustomerDialogProps) {
+  const boundAction = customer
+    ? updateCustomerAction.bind(null, orgSlug, customer.id)
+    : null
+  const [state, formAction, pending] = useActionState(
+    boundAction ?? (async () => initialState),
+    initialState
+  )
 
   useFormActionSuccess(state.ok, onClose, pending)
 
+  if (!customer || !boundAction) return null
+
+  const fullName = getCustomerFullName(customer)
+
   return (
     <Dialog open={open} onClose={onClose} size="md">
-      <DialogTitle>Nuevo proveedor</DialogTitle>
+      <DialogTitle>Editar cliente</DialogTitle>
       <DialogDescription>
-        Registra un proveedor con su información de contacto.
+        Modifica la información de contacto de <strong>{fullName}</strong>.
       </DialogDescription>
 
-      <form action={formAction}>
+      <form action={formAction} key={customer.id}>
         <DialogBody>
           <Fieldset>
             <FieldGroup>
               <Field>
-                <Label htmlFor="supplier-name">Nombre</Label>
+                <Label htmlFor="edit-customer-first-name">Nombres</Label>
                 <Input
-                  id="supplier-name"
-                  name="name"
+                  id="edit-customer-first-name"
+                  name="firstName"
                   required
                   minLength={2}
-                  autoComplete="organization"
-                  placeholder="Ej. Distribuidora Norte"
+                  autoComplete="given-name"
+                  defaultValue={customer.firstName}
                 />
               </Field>
               <Field>
-                <Label htmlFor="supplier-phone">Teléfono</Label>
+                <Label htmlFor="edit-customer-last-name">Apellidos</Label>
                 <Input
-                  id="supplier-phone"
+                  id="edit-customer-last-name"
+                  name="lastName"
+                  required
+                  minLength={2}
+                  autoComplete="family-name"
+                  defaultValue={customer.lastName}
+                />
+              </Field>
+              <Field>
+                <Label htmlFor="edit-customer-phone">Teléfono</Label>
+                <Input
+                  id="edit-customer-phone"
                   name="phone"
                   type="tel"
                   autoComplete="tel"
-                  placeholder="Ej. 55 1234 5678"
+                  defaultValue={customer.phone ?? ''}
                 />
               </Field>
               <Field>
-                <Label htmlFor="supplier-email">Correo electrónico</Label>
+                <Label htmlFor="edit-customer-email">Correo electrónico</Label>
                 <Input
-                  id="supplier-email"
+                  id="edit-customer-email"
                   name="email"
                   type="email"
                   autoComplete="email"
-                  placeholder="Ej. contacto@proveedor.com"
+                  defaultValue={customer.email ?? ''}
                 />
               </Field>
             </FieldGroup>
@@ -92,7 +114,7 @@ export function CreateSupplierDialog({ orgSlug, open, onClose }: CreateSupplierD
             Cancelar
           </Button>
           <Button type="submit" color="dark/zinc" disabled={pending}>
-            {pending ? 'Guardando…' : 'Crear proveedor'}
+            {pending ? 'Guardando…' : 'Guardar cambios'}
           </Button>
         </DialogActions>
       </form>

@@ -37,7 +37,7 @@ export function EditSupplierDialog({ orgSlug, supplier, open, onClose }: EditSup
     initialState
   )
 
-  useFormActionSuccess(state.ok, onClose)
+  useFormActionSuccess(state.ok, onClose, pending)
 
   if (!supplier || !boundAction) return null
 

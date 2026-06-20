@@ -5,6 +5,7 @@ import {
   ArrowsRightLeftIcon,
   BanknotesIcon,
   BuildingLibraryIcon,
+  BuildingOffice2Icon,
   BuildingStorefrontIcon,
   ComputerDesktopIcon,
   CubeIcon,
@@ -24,6 +25,7 @@ import {
   Sidebar,
   SidebarBody,
   SidebarDivider,
+  SidebarFooter,
   SidebarHeader,
   SidebarHeading,
   SidebarItem,
@@ -131,6 +133,15 @@ export function OrgDashboardShell({ orgSlug, orgName, branding, children }: OrgD
             <NavLink href={`${base}/configuracion/marca`} label="Marca y colores" icon={SwatchIcon} />
           </SidebarSection>
         </SidebarBody>
+        <SidebarFooter>
+          <SidebarSection>
+            <SidebarItem href="/orgs">
+              <BuildingOffice2Icon data-slot="icon" aria-hidden="true" />
+              <SidebarLabel>Mis organizaciones</SidebarLabel>
+            </SidebarItem>
+            <SignOutButton variant="sidebar" />
+          </SidebarSection>
+        </SidebarFooter>
       </Sidebar>
     </div>
   )

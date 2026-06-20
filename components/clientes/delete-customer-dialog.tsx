@@ -2,11 +2,11 @@
 
 import { useActionState } from 'react'
 import {
-  deleteSupplierAction,
-  type SupplierFormState,
-} from '@/lib/actions/supplier-actions'
+  deleteCustomerAction,
+  type CustomerFormState,
+} from '@/lib/actions/customer-actions'
 import { useFormActionSuccess } from '@/lib/hooks/use-form-action-success'
-import type { SupplierRow } from '@/lib/data/suppliers'
+import { getCustomerFullName, type CustomerRow } from '@/lib/data/customer-types'
 import { Button } from '@/styles/catalyst-ui-kit/button'
 import {
   Alert,
@@ -16,23 +16,23 @@ import {
 } from '@/styles/catalyst-ui-kit/alert'
 import { Text } from '@/styles/catalyst-ui-kit/text'
 
-const initialState: SupplierFormState = { error: null, ok: false }
+const initialState: CustomerFormState = { error: null, ok: false }
 
-interface DeleteSupplierDialogProps {
+interface DeleteCustomerDialogProps {
   orgSlug: string
-  supplier: SupplierRow | null
+  customer: CustomerRow | null
   open: boolean
   onClose: () => void
 }
 
-export function DeleteSupplierDialog({
+export function DeleteCustomerDialog({
   orgSlug,
-  supplier,
+  customer,
   open,
   onClose,
-}: DeleteSupplierDialogProps) {
-  const boundAction = supplier
-    ? deleteSupplierAction.bind(null, orgSlug, supplier.id)
+}: DeleteCustomerDialogProps) {
+  const boundAction = customer
+    ? deleteCustomerAction.bind(null, orgSlug, customer.id)
     : null
   const [state, formAction, pending] = useActionState(
     boundAction ?? (async () => initialState),
@@ -41,13 +41,15 @@ export function DeleteSupplierDialog({
 
   useFormActionSuccess(state.ok, onClose, pending)
 
-  if (!supplier || !boundAction) return null
+  if (!customer || !boundAction) return null
+
+  const fullName = getCustomerFullName(customer)
 
   return (
     <Alert open={open} onClose={onClose} size="md">
-      <AlertTitle>Eliminar proveedor</AlertTitle>
+      <AlertTitle>Eliminar cliente</AlertTitle>
       <AlertDescription>
-        ¿Seguro que deseas eliminar <strong>{supplier.name}</strong>? Esta acción no se puede
+        ¿Seguro que deseas eliminar a <strong>{fullName}</strong>? Esta acción no se puede
         deshacer.
       </AlertDescription>
 

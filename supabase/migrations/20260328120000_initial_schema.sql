@@ -95,17 +95,23 @@ CREATE INDEX idx_categories_org ON categories (organization_id);
 CREATE TABLE customers (
   id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id  UUID NOT NULL REFERENCES organizations (id) ON DELETE CASCADE,
-  name             TEXT NOT NULL,
+  first_name       TEXT NOT NULL,
+  last_name        TEXT NOT NULL DEFAULT '',
   email            TEXT,
   phone            TEXT,
   tax_id           TEXT,
   credit_limit     NUMERIC(18, 2),
   notes            TEXT,
+  created_by       UUID REFERENCES organization_members (id) ON DELETE SET NULL,
   created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_customers_org_name ON customers (organization_id, lower(name));
+CREATE INDEX idx_customers_org_names ON customers (
+  organization_id,
+  lower(first_name),
+  lower(last_name)
+);
 
 CREATE TABLE suppliers (
   id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -135,24 +141,33 @@ CREATE UNIQUE INDEX one_default_location_per_org
   WHERE is_default = true;
 
 CREATE TABLE products (
-  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  organization_id  UUID NOT NULL REFERENCES organizations (id) ON DELETE CASCADE,
-  category_id      UUID REFERENCES categories (id) ON DELETE SET NULL,
-  sku              TEXT NOT NULL,
-  name             TEXT NOT NULL,
-  description      TEXT,
-  barcode          TEXT,
-  sale_price       NUMERIC(18, 4) NOT NULL DEFAULT 0,
-  cost_price       NUMERIC(18, 4),
-  tax_rate         NUMERIC(7, 4),
-  is_active        BOOLEAN NOT NULL DEFAULT true,
-  created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+  id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id     UUID NOT NULL REFERENCES organizations (id) ON DELETE CASCADE,
+  category_id         UUID REFERENCES categories (id) ON DELETE SET NULL,
+  supplier_id         UUID REFERENCES suppliers (id) ON DELETE SET NULL,
+  sku                 TEXT NOT NULL,
+  name                TEXT NOT NULL,
+  description         TEXT,
+  barcode             TEXT,
+  image_url           TEXT,
+  available_quantity  NUMERIC(18, 4) NOT NULL DEFAULT 0,
+  sale_price          NUMERIC(18, 4) NOT NULL DEFAULT 0,
+  cost_price          NUMERIC(18, 4),
+  tax_rate            NUMERIC(7, 4),
+  is_active           BOOLEAN NOT NULL DEFAULT true,
+  created_by          UUID REFERENCES organization_members (id) ON DELETE SET NULL,
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (organization_id, sku)
 );
 
 CREATE INDEX idx_products_org_category ON products (organization_id, category_id);
+CREATE INDEX idx_products_org_supplier ON products (organization_id, supplier_id);
 CREATE INDEX idx_products_org_active ON products (organization_id) WHERE is_active = true;
+
+CREATE UNIQUE INDEX products_org_barcode_unique
+  ON products (organization_id, barcode)
+  WHERE barcode IS NOT NULL AND trim(barcode) <> '';
 
 CREATE TABLE product_variants (
   id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),

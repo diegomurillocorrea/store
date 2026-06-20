@@ -1,9 +1,6 @@
 import { notFound } from 'next/navigation'
 import { CategoriesPanel } from '@/components/categorias/categories-panel'
-import {
-  getCategoriesByOrganizationId,
-  seedDefaultCategories,
-} from '@/lib/data/categories'
+import { getCategoriesByOrganizationId } from '@/lib/data/categories'
 import { getOrgAccessBySlug } from '@/lib/data/organizations'
 import { Heading } from '@/styles/catalyst-ui-kit/heading'
 
@@ -18,7 +15,6 @@ export default async function CategoriasPage({ params }: CategoriasPageProps) {
     notFound()
   }
 
-  await seedDefaultCategories(access.organization.id)
   const categories = await getCategoriesByOrganizationId(access.organization.id)
 
   return (

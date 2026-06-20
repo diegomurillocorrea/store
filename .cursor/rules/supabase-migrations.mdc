@@ -1,0 +1,48 @@
+---
+description: Aplicar migraciones y consultas Supabase en el proyecto store (CLI vinculado, no MCP ni db push).
+globs: supabase/**/*
+alwaysApply: false
+---
+
+# Supabase — migraciones y SQL remoto
+
+Proyecto vinculado: `wghbzpdtywcjahjfvshe` (store).
+
+## Método obligatorio para DDL / migraciones
+
+**Siempre** aplicar cambios de esquema con la sesión CLI vinculada (`supabase login` + `supabase link`):
+
+```bash
+npm run db:apply -- supabase/migrations/YYYYMMDD_nombre.sql
+# o, justo después de crear una migración nueva:
+npm run db:apply:latest
+```
+
+Equivale a: `npx supabase db query --linked -f <archivo.sql>`
+
+## No usar (salvo que el usuario lo pida explícitamente)
+
+| Método | Motivo |
+|--------|--------|
+| `supabase db push` / `SUPABASE_DB_PASSWORD` | Falla auth directa a Postgres en este entorno |
+| MCP `apply_migration` / `execute_sql` | Sin permisos OAuth en Cursor |
+| Conexión directa `db.xxx.supabase.co:5432` | Requiere IPv6; no disponible aquí |
+
+## Consultas ad hoc (verificar esquema, datos de prueba)
+
+```bash
+npm run db:query -- "SELECT column_name FROM information_schema.columns WHERE table_name = 'customers';"
+```
+
+## Flujo al crear una feature con tabla/columnas
+
+1. Crear archivo en `supabase/migrations/` (`YYYYMMDDHHMMSS_descripcion.sql`).
+2. Usar DDL idempotente cuando sea posible (`IF NOT EXISTS`, `IF EXISTS` en bloques `DO $$`).
+3. Ejecutar `npm run db:apply:latest` (o la ruta concreta).
+4. Verificar con `npm run db:query -- "..."`.
+5. Implementar capa de datos (`lib/data/`) y server actions (`lib/actions/`).
+6. Tipos/helpers compartidos con client components en archivo aparte (sin `next/headers`), p. ej. `lib/data/*-types.ts`.
+
+## Requisito previo
+
+Si `db:apply` falla por auth de Management API: `npx supabase login` y confirmar proyecto `store` enlazado (`supabase/.temp/linked-project.json`).

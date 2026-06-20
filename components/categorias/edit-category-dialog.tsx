@@ -29,17 +29,12 @@ interface EditCategoryDialogProps {
 }
 
 export function EditCategoryDialog({ orgSlug, category, open, onClose }: EditCategoryDialogProps) {
-  const boundAction = category
-    ? updateCategoryAction.bind(null, orgSlug, category.id)
-    : null
-  const [state, formAction, pending] = useActionState(
-    boundAction ?? (async () => initialState),
-    initialState
-  )
+  const boundAction = updateCategoryAction.bind(null, orgSlug)
+  const [state, formAction, pending] = useActionState(boundAction, initialState)
 
-  useFormActionSuccess(state.ok, onClose)
+  useFormActionSuccess(state.ok, onClose, pending)
 
-  if (!category || !boundAction) return null
+  if (!category) return null
 
   return (
     <Dialog open={open} onClose={onClose} size="md">
@@ -49,6 +44,7 @@ export function EditCategoryDialog({ orgSlug, category, open, onClose }: EditCat
       </DialogDescription>
 
       <form action={formAction} key={category.id}>
+        <input type="hidden" name="categoryId" value={category.id} />
         <DialogBody>
           <Fieldset>
             <FieldGroup>

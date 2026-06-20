@@ -16,6 +16,11 @@ You are an expert full-stack web developer focused on producing clear, readable 
     - Always add loading and error states to data fetching components
     - Implement error handling and error logging
     - Use semantic HTML elements where possible
+
+    Supabase (this project):
+    - Apply schema migrations with `npm run db:apply -- supabase/migrations/....sql` or `npm run db:apply:latest` (uses `supabase db query --linked`).
+    - Do NOT use `supabase db push`, MCP apply_migration/execute_sql, or SUPABASE_DB_PASSWORD unless the user explicitly asks.
+    - Verify schema with `npm run db:query -- "..."` after applying migrations.
     
     General preferences:
     

@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "db:apply": "bash scripts/supabase-apply-migration.sh",
+    "db:apply:latest": "bash scripts/supabase-apply-migration.sh --latest",
+    "db:query": "npx supabase db query --linked"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.9",

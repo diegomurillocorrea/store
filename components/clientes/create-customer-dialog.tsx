@@ -2,9 +2,9 @@
 
 import { useActionState } from 'react'
 import {
-  createSupplierAction,
-  type SupplierFormState,
-} from '@/lib/actions/supplier-actions'
+  createCustomerAction,
+  type CustomerFormState,
+} from '@/lib/actions/customer-actions'
 import { useFormActionSuccess } from '@/lib/hooks/use-form-action-success'
 import { Button } from '@/styles/catalyst-ui-kit/button'
 import {
@@ -18,25 +18,25 @@ import { Field, FieldGroup, Fieldset, Label } from '@/styles/catalyst-ui-kit/fie
 import { Input } from '@/styles/catalyst-ui-kit/input'
 import { Text } from '@/styles/catalyst-ui-kit/text'
 
-const initialState: SupplierFormState = { error: null, ok: false }
+const initialState: CustomerFormState = { error: null, ok: false }
 
-interface CreateSupplierDialogProps {
+interface CreateCustomerDialogProps {
   orgSlug: string
   open: boolean
   onClose: () => void
 }
 
-export function CreateSupplierDialog({ orgSlug, open, onClose }: CreateSupplierDialogProps) {
-  const boundAction = createSupplierAction.bind(null, orgSlug)
+export function CreateCustomerDialog({ orgSlug, open, onClose }: CreateCustomerDialogProps) {
+  const boundAction = createCustomerAction.bind(null, orgSlug)
   const [state, formAction, pending] = useActionState(boundAction, initialState)
 
   useFormActionSuccess(state.ok, onClose, pending)
 
   return (
     <Dialog open={open} onClose={onClose} size="md">
-      <DialogTitle>Nuevo proveedor</DialogTitle>
+      <DialogTitle>Nuevo cliente</DialogTitle>
       <DialogDescription>
-        Registra un proveedor con su información de contacto.
+        Registra un cliente con su información de contacto.
       </DialogDescription>
 
       <form action={formAction}>
@@ -44,20 +44,31 @@ export function CreateSupplierDialog({ orgSlug, open, onClose }: CreateSupplierD
           <Fieldset>
             <FieldGroup>
               <Field>
-                <Label htmlFor="supplier-name">Nombre</Label>
+                <Label htmlFor="customer-first-name">Nombres</Label>
                 <Input
-                  id="supplier-name"
-                  name="name"
+                  id="customer-first-name"
+                  name="firstName"
                   required
                   minLength={2}
-                  autoComplete="organization"
-                  placeholder="Ej. Distribuidora Norte"
+                  autoComplete="given-name"
+                  placeholder="Ej. María Fernanda"
                 />
               </Field>
               <Field>
-                <Label htmlFor="supplier-phone">Teléfono</Label>
+                <Label htmlFor="customer-last-name">Apellidos</Label>
                 <Input
-                  id="supplier-phone"
+                  id="customer-last-name"
+                  name="lastName"
+                  required
+                  minLength={2}
+                  autoComplete="family-name"
+                  placeholder="Ej. García López"
+                />
+              </Field>
+              <Field>
+                <Label htmlFor="customer-phone">Teléfono</Label>
+                <Input
+                  id="customer-phone"
                   name="phone"
                   type="tel"
                   autoComplete="tel"
@@ -65,13 +76,13 @@ export function CreateSupplierDialog({ orgSlug, open, onClose }: CreateSupplierD
                 />
               </Field>
               <Field>
-                <Label htmlFor="supplier-email">Correo electrónico</Label>
+                <Label htmlFor="customer-email">Correo electrónico</Label>
                 <Input
-                  id="supplier-email"
+                  id="customer-email"
                   name="email"
                   type="email"
                   autoComplete="email"
-                  placeholder="Ej. contacto@proveedor.com"
+                  placeholder="Ej. cliente@correo.com"
                 />
               </Field>
             </FieldGroup>
@@ -92,7 +103,7 @@ export function CreateSupplierDialog({ orgSlug, open, onClose }: CreateSupplierD
             Cancelar
           </Button>
           <Button type="submit" color="dark/zinc" disabled={pending}>
-            {pending ? 'Guardando…' : 'Crear proveedor'}
+            {pending ? 'Guardando…' : 'Crear cliente'}
           </Button>
         </DialogActions>
       </form>

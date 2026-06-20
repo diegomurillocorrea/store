@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
+import { SignOutButton } from '@/components/sign-out-button'
 import { getMyOrganizations } from '@/lib/data/organizations'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { Button } from '@/styles/catalyst-ui-kit/button'
@@ -30,9 +31,12 @@ export default async function OrgsPage({ searchParams }: OrgsPageProps) {
           <Heading>Mis organizaciones</Heading>
           <Text className="mt-2">Elige un negocio o crea uno nuevo.</Text>
         </div>
-        <Button href="/orgs/nueva" color="dark/zinc">
-          Nueva organización
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <SignOutButton variant="button" />
+          <Button href="/orgs/nueva" color="dark/zinc">
+            Nueva organización
+          </Button>
+        </div>
       </div>
 
       {motivo === 'sin-acceso' ? (

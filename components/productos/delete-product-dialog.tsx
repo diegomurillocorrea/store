@@ -2,11 +2,11 @@
 
 import { useActionState } from 'react'
 import {
-  deleteSupplierAction,
-  type SupplierFormState,
-} from '@/lib/actions/supplier-actions'
+  deleteProductAction,
+  type ProductFormState,
+} from '@/lib/actions/product-actions'
+import type { ProductRow } from '@/lib/data/product-types'
 import { useFormActionSuccess } from '@/lib/hooks/use-form-action-success'
-import type { SupplierRow } from '@/lib/data/suppliers'
 import { Button } from '@/styles/catalyst-ui-kit/button'
 import {
   Alert,
@@ -16,23 +16,23 @@ import {
 } from '@/styles/catalyst-ui-kit/alert'
 import { Text } from '@/styles/catalyst-ui-kit/text'
 
-const initialState: SupplierFormState = { error: null, ok: false }
+const initialState: ProductFormState = { error: null, ok: false }
 
-interface DeleteSupplierDialogProps {
+interface DeleteProductDialogProps {
   orgSlug: string
-  supplier: SupplierRow | null
+  product: ProductRow | null
   open: boolean
   onClose: () => void
 }
 
-export function DeleteSupplierDialog({
+export function DeleteProductDialog({
   orgSlug,
-  supplier,
+  product,
   open,
   onClose,
-}: DeleteSupplierDialogProps) {
-  const boundAction = supplier
-    ? deleteSupplierAction.bind(null, orgSlug, supplier.id)
+}: DeleteProductDialogProps) {
+  const boundAction = product
+    ? deleteProductAction.bind(null, orgSlug, product.id)
     : null
   const [state, formAction, pending] = useActionState(
     boundAction ?? (async () => initialState),
@@ -41,13 +41,13 @@ export function DeleteSupplierDialog({
 
   useFormActionSuccess(state.ok, onClose, pending)
 
-  if (!supplier || !boundAction) return null
+  if (!product || !boundAction) return null
 
   return (
     <Alert open={open} onClose={onClose} size="md">
-      <AlertTitle>Eliminar proveedor</AlertTitle>
+      <AlertTitle>Eliminar producto</AlertTitle>
       <AlertDescription>
-        ¿Seguro que deseas eliminar <strong>{supplier.name}</strong>? Esta acción no se puede
+        ¿Seguro que deseas eliminar <strong>{product.name}</strong>? Esta acción no se puede
         deshacer.
       </AlertDescription>
 

@@ -3,22 +3,28 @@
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef } from 'react'
 
-/** Cierra el diálogo y refresca la ruta una sola vez tras un server action exitoso. */
-export function useFormActionSuccess(isOk: boolean, onClose: () => void) {
+/** Cierra el diálogo y refresca la ruta tras cada server action exitoso. */
+export function useFormActionSuccess(
+  isOk: boolean,
+  onClose: () => void,
+  pending: boolean
+) {
   const router = useRouter()
   const onCloseRef = useRef(onClose)
-  const handledRef = useRef(false)
+  const wasPendingRef = useRef(false)
 
   onCloseRef.current = onClose
 
   useEffect(() => {
-    if (!isOk) {
-      handledRef.current = false
+    if (pending) {
+      wasPendingRef.current = true
       return
     }
-    if (handledRef.current) return
-    handledRef.current = true
+
+    if (!wasPendingRef.current || !isOk) return
+
+    wasPendingRef.current = false
     onCloseRef.current()
     router.refresh()
-  }, [isOk, router])
+  }, [isOk, pending, router])
 }

@@ -134,12 +134,15 @@ export function CategoriesPanel({ orgSlug, categories }: CategoriesPanelProps) {
         onClose={handleCloseCreate}
       />
 
-      <EditCategoryDialog
-        orgSlug={orgSlug}
-        category={editingCategory}
-        open={editingCategory !== null}
-        onClose={handleCloseEdit}
-      />
+      {editingCategory ? (
+        <EditCategoryDialog
+          key={editingCategory.id}
+          orgSlug={orgSlug}
+          category={editingCategory}
+          open
+          onClose={handleCloseEdit}
+        />
+      ) : null}
 
       <DeleteCategoryDialog
         orgSlug={orgSlug}

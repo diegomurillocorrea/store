@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
+import { seedDefaultCategories } from '@/lib/data/categories'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 
 export interface CreateOrgState {
@@ -51,6 +52,8 @@ export async function createOrganizationAction(
   if (!orgId) {
     return { error: 'Respuesta vacía del servidor.' }
   }
+
+  await seedDefaultCategories(orgId)
 
   revalidatePath('/orgs')
   redirect(`/${slug}/dashboard`)
