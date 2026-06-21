@@ -2,10 +2,15 @@
 
 import { MagnifyingGlassIcon, PlusIcon } from '@heroicons/react/24/outline'
 import { useMemo, useState } from 'react'
-import { CreateCustomerDialog } from '@/components/clientes/create-customer-dialog'
-import { DeleteCustomerDialog } from '@/components/clientes/delete-customer-dialog'
-import { EditCustomerDialog } from '@/components/clientes/edit-customer-dialog'
-import { getCustomerFullName, type CustomerRow } from '@/lib/data/customer-types'
+import { CreateEmployeeDialog } from '@/components/empleados/create-employee-dialog'
+import { DeleteEmployeeDialog } from '@/components/empleados/delete-employee-dialog'
+import { EditEmployeeDialog } from '@/components/empleados/edit-employee-dialog'
+import {
+  EMPLOYEE_STATUS_LABELS,
+  getEmployeeFullName,
+  type EmployeeRow,
+} from '@/lib/data/employee-types'
+import type { RoleOption } from '@/lib/data/roles'
 import type { ViewActionFlags } from '@/lib/permissions/views'
 import { formatPhoneLabel, formatPhoneTelHref } from '@/lib/utils/phone'
 import { Button } from '@/styles/catalyst-ui-kit/button'
@@ -13,56 +18,82 @@ import { Input, InputGroup } from '@/styles/catalyst-ui-kit/input'
 import { Subheading } from '@/styles/catalyst-ui-kit/heading'
 import { Text } from '@/styles/catalyst-ui-kit/text'
 
-interface CustomersPanelProps {
+interface EmployeesPanelProps {
   orgSlug: string
-  customers: CustomerRow[]
+  employees: EmployeeRow[]
+  assignableRoles: RoleOption[]
+  propietarioRole: RoleOption | null
   actions: Pick<ViewActionFlags, 'canCreate' | 'canEdit' | 'canDelete'>
 }
 
-export function CustomersPanel({ orgSlug, customers, actions }: CustomersPanelProps) {
+function StatusBadge({ status }: { status: EmployeeRow['status'] }) {
+  const isActive = status === 'active'
+
+  return (
+    <span
+      className={
+        isActive
+          ? 'inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-emerald-600/20 dark:bg-emerald-950/40 dark:text-emerald-300'
+          : 'inline-flex items-center rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-600 ring-1 ring-zinc-500/20 dark:bg-zinc-800 dark:text-zinc-300'
+      }
+    >
+      {EMPLOYEE_STATUS_LABELS[status]}
+    </span>
+  )
+}
+
+export function EmployeesPanel({
+  orgSlug,
+  employees,
+  assignableRoles = [],
+  propietarioRole = null,
+  actions,
+}: EmployeesPanelProps) {
   const [query, setQuery] = useState('')
   const [isCreateOpen, setIsCreateOpen] = useState(false)
-  const [editingCustomer, setEditingCustomer] = useState<CustomerRow | null>(null)
-  const [deletingCustomer, setDeletingCustomer] = useState<CustomerRow | null>(null)
+  const [editingEmployee, setEditingEmployee] = useState<EmployeeRow | null>(null)
+  const [deletingEmployee, setDeletingEmployee] = useState<EmployeeRow | null>(null)
 
-  const filteredCustomers = useMemo(() => {
+  const filteredEmployees = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
-    if (!normalizedQuery) return customers
+    if (!normalizedQuery) return employees
 
-    return customers.filter((customer) => {
+    return employees.filter((employee) => {
       const haystack = [
-        customer.firstName,
-        customer.lastName,
-        getCustomerFullName(customer),
-        customer.phone ?? '',
-        customer.email ?? '',
+        employee.firstName,
+        employee.lastName,
+        getEmployeeFullName(employee),
+        employee.phone ?? '',
+        employee.email ?? '',
+        employee.roleName ?? '',
+        EMPLOYEE_STATUS_LABELS[employee.status],
       ]
         .join(' ')
         .toLowerCase()
 
       return haystack.includes(normalizedQuery)
     })
-  }, [customers, query])
+  }, [employees, query])
 
   const handleOpenCreate = () => setIsCreateOpen(true)
   const handleCloseCreate = () => setIsCreateOpen(false)
-  const handleCloseEdit = () => setEditingCustomer(null)
-  const handleCloseDelete = () => setDeletingCustomer(null)
+  const handleCloseEdit = () => setEditingEmployee(null)
+  const handleCloseDelete = () => setDeletingEmployee(null)
 
   return (
     <>
       <div className="sm:flex sm:items-center">
         <div className="sm:flex-auto">
-          <Subheading level={3}>Listado de clientes</Subheading>
+          <Subheading level={3}>Listado de empleados</Subheading>
           <Text className="mt-2 max-w-2xl">
-            Fichas de tus clientes. Puedes buscar, crear, editar o eliminar.
+            Personal de tu organización. Puedes buscar, crear, editar o eliminar.
           </Text>
         </div>
         <div className="mt-4 sm:mt-0 sm:ml-16 sm:flex-none">
           {actions.canCreate ? (
             <Button type="button" color="dark/zinc" onClick={handleOpenCreate}>
               <PlusIcon data-slot="icon" aria-hidden="true" />
-              Nuevo cliente
+              Nuevo empleado
             </Button>
           ) : null}
         </div>
@@ -73,23 +104,23 @@ export function CustomersPanel({ orgSlug, customers, actions }: CustomersPanelPr
           <MagnifyingGlassIcon data-slot="icon" aria-hidden="true" />
           <Input
             type="search"
-            name="customer-search"
-            placeholder="Buscar por nombre, teléfono o correo"
+            name="employee-search"
+            placeholder="Buscar por nombre, teléfono, correo o rol"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            aria-label="Buscar cliente"
+            aria-label="Buscar empleado"
           />
         </InputGroup>
       </div>
 
-      {filteredCustomers.length === 0 ? (
+      {filteredEmployees.length === 0 ? (
         <div className="glass-surface mt-8 rounded-xl p-8 text-center sm:rounded-2xl">
           <Subheading level={3}>
-            {customers.length === 0 ? 'Sin clientes' : 'Sin resultados'}
+            {employees.length === 0 ? 'Sin empleados' : 'Sin resultados'}
           </Subheading>
           <Text className="mt-2">
-            {customers.length === 0
-              ? 'Registra tu primer cliente con el botón de arriba.'
+            {employees.length === 0
+              ? 'Registra tu primer empleado con el botón de arriba.'
               : 'Prueba con otro término de búsqueda.'}
           </Text>
         </div>
@@ -123,48 +154,64 @@ export function CustomersPanel({ orgSlug, customers, actions }: CustomersPanelPr
                   >
                     Correo
                   </th>
+                  <th
+                    scope="col"
+                    className="px-3 py-3.5 text-left text-sm font-semibold text-foreground!"
+                  >
+                    Estado
+                  </th>
+                  <th
+                    scope="col"
+                    className="hidden px-3 py-3.5 text-left text-sm font-semibold text-foreground! lg:table-cell"
+                  >
+                    Rol
+                  </th>
                   <th scope="col" className="py-3.5 pr-4 pl-3 sm:pr-6">
-                    {actions.canEdit || actions.canDelete ? (
-                      <span className="sr-only">Acciones</span>
-                    ) : null}
+                    <span className="sr-only">Acciones</span>
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {filteredCustomers.map((customer) => {
-                  const fullName = getCustomerFullName(customer)
+                {filteredEmployees.map((employee) => {
+                  const fullName = getEmployeeFullName(employee)
 
                   return (
-                    <tr key={customer.id}>
+                    <tr key={employee.id}>
                       <td className="py-4 pr-3 pl-4 text-sm font-medium whitespace-nowrap text-foreground! sm:pl-6">
-                        {customer.firstName}
+                        {employee.firstName}
                       </td>
                       <td className="px-3 py-4 text-sm whitespace-nowrap text-foreground!">
-                        {customer.lastName}
+                        {employee.lastName}
                       </td>
                       <td className="px-3 py-4 text-sm whitespace-nowrap text-foreground!">
-                        {customer.phone ? (
+                        {employee.phone ? (
                           <a
-                            href={formatPhoneTelHref(customer.phone) ?? undefined}
+                            href={formatPhoneTelHref(employee.phone) ?? undefined}
                             className="text-emerald-600 hover:text-emerald-800 dark:text-emerald-400 dark:hover:text-emerald-300"
                           >
-                            {formatPhoneLabel(customer.phone)}
+                            {formatPhoneLabel(employee.phone)}
                           </a>
                         ) : (
                           '—'
                         )}
                       </td>
                       <td className="px-3 py-4 text-sm whitespace-nowrap text-foreground!">
-                        {customer.email ? (
+                        {employee.email ? (
                           <a
-                            href={`mailto:${customer.email}`}
+                            href={`mailto:${employee.email}`}
                             className="text-emerald-600 hover:text-emerald-800 dark:text-emerald-400 dark:hover:text-emerald-300"
                           >
-                            {customer.email}
+                            {employee.email}
                           </a>
                         ) : (
                           '—'
                         )}
+                      </td>
+                      <td className="px-3 py-4 text-sm whitespace-nowrap">
+                        <StatusBadge status={employee.status} />
+                      </td>
+                      <td className="hidden px-3 py-4 text-sm whitespace-nowrap text-foreground! lg:table-cell">
+                        {employee.roleName ?? '—'}
                       </td>
                       <td className="py-4 pr-4 pl-3 text-right text-sm font-medium whitespace-nowrap sm:pr-6">
                         {actions.canEdit || actions.canDelete ? (
@@ -172,7 +219,7 @@ export function CustomersPanel({ orgSlug, customers, actions }: CustomersPanelPr
                             {actions.canEdit ? (
                               <button
                                 type="button"
-                                onClick={() => setEditingCustomer(customer)}
+                                onClick={() => setEditingEmployee(employee)}
                                 className="text-emerald-600 hover:text-emerald-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 dark:text-emerald-400 dark:hover:text-emerald-300"
                               >
                                 Editar
@@ -182,7 +229,7 @@ export function CustomersPanel({ orgSlug, customers, actions }: CustomersPanelPr
                             {actions.canDelete ? (
                               <button
                                 type="button"
-                                onClick={() => setDeletingCustomer(customer)}
+                                onClick={() => setDeletingEmployee(employee)}
                                 className="text-red-600 hover:text-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50 dark:text-red-400 dark:hover:text-red-300"
                               >
                                 Eliminar
@@ -203,23 +250,26 @@ export function CustomersPanel({ orgSlug, customers, actions }: CustomersPanelPr
         </div>
       )}
 
-      <CreateCustomerDialog
+      <CreateEmployeeDialog
         orgSlug={orgSlug}
+        assignableRoles={assignableRoles}
         open={isCreateOpen}
         onClose={handleCloseCreate}
       />
 
-      <EditCustomerDialog
+      <EditEmployeeDialog
         orgSlug={orgSlug}
-        customer={editingCustomer}
-        open={editingCustomer !== null}
+        assignableRoles={assignableRoles}
+        propietarioRole={propietarioRole}
+        employee={editingEmployee}
+        open={editingEmployee !== null}
         onClose={handleCloseEdit}
       />
 
-      <DeleteCustomerDialog
+      <DeleteEmployeeDialog
         orgSlug={orgSlug}
-        customer={deletingCustomer}
-        open={deletingCustomer !== null}
+        employee={deletingEmployee}
+        open={deletingEmployee !== null}
         onClose={handleCloseDelete}
       />
     </>

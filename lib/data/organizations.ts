@@ -1,9 +1,16 @@
+import { getMemberPermissionCodes } from '@/lib/data/member-permissions'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 
 export interface OrganizationRow {
   id: string
   name: string
   slug: string
+}
+
+export interface OrgMemberAccess {
+  organization: OrganizationRow
+  memberId: string
+  permissions: Set<string>
 }
 
 export interface MembershipWithOrg {
@@ -97,4 +104,44 @@ export async function getOrgAccessBySlug(slug: string): Promise<{
   }
 
   return { organization: org as OrganizationRow }
+}
+
+export async function getOrgMemberAccess(slug: string): Promise<OrgMemberAccess | null> {
+  const supabase = await createSupabaseServerClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) {
+    return null
+  }
+
+  const { data: org, error: orgError } = await supabase
+    .from('organizations')
+    .select('id, name, slug')
+    .eq('slug', slug)
+    .maybeSingle()
+
+  if (orgError || !org) {
+    return null
+  }
+
+  const { data: member, error: memError } = await supabase
+    .from('organization_members')
+    .select('id')
+    .eq('organization_id', org.id)
+    .eq('user_id', user.id)
+    .eq('status', 'active')
+    .maybeSingle()
+
+  if (memError || !member) {
+    return null
+  }
+
+  const permissions = await getMemberPermissionCodes(member.id)
+
+  return {
+    organization: org as OrganizationRow,
+    memberId: member.id,
+    permissions,
+  }
 }

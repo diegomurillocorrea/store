@@ -34,12 +34,21 @@ import {
 } from '@/styles/catalyst-ui-kit/sidebar'
 import { SidebarLayout } from '@/styles/catalyst-ui-kit/sidebar-layout'
 import type { OrganizationBranding } from '@/lib/theme/branding'
+import { hasPermission, type PermissionViewId } from '@/lib/permissions/views'
 
 interface OrgDashboardShellProps {
   orgSlug: string
   orgName: string
   branding: OrganizationBranding
+  permissions: string[]
   children: React.ReactNode
+}
+
+interface NavItemDefinition {
+  href: string
+  label: string
+  icon: React.ComponentType<{ className?: string; 'data-slot'?: string }>
+  viewId: PermissionViewId
 }
 
 const navItemIsCurrent = (pathname: string, href: string, base: string) => {
@@ -48,24 +57,82 @@ const navItemIsCurrent = (pathname: string, href: string, base: string) => {
   return pathname.startsWith(`${href}/`)
 }
 
-export function OrgDashboardShell({ orgSlug, orgName, branding, children }: OrgDashboardShellProps) {
+export function OrgDashboardShell({
+  orgSlug,
+  orgName,
+  branding,
+  permissions,
+  children,
+}: OrgDashboardShellProps) {
   const pathname = usePathname()
   const base = `/${orgSlug}`
+  const permissionSet = new Set(permissions)
+
+  const canAccessView = (viewId: PermissionViewId) => hasPermission(permissionSet, viewId, 'view')
 
   const NavLink = ({
     href,
     label,
     icon: Icon,
-  }: {
-    href: string
-    label: string
-    icon: React.ComponentType<{ className?: string; 'data-slot'?: string }>
-  }) => (
+  }: Omit<NavItemDefinition, 'viewId'>) => (
     <SidebarItem href={href} current={navItemIsCurrent(pathname, href, base)}>
       <Icon data-slot="icon" />
       <SidebarLabel>{label}</SidebarLabel>
     </SidebarItem>
   )
+
+  const renderNavLinks = (items: NavItemDefinition[]) =>
+    items
+      .filter((item) => canAccessView(item.viewId))
+      .map((item) => (
+        <NavLink key={item.href} href={item.href} label={item.label} icon={item.icon} />
+      ))
+
+  const operationLinks: NavItemDefinition[] = [
+    { href: `${base}/pos`, label: 'Punto de venta', icon: ComputerDesktopIcon, viewId: 'pos' },
+    { href: `${base}/caja`, label: 'Caja', icon: BanknotesIcon, viewId: 'caja' },
+  ]
+
+  const catalogLinks: NavItemDefinition[] = [
+    { href: `${base}/productos`, label: 'Productos', icon: CubeIcon, viewId: 'productos' },
+    { href: `${base}/categorias`, label: 'Categorías', icon: FolderIcon, viewId: 'categorias' },
+  ]
+
+  const inventoryLinks: NavItemDefinition[] = [
+    { href: `${base}/inventario`, label: 'Existencias', icon: ArchiveBoxIcon, viewId: 'inventario' },
+    { href: `${base}/movimientos`, label: 'Movimientos', icon: ArrowsRightLeftIcon, viewId: 'movimientos' },
+  ]
+
+  const peopleLinks: NavItemDefinition[] = [
+    { href: `${base}/clientes`, label: 'Clientes', icon: UsersIcon, viewId: 'clientes' },
+    { href: `${base}/proveedores`, label: 'Proveedores', icon: BuildingStorefrontIcon, viewId: 'proveedores' },
+    { href: `${base}/empleados`, label: 'Empleados', icon: UserGroupIcon, viewId: 'empleados' },
+    { href: `${base}/roles`, label: 'Roles y permisos', icon: ShieldCheckIcon, viewId: 'roles' },
+  ]
+
+  const financeLinks: NavItemDefinition[] = [
+    {
+      href: `${base}/cuentas-por-cobrar`,
+      label: 'Cuentas por cobrar',
+      icon: CurrencyDollarIcon,
+      viewId: 'cuentas-por-cobrar',
+    },
+    {
+      href: `${base}/cuentas-por-pagar`,
+      label: 'Cuentas por pagar',
+      icon: BuildingLibraryIcon,
+      viewId: 'cuentas-por-pagar',
+    },
+  ]
+
+  const systemLinks: NavItemDefinition[] = [
+    {
+      href: `${base}/configuracion/marca`,
+      label: 'Marca y colores',
+      icon: SwatchIcon,
+      viewId: 'configuracion',
+    },
+  ]
 
   const sidebar = (
     <div className="glass-surface flex h-full flex-col pt-5 pr-2 pb-4 pl-6 lg:mr-2 lg:rounded-r-2xl">
@@ -88,50 +155,59 @@ export function OrgDashboardShell({ orgSlug, orgName, branding, children }: OrgD
           </div>
         </SidebarHeader>
         <SidebarBody>
-          <SidebarSection>
-            <NavLink href={`${base}/dashboard`} label="Inicio" icon={HomeIcon} />
-          </SidebarSection>
+          {canAccessView('dashboard') ? (
+            <SidebarSection>
+              <NavLink href={`${base}/dashboard`} label="Inicio" icon={HomeIcon} />
+            </SidebarSection>
+          ) : null}
 
-          <SidebarDivider />
+          {renderNavLinks(operationLinks).length > 0 ? (
+            <>
+              <SidebarDivider />
+              <SidebarSection>
+                <SidebarHeading>Operación</SidebarHeading>
+                {renderNavLinks(operationLinks)}
+              </SidebarSection>
+            </>
+          ) : null}
 
-          <SidebarSection>
-            <SidebarHeading>Operación</SidebarHeading>
-            <NavLink href={`${base}/pos`} label="Punto de venta" icon={ComputerDesktopIcon} />
-            <NavLink href={`${base}/caja`} label="Caja" icon={BanknotesIcon} />
-          </SidebarSection>
+          {renderNavLinks(catalogLinks).length > 0 ? (
+            <SidebarSection>
+              <SidebarHeading>Catálogo</SidebarHeading>
+              {renderNavLinks(catalogLinks)}
+            </SidebarSection>
+          ) : null}
 
-          <SidebarSection>
-            <SidebarHeading>Catálogo</SidebarHeading>
-            <NavLink href={`${base}/productos`} label="Productos" icon={CubeIcon} />
-            <NavLink href={`${base}/categorias`} label="Categorías" icon={FolderIcon} />
-          </SidebarSection>
+          {renderNavLinks(inventoryLinks).length > 0 ? (
+            <SidebarSection>
+              <SidebarHeading>Inventario</SidebarHeading>
+              {renderNavLinks(inventoryLinks)}
+            </SidebarSection>
+          ) : null}
 
-          <SidebarSection>
-            <SidebarHeading>Inventario</SidebarHeading>
-            <NavLink href={`${base}/inventario`} label="Existencias" icon={ArchiveBoxIcon} />
-            <NavLink href={`${base}/movimientos`} label="Movimientos" icon={ArrowsRightLeftIcon} />
-          </SidebarSection>
+          {renderNavLinks(peopleLinks).length > 0 ? (
+            <SidebarSection>
+              <SidebarHeading>Personas</SidebarHeading>
+              {renderNavLinks(peopleLinks)}
+            </SidebarSection>
+          ) : null}
 
-          <SidebarSection>
-            <SidebarHeading>Personas</SidebarHeading>
-            <NavLink href={`${base}/clientes`} label="Clientes" icon={UsersIcon} />
-            <NavLink href={`${base}/proveedores`} label="Proveedores" icon={BuildingStorefrontIcon} />
-            <NavLink href={`${base}/empleados`} label="Empleados" icon={UserGroupIcon} />
-            <NavLink href={`${base}/roles`} label="Roles y permisos" icon={ShieldCheckIcon} />
-          </SidebarSection>
+          {renderNavLinks(financeLinks).length > 0 ? (
+            <SidebarSection>
+              <SidebarHeading>Finanzas</SidebarHeading>
+              {renderNavLinks(financeLinks)}
+            </SidebarSection>
+          ) : null}
 
-          <SidebarSection>
-            <SidebarHeading>Finanzas</SidebarHeading>
-            <NavLink href={`${base}/cuentas-por-cobrar`} label="Cuentas por cobrar" icon={CurrencyDollarIcon} />
-            <NavLink href={`${base}/cuentas-por-pagar`} label="Cuentas por pagar" icon={BuildingLibraryIcon} />
-          </SidebarSection>
-
-          <SidebarDivider />
-
-          <SidebarSection>
-            <SidebarHeading>Sistema</SidebarHeading>
-            <NavLink href={`${base}/configuracion/marca`} label="Marca y colores" icon={SwatchIcon} />
-          </SidebarSection>
+          {renderNavLinks(systemLinks).length > 0 ? (
+            <>
+              <SidebarDivider />
+              <SidebarSection>
+                <SidebarHeading>Sistema</SidebarHeading>
+                {renderNavLinks(systemLinks)}
+              </SidebarSection>
+            </>
+          ) : null}
         </SidebarBody>
         <SidebarFooter>
           <SidebarSection>

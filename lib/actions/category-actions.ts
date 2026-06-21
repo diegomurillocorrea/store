@@ -1,10 +1,8 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import {
-  getActiveMemberIdForOrganization,
-} from '@/lib/data/categories'
-import { getOrgAccessBySlug } from '@/lib/data/organizations'
+import { getActionAccess, permissionDeniedState } from '@/lib/auth/access'
+import { getActiveMemberIdForOrganization } from '@/lib/data/categories'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 
 export interface CategoryFormState {
@@ -27,9 +25,9 @@ export async function createCategoryAction(
   _prevState: CategoryFormState,
   formData: FormData
 ): Promise<CategoryFormState> {
-  const access = await getOrgAccessBySlug(orgSlug)
+  const access = await getActionAccess(orgSlug, 'categorias', 'create')
   if (!access) {
-    return { error: 'Sin acceso a esta organización.', ok: false }
+    return permissionDeniedState()
   }
 
   const parsed = parseCategoryName(formData)
@@ -59,9 +57,9 @@ export async function updateCategoryAction(
   _prevState: CategoryFormState,
   formData: FormData
 ): Promise<CategoryFormState> {
-  const access = await getOrgAccessBySlug(orgSlug)
+  const access = await getActionAccess(orgSlug, 'categorias', 'edit')
   if (!access) {
-    return { error: 'Sin acceso a esta organización.', ok: false }
+    return permissionDeniedState()
   }
 
   const categoryId = String(formData.get('categoryId') ?? '').trim()
@@ -101,9 +99,9 @@ export async function deleteCategoryAction(
   _prevState: CategoryFormState,
   _formData: FormData
 ): Promise<CategoryFormState> {
-  const access = await getOrgAccessBySlug(orgSlug)
+  const access = await getActionAccess(orgSlug, 'categorias', 'delete')
   if (!access) {
-    return { error: 'Sin acceso a esta organización.', ok: false }
+    return permissionDeniedState()
   }
 
   const supabase = await createSupabaseServerClient()

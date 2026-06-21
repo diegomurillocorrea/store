@@ -6,6 +6,7 @@ import {
   type CustomerFormState,
 } from '@/lib/actions/customer-actions'
 import { useFormActionSuccess } from '@/lib/hooks/use-form-action-success'
+import { PhoneInput } from '@/components/phone-input'
 import { Button } from '@/styles/catalyst-ui-kit/button'
 import {
   Dialog,
@@ -65,16 +66,10 @@ export function CreateCustomerDialog({ orgSlug, open, onClose }: CreateCustomerD
                   placeholder="Ej. García López"
                 />
               </Field>
-              <Field>
-                <Label htmlFor="customer-phone">Teléfono</Label>
-                <Input
-                  id="customer-phone"
-                  name="phone"
-                  type="tel"
-                  autoComplete="tel"
-                  placeholder="Ej. 55 1234 5678"
-                />
-              </Field>
+              <PhoneInput
+                id="customer-phone"
+                resetKey={open ? 'create' : 'closed'}
+              />
               <Field>
                 <Label htmlFor="customer-email">Correo electrónico</Label>
                 <Input

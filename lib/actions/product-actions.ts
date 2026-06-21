@@ -1,8 +1,8 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { getActionAccess, permissionDeniedState } from '@/lib/auth/access'
 import { getActiveMemberIdForOrganization } from '@/lib/data/categories'
-import { getOrgAccessBySlug } from '@/lib/data/organizations'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import {
   deleteProductImageByUrl,
@@ -152,9 +152,9 @@ export async function createProductAction(
   _prevState: ProductFormState,
   formData: FormData
 ): Promise<ProductFormState> {
-  const access = await getOrgAccessBySlug(orgSlug)
+  const access = await getActionAccess(orgSlug, 'productos', 'create')
   if (!access) {
-    return { error: 'Sin acceso a esta organización.', ok: false }
+    return permissionDeniedState()
   }
 
   const parsed = parseProductForm(formData)
@@ -220,9 +220,9 @@ export async function updateProductAction(
   _prevState: ProductFormState,
   formData: FormData
 ): Promise<ProductFormState> {
-  const access = await getOrgAccessBySlug(orgSlug)
+  const access = await getActionAccess(orgSlug, 'productos', 'edit')
   if (!access) {
-    return { error: 'Sin acceso a esta organización.', ok: false }
+    return permissionDeniedState()
   }
 
   const parsed = parseProductForm(formData)
@@ -306,9 +306,9 @@ export async function deleteProductAction(
   _prevState: ProductFormState,
   _formData: FormData
 ): Promise<ProductFormState> {
-  const access = await getOrgAccessBySlug(orgSlug)
+  const access = await getActionAccess(orgSlug, 'productos', 'delete')
   if (!access) {
-    return { error: 'Sin acceso a esta organización.', ok: false }
+    return permissionDeniedState()
   }
 
   const supabase = await createSupabaseServerClient()

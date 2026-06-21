@@ -1,8 +1,8 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { getActionAccess, permissionDeniedState } from '@/lib/auth/access'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
-import { getOrgAccessBySlug } from '@/lib/data/organizations'
 import { isValidLogoUrl, normalizeHex } from '@/lib/theme/branding'
 
 export interface BrandingFormState {
@@ -15,9 +15,9 @@ export async function updateOrganizationBrandingAction(
   _prevState: BrandingFormState,
   formData: FormData
 ): Promise<BrandingFormState> {
-  const access = await getOrgAccessBySlug(orgSlug)
+  const access = await getActionAccess(orgSlug, 'configuracion', 'edit')
   if (!access) {
-    return { error: 'Sin acceso a esta organización.', ok: false }
+    return permissionDeniedState()
   }
 
   const logoRaw = String(formData.get('logo_url') ?? '').trim()

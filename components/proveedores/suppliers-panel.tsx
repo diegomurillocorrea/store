@@ -6,6 +6,8 @@ import { CreateSupplierDialog } from '@/components/proveedores/create-supplier-d
 import { DeleteSupplierDialog } from '@/components/proveedores/delete-supplier-dialog'
 import { EditSupplierDialog } from '@/components/proveedores/edit-supplier-dialog'
 import type { SupplierRow } from '@/lib/data/suppliers'
+import type { ViewActionFlags } from '@/lib/permissions/views'
+import { formatPhoneLabel, formatPhoneTelHref } from '@/lib/utils/phone'
 import { Button } from '@/styles/catalyst-ui-kit/button'
 import { Input, InputGroup } from '@/styles/catalyst-ui-kit/input'
 import { Subheading } from '@/styles/catalyst-ui-kit/heading'
@@ -14,20 +16,10 @@ import { Text } from '@/styles/catalyst-ui-kit/text'
 interface SuppliersPanelProps {
   orgSlug: string
   suppliers: SupplierRow[]
+  actions: Pick<ViewActionFlags, 'canCreate' | 'canEdit' | 'canDelete'>
 }
 
-const dateFormatter = new Intl.DateTimeFormat('es-MX', {
-  dateStyle: 'medium',
-  timeStyle: 'short',
-})
-
-function formatCreatedAt(value: string): string {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return '—'
-  return dateFormatter.format(date)
-}
-
-export function SuppliersPanel({ orgSlug, suppliers }: SuppliersPanelProps) {
+export function SuppliersPanel({ orgSlug, suppliers, actions }: SuppliersPanelProps) {
   const [query, setQuery] = useState('')
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [editingSupplier, setEditingSupplier] = useState<SupplierRow | null>(null)
@@ -42,7 +34,6 @@ export function SuppliersPanel({ orgSlug, suppliers }: SuppliersPanelProps) {
         supplier.name,
         supplier.phone ?? '',
         supplier.email ?? '',
-        supplier.createdByName ?? '',
       ]
         .join(' ')
         .toLowerCase()
@@ -66,10 +57,12 @@ export function SuppliersPanel({ orgSlug, suppliers }: SuppliersPanelProps) {
           </Text>
         </div>
         <div className="mt-4 sm:mt-0 sm:ml-16 sm:flex-none">
-          <Button type="button" color="dark/zinc" onClick={handleOpenCreate}>
-            <PlusIcon data-slot="icon" aria-hidden="true" />
-            Nuevo proveedor
-          </Button>
+          {actions.canCreate ? (
+            <Button type="button" color="dark/zinc" onClick={handleOpenCreate}>
+              <PlusIcon data-slot="icon" aria-hidden="true" />
+              Nuevo proveedor
+            </Button>
+          ) : null}
         </div>
       </div>
 
@@ -122,18 +115,6 @@ export function SuppliersPanel({ orgSlug, suppliers }: SuppliersPanelProps) {
                   >
                     Correo
                   </th>
-                  <th
-                    scope="col"
-                    className="hidden px-3 py-3.5 text-left text-sm font-semibold text-foreground! lg:table-cell"
-                  >
-                    Creado por
-                  </th>
-                  <th
-                    scope="col"
-                    className="hidden px-3 py-3.5 text-left text-sm font-semibold text-foreground! md:table-cell"
-                  >
-                    Fecha de creación
-                  </th>
                   <th scope="col" className="py-3.5 pr-4 pl-3 sm:pr-6">
                     <span className="sr-only">Acciones</span>
                   </th>
@@ -146,7 +127,16 @@ export function SuppliersPanel({ orgSlug, suppliers }: SuppliersPanelProps) {
                       {supplier.name}
                     </td>
                     <td className="px-3 py-4 text-sm whitespace-nowrap text-foreground!">
-                      {supplier.phone ?? '—'}
+                      {supplier.phone ? (
+                        <a
+                          href={formatPhoneTelHref(supplier.phone) ?? undefined}
+                          className="text-emerald-600 hover:text-emerald-800 dark:text-emerald-400 dark:hover:text-emerald-300"
+                        >
+                          {formatPhoneLabel(supplier.phone)}
+                        </a>
+                      ) : (
+                        '—'
+                      )}
                     </td>
                     <td className="px-3 py-4 text-sm whitespace-nowrap text-foreground!">
                       {supplier.email ? (
@@ -160,31 +150,33 @@ export function SuppliersPanel({ orgSlug, suppliers }: SuppliersPanelProps) {
                         '—'
                       )}
                     </td>
-                    <td className="hidden px-3 py-4 text-sm whitespace-nowrap text-foreground! lg:table-cell">
-                      {supplier.createdByName ?? '—'}
-                    </td>
-                    <td className="hidden px-3 py-4 text-sm whitespace-nowrap text-muted-foreground md:table-cell">
-                      {formatCreatedAt(supplier.createdAt)}
-                    </td>
                     <td className="py-4 pr-4 pl-3 text-right text-sm font-medium whitespace-nowrap sm:pr-6">
-                      <div className="flex items-center justify-end gap-4">
-                        <button
-                          type="button"
-                          onClick={() => setEditingSupplier(supplier)}
-                          className="text-emerald-600 hover:text-emerald-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 dark:text-emerald-400 dark:hover:text-emerald-300"
-                        >
-                          Editar
-                          <span className="sr-only">, {supplier.name}</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setDeletingSupplier(supplier)}
-                          className="text-red-600 hover:text-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50 dark:text-red-400 dark:hover:text-red-300"
-                        >
-                          Eliminar
-                          <span className="sr-only">, {supplier.name}</span>
-                        </button>
-                      </div>
+                      {actions.canEdit || actions.canDelete ? (
+                        <div className="flex items-center justify-end gap-4">
+                          {actions.canEdit ? (
+                            <button
+                              type="button"
+                              onClick={() => setEditingSupplier(supplier)}
+                              className="text-emerald-600 hover:text-emerald-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 dark:text-emerald-400 dark:hover:text-emerald-300"
+                            >
+                              Editar
+                              <span className="sr-only">, {supplier.name}</span>
+                            </button>
+                          ) : null}
+                          {actions.canDelete ? (
+                            <button
+                              type="button"
+                              onClick={() => setDeletingSupplier(supplier)}
+                              className="text-red-600 hover:text-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50 dark:text-red-400 dark:hover:text-red-300"
+                            >
+                              Eliminar
+                              <span className="sr-only">, {supplier.name}</span>
+                            </button>
+                          ) : null}
+                        </div>
+                      ) : (
+                        '—'
+                      )}
                     </td>
                   </tr>
                 ))}

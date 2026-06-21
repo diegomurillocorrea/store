@@ -1,9 +1,9 @@
-import { notFound } from 'next/navigation'
 import { ProductsPanel } from '@/components/productos/products-panel'
+import { requireViewAccess } from '@/lib/auth/access'
 import { getCategoriesByOrganizationId } from '@/lib/data/categories'
-import { getOrgAccessBySlug } from '@/lib/data/organizations'
 import { getProductsByOrganizationId } from '@/lib/data/products'
 import { getSuppliersByOrganizationId } from '@/lib/data/suppliers'
+import { getViewActionFlags } from '@/lib/permissions/views'
 import { Heading } from '@/styles/catalyst-ui-kit/heading'
 
 interface ProductosPageProps {
@@ -12,12 +12,9 @@ interface ProductosPageProps {
 
 export default async function ProductosPage({ params }: ProductosPageProps) {
   const { orgSlug } = await params
-  const access = await getOrgAccessBySlug(orgSlug)
-  if (!access) {
-    notFound()
-  }
-
+  const access = await requireViewAccess(orgSlug, 'productos')
   const organizationId = access.organization.id
+  const actions = getViewActionFlags(access.permissions, 'productos')
 
   const [products, categories, suppliers] = await Promise.all([
     getProductsByOrganizationId(organizationId),
@@ -44,6 +41,7 @@ export default async function ProductosPage({ params }: ProductosPageProps) {
         products={products}
         categories={categoryOptions}
         suppliers={supplierOptions}
+        actions={actions}
       />
     </div>
   )

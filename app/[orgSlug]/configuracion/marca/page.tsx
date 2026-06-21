@@ -1,7 +1,7 @@
-import { notFound } from 'next/navigation'
 import { BrandingForm } from '@/components/config/branding-form'
+import { requireViewAccess } from '@/lib/auth/access'
 import { getOrganizationBranding } from '@/lib/data/org-branding'
-import { getOrgAccessBySlug } from '@/lib/data/organizations'
+import { getViewActionFlags } from '@/lib/permissions/views'
 import { Heading } from '@/styles/catalyst-ui-kit/heading'
 import { Text } from '@/styles/catalyst-ui-kit/text'
 
@@ -11,12 +11,9 @@ interface MarcaPageProps {
 
 export default async function MarcaPage({ params }: MarcaPageProps) {
   const { orgSlug } = await params
-  const access = await getOrgAccessBySlug(orgSlug)
-  if (!access) {
-    notFound()
-  }
-
+  const access = await requireViewAccess(orgSlug, 'configuracion')
   const branding = await getOrganizationBranding(access.organization.id)
+  const { canEdit } = getViewActionFlags(access.permissions, 'configuracion')
 
   return (
     <div>
@@ -26,7 +23,7 @@ export default async function MarcaPage({ params }: MarcaPageProps) {
         paleta de marca. Los cambios se aplican para todos los usuarios de esta organización.
       </Text>
       <div className="mt-10">
-        <BrandingForm orgSlug={orgSlug} initial={branding} />
+        <BrandingForm orgSlug={orgSlug} initial={branding} canEdit={canEdit} />
       </div>
     </div>
   )

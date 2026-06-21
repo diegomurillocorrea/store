@@ -6,6 +6,7 @@ import { CreateCategoryDialog } from '@/components/categorias/create-category-di
 import { DeleteCategoryDialog } from '@/components/categorias/delete-category-dialog'
 import { EditCategoryDialog } from '@/components/categorias/edit-category-dialog'
 import type { CategoryRow } from '@/lib/data/categories'
+import type { ViewActionFlags } from '@/lib/permissions/views'
 import { Button } from '@/styles/catalyst-ui-kit/button'
 import { Input, InputGroup } from '@/styles/catalyst-ui-kit/input'
 import { Subheading } from '@/styles/catalyst-ui-kit/heading'
@@ -14,9 +15,10 @@ import { Text } from '@/styles/catalyst-ui-kit/text'
 interface CategoriesPanelProps {
   orgSlug: string
   categories: CategoryRow[]
+  actions: Pick<ViewActionFlags, 'canCreate' | 'canEdit' | 'canDelete'>
 }
 
-export function CategoriesPanel({ orgSlug, categories }: CategoriesPanelProps) {
+export function CategoriesPanel({ orgSlug, categories, actions }: CategoriesPanelProps) {
   const [query, setQuery] = useState('')
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [editingCategory, setEditingCategory] = useState<CategoryRow | null>(null)
@@ -45,10 +47,12 @@ export function CategoriesPanel({ orgSlug, categories }: CategoriesPanelProps) {
           </Text>
         </div>
         <div className="mt-4 sm:mt-0 sm:ml-16 sm:flex-none">
-          <Button type="button" color="dark/zinc" onClick={handleOpenCreate}>
-            <PlusIcon data-slot="icon" aria-hidden="true" />
-            Nueva categoría
-          </Button>
+          {actions.canCreate ? (
+            <Button type="button" color="dark/zinc" onClick={handleOpenCreate}>
+              <PlusIcon data-slot="icon" aria-hidden="true" />
+              Nueva categoría
+            </Button>
+          ) : null}
         </div>
       </div>
 
@@ -101,24 +105,32 @@ export function CategoriesPanel({ orgSlug, categories }: CategoriesPanelProps) {
                       {category.name}
                     </td>
                     <td className="py-4 pr-4 pl-3 text-right text-sm font-medium whitespace-nowrap sm:pr-6">
-                      <div className="flex items-center justify-end gap-4">
-                        <button
-                          type="button"
-                          onClick={() => setEditingCategory(category)}
-                          className="text-emerald-600 hover:text-emerald-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 dark:text-emerald-400 dark:hover:text-emerald-300"
-                        >
-                          Editar
-                          <span className="sr-only">, {category.name}</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setDeletingCategory(category)}
-                          className="text-red-600 hover:text-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50 dark:text-red-400 dark:hover:text-red-300"
-                        >
-                          Eliminar
-                          <span className="sr-only">, {category.name}</span>
-                        </button>
-                      </div>
+                      {actions.canEdit || actions.canDelete ? (
+                        <div className="flex items-center justify-end gap-4">
+                          {actions.canEdit ? (
+                            <button
+                              type="button"
+                              onClick={() => setEditingCategory(category)}
+                              className="text-emerald-600 hover:text-emerald-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 dark:text-emerald-400 dark:hover:text-emerald-300"
+                            >
+                              Editar
+                              <span className="sr-only">, {category.name}</span>
+                            </button>
+                          ) : null}
+                          {actions.canDelete ? (
+                            <button
+                              type="button"
+                              onClick={() => setDeletingCategory(category)}
+                              className="text-red-600 hover:text-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50 dark:text-red-400 dark:hover:text-red-300"
+                            >
+                              Eliminar
+                              <span className="sr-only">, {category.name}</span>
+                            </button>
+                          ) : null}
+                        </div>
+                      ) : (
+                        '—'
+                      )}
                     </td>
                   </tr>
                 ))}

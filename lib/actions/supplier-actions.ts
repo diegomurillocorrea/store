@@ -1,9 +1,10 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { getActionAccess, permissionDeniedState } from '@/lib/auth/access'
 import { getActiveMemberIdForOrganization } from '@/lib/data/categories'
-import { getOrgAccessBySlug } from '@/lib/data/organizations'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
+import { parsePhoneFormValue } from '@/lib/utils/phone'
 
 export interface SupplierFormState {
   error: string | null
@@ -25,14 +26,18 @@ function parseSupplierForm(formData: FormData): { error: string } | ParsedSuppli
     return { error: 'El nombre es obligatorio (mín. 2 caracteres).' }
   }
 
-  const phone = phoneRaw.length > 0 ? phoneRaw : null
+  const parsedPhone = parsePhoneFormValue(phoneRaw)
+  if ('error' in parsedPhone) {
+    return { error: parsedPhone.error }
+  }
+
   const email = emailRaw.length > 0 ? emailRaw : null
 
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return { error: 'El correo electrónico no es válido.' }
   }
 
-  return { name, phone, email }
+  return { name, phone: parsedPhone.phone, email }
 }
 
 export async function createSupplierAction(
@@ -40,9 +45,9 @@ export async function createSupplierAction(
   _prevState: SupplierFormState,
   formData: FormData
 ): Promise<SupplierFormState> {
-  const access = await getOrgAccessBySlug(orgSlug)
+  const access = await getActionAccess(orgSlug, 'proveedores', 'create')
   if (!access) {
-    return { error: 'Sin acceso a esta organización.', ok: false }
+    return permissionDeniedState()
   }
 
   const parsed = parseSupplierForm(formData)
@@ -82,9 +87,9 @@ export async function updateSupplierAction(
   _prevState: SupplierFormState,
   formData: FormData
 ): Promise<SupplierFormState> {
-  const access = await getOrgAccessBySlug(orgSlug)
+  const access = await getActionAccess(orgSlug, 'proveedores', 'edit')
   if (!access) {
-    return { error: 'Sin acceso a esta organización.', ok: false }
+    return permissionDeniedState()
   }
 
   const parsed = parseSupplierForm(formData)
@@ -118,9 +123,9 @@ export async function deleteSupplierAction(
   _prevState: SupplierFormState,
   _formData: FormData
 ): Promise<SupplierFormState> {
-  const access = await getOrgAccessBySlug(orgSlug)
+  const access = await getActionAccess(orgSlug, 'proveedores', 'delete')
   if (!access) {
-    return { error: 'Sin acceso a esta organización.', ok: false }
+    return permissionDeniedState()
   }
 
   const supabase = await createSupabaseServerClient()

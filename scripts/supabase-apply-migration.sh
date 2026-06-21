@@ -15,6 +15,8 @@ apply_file() {
   local file="$1"
   echo "Applying migration: $(basename "$file")"
   npx supabase db query --linked -f "$file"
+  echo "Reloading PostgREST schema cache…"
+  npx supabase db query --linked "NOTIFY pgrst, 'reload schema';"
 }
 
 if [ "${1:-}" = "--latest" ]; then

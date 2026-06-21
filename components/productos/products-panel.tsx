@@ -6,6 +6,7 @@ import { CreateProductDialog } from '@/components/productos/create-product-dialo
 import { DeleteProductDialog } from '@/components/productos/delete-product-dialog'
 import { EditProductDialog } from '@/components/productos/edit-product-dialog'
 import type { ProductOption, ProductRow } from '@/lib/data/product-types'
+import type { ViewActionFlags } from '@/lib/permissions/views'
 import { Button } from '@/styles/catalyst-ui-kit/button'
 import { Input, InputGroup } from '@/styles/catalyst-ui-kit/input'
 import { Subheading } from '@/styles/catalyst-ui-kit/heading'
@@ -17,6 +18,7 @@ interface ProductsPanelProps {
   products: ProductRow[]
   categories: ProductOption[]
   suppliers: ProductOption[]
+  actions: Pick<ViewActionFlags, 'canCreate' | 'canEdit' | 'canDelete'>
 }
 
 const currencyFormatter = new Intl.NumberFormat('en-US', {
@@ -80,6 +82,7 @@ export function ProductsPanel({
   products,
   categories,
   suppliers,
+  actions,
 }: ProductsPanelProps) {
   const [query, setQuery] = useState('')
   const [isCreateOpen, setIsCreateOpen] = useState(false)
@@ -121,10 +124,12 @@ export function ProductsPanel({
           </Text>
         </div>
         <div className="mt-4 sm:mt-0 sm:ml-16 sm:flex-none">
-          <Button type="button" color="dark/zinc" onClick={handleOpenCreate}>
-            <PlusIcon data-slot="icon" aria-hidden="true" />
-            Nuevo producto
-          </Button>
+          {actions.canCreate ? (
+            <Button type="button" color="dark/zinc" onClick={handleOpenCreate}>
+              <PlusIcon data-slot="icon" aria-hidden="true" />
+              Nuevo producto
+            </Button>
+          ) : null}
         </div>
       </div>
 
@@ -256,24 +261,32 @@ export function ProductsPanel({
                       {formatProfitPercent(profitPercent)}
                     </td>
                     <td className="py-4 pr-4 pl-3 text-right text-sm font-medium whitespace-nowrap sm:pr-6">
-                      <div className="flex items-center justify-end gap-4">
-                        <button
-                          type="button"
-                          onClick={() => setEditingProduct(product)}
-                          className="text-emerald-600 hover:text-emerald-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 dark:text-emerald-400 dark:hover:text-emerald-300"
-                        >
-                          Editar
-                          <span className="sr-only">, {product.name}</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setDeletingProduct(product)}
-                          className="text-red-600 hover:text-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50 dark:text-red-400 dark:hover:text-red-300"
-                        >
-                          Eliminar
-                          <span className="sr-only">, {product.name}</span>
-                        </button>
-                      </div>
+                      {actions.canEdit || actions.canDelete ? (
+                        <div className="flex items-center justify-end gap-4">
+                          {actions.canEdit ? (
+                            <button
+                              type="button"
+                              onClick={() => setEditingProduct(product)}
+                              className="text-emerald-600 hover:text-emerald-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 dark:text-emerald-400 dark:hover:text-emerald-300"
+                            >
+                              Editar
+                              <span className="sr-only">, {product.name}</span>
+                            </button>
+                          ) : null}
+                          {actions.canDelete ? (
+                            <button
+                              type="button"
+                              onClick={() => setDeletingProduct(product)}
+                              className="text-red-600 hover:text-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50 dark:text-red-400 dark:hover:text-red-300"
+                            >
+                              Eliminar
+                              <span className="sr-only">, {product.name}</span>
+                            </button>
+                          ) : null}
+                        </div>
+                      ) : (
+                        '—'
+                      )}
                     </td>
                   </tr>
                   )

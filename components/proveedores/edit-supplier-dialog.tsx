@@ -6,6 +6,7 @@ import {
   type SupplierFormState,
 } from '@/lib/actions/supplier-actions'
 import { useFormActionSuccess } from '@/lib/hooks/use-form-action-success'
+import { PhoneInput } from '@/components/phone-input'
 import type { SupplierRow } from '@/lib/data/suppliers'
 import { Button } from '@/styles/catalyst-ui-kit/button'
 import {
@@ -63,16 +64,11 @@ export function EditSupplierDialog({ orgSlug, supplier, open, onClose }: EditSup
                   defaultValue={supplier.name}
                 />
               </Field>
-              <Field>
-                <Label htmlFor="edit-supplier-phone">Teléfono</Label>
-                <Input
-                  id="edit-supplier-phone"
-                  name="phone"
-                  type="tel"
-                  autoComplete="tel"
-                  defaultValue={supplier.phone ?? ''}
-                />
-              </Field>
+              <PhoneInput
+                id="edit-supplier-phone"
+                defaultValue={supplier.phone}
+                resetKey={supplier.id}
+              />
               <Field>
                 <Label htmlFor="edit-supplier-email">Correo electrónico</Label>
                 <Input

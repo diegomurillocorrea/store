@@ -1,3 +1,4 @@
+import { requireViewAccess } from '@/lib/auth/access'
 import { Heading, Subheading } from '@/styles/catalyst-ui-kit/heading'
 import { Strong, Text } from '@/styles/catalyst-ui-kit/text'
 
@@ -7,6 +8,7 @@ interface DashboardPageProps {
 
 export default async function DashboardPage({ params }: DashboardPageProps) {
   const { orgSlug } = await params
+  await requireViewAccess(orgSlug, 'dashboard')
 
   return (
     <div className="space-y-6">

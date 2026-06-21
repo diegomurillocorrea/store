@@ -18,6 +18,7 @@ const initialState: BrandingFormState = { error: null, ok: false }
 interface BrandingFormProps {
   orgSlug: string
   initial: OrganizationBranding
+  canEdit?: boolean
 }
 
 function ColorField({
@@ -63,7 +64,7 @@ function ColorField({
   )
 }
 
-export function BrandingForm({ orgSlug, initial }: BrandingFormProps) {
+export function BrandingForm({ orgSlug, initial, canEdit = true }: BrandingFormProps) {
   const router = useRouter()
   const boundAction = updateOrganizationBrandingAction.bind(null, orgSlug)
   const [state, formAction, pending] = useActionState(boundAction, initialState)
@@ -297,7 +298,7 @@ export function BrandingForm({ orgSlug, initial }: BrandingFormProps) {
         </Text>
       ) : null}
 
-      <Button type="submit" color="dark/zinc" disabled={pending}>
+      <Button type="submit" color="dark/zinc" disabled={pending || !canEdit}>
         {pending ? 'Guardando…' : 'Guardar marca'}
       </Button>
     </form>

@@ -18,7 +18,15 @@ npm run db:apply -- supabase/migrations/YYYYMMDD_nombre.sql
 npm run db:apply:latest
 ```
 
-Equivale a: `npx supabase db query --linked -f <archivo.sql>`
+Equivale a: `npx supabase db query --linked -f <archivo.sql>` seguido de `NOTIFY pgrst, 'reload schema'` (el script `db:apply` ya lo hace).
+
+Tras crear tablas/columnas nuevas, PostgREST puede devolver `PGRST205` (“table not in schema cache”) hasta recargar. Si ocurre:
+
+```bash
+npm run db:query -- "NOTIFY pgrst, 'reload schema';"
+```
+
+Incluir `NOTIFY pgrst, 'reload schema';` al final de migraciones con DDL nuevo.
 
 ## No usar (salvo que el usuario lo pida explícitamente)
 

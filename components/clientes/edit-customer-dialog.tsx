@@ -6,6 +6,7 @@ import {
   type CustomerFormState,
 } from '@/lib/actions/customer-actions'
 import { useFormActionSuccess } from '@/lib/hooks/use-form-action-success'
+import { PhoneInput } from '@/components/phone-input'
 import { getCustomerFullName, type CustomerRow } from '@/lib/data/customer-types'
 import { Button } from '@/styles/catalyst-ui-kit/button'
 import {
@@ -76,16 +77,11 @@ export function EditCustomerDialog({ orgSlug, customer, open, onClose }: EditCus
                   defaultValue={customer.lastName}
                 />
               </Field>
-              <Field>
-                <Label htmlFor="edit-customer-phone">Teléfono</Label>
-                <Input
-                  id="edit-customer-phone"
-                  name="phone"
-                  type="tel"
-                  autoComplete="tel"
-                  defaultValue={customer.phone ?? ''}
-                />
-              </Field>
+              <PhoneInput
+                id="edit-customer-phone"
+                defaultValue={customer.phone}
+                resetKey={customer.id}
+              />
               <Field>
                 <Label htmlFor="edit-customer-email">Correo electrónico</Label>
                 <Input

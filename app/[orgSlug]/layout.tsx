@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { OrgBrandRoot } from '@/components/org-brand-root'
 import { OrgDashboardShell } from '@/components/org-dashboard-shell'
 import { getOrganizationBranding } from '@/lib/data/org-branding'
-import { getOrgAccessBySlug } from '@/lib/data/organizations'
+import { getOrgMemberAccess } from '@/lib/data/organizations'
 
 interface OrgLayoutProps {
   children: React.ReactNode
@@ -11,7 +11,7 @@ interface OrgLayoutProps {
 
 export default async function OrgLayout({ children, params }: OrgLayoutProps) {
   const { orgSlug } = await params
-  const access = await getOrgAccessBySlug(orgSlug)
+  const access = await getOrgMemberAccess(orgSlug)
 
   if (!access) {
     redirect('/orgs?motivo=sin-acceso')
@@ -25,6 +25,7 @@ export default async function OrgLayout({ children, params }: OrgLayoutProps) {
         orgSlug={orgSlug}
         orgName={access.organization.name}
         branding={branding}
+        permissions={[...access.permissions]}
       >
         {children}
       </OrgDashboardShell>

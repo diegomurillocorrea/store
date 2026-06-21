@@ -6,6 +6,7 @@ import {
   type SupplierFormState,
 } from '@/lib/actions/supplier-actions'
 import { useFormActionSuccess } from '@/lib/hooks/use-form-action-success'
+import { PhoneInput } from '@/components/phone-input'
 import { Button } from '@/styles/catalyst-ui-kit/button'
 import {
   Dialog,
@@ -54,16 +55,10 @@ export function CreateSupplierDialog({ orgSlug, open, onClose }: CreateSupplierD
                   placeholder="Ej. Distribuidora Norte"
                 />
               </Field>
-              <Field>
-                <Label htmlFor="supplier-phone">Teléfono</Label>
-                <Input
-                  id="supplier-phone"
-                  name="phone"
-                  type="tel"
-                  autoComplete="tel"
-                  placeholder="Ej. 55 1234 5678"
-                />
-              </Field>
+              <PhoneInput
+                id="supplier-phone"
+                resetKey={open ? 'create' : 'closed'}
+              />
               <Field>
                 <Label htmlFor="supplier-email">Correo electrónico</Label>
                 <Input
