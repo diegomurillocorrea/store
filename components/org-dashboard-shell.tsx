@@ -66,6 +66,7 @@ export function OrgDashboardShell({
 }: OrgDashboardShellProps) {
   const pathname = usePathname()
   const base = `/${orgSlug}`
+  const isPosRoute = pathname === `${base}/pos`
   const permissionSet = new Set(permissions)
 
   const canAccessView = (viewId: PermissionViewId) => hasPermission(permissionSet, viewId, 'view')
@@ -242,7 +243,13 @@ export function OrgDashboardShell({
   )
 
   return (
-    <SidebarLayout navbar={navbar} panelWallpaperUrl={branding.panelWallpaperUrl} sidebar={sidebar}>
+    <SidebarLayout
+      navbar={navbar}
+      panelWallpaperUrl={branding.panelWallpaperUrl}
+      sidebar={sidebar}
+      contentWidth={isPosRoute ? 'full' : 'constrained'}
+      contentPadding={isPosRoute ? 'none' : 'default'}
+    >
       {children}
     </SidebarLayout>
   )

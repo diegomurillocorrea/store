@@ -50,11 +50,15 @@ export function SidebarLayout({
   sidebar,
   children,
   panelWallpaperUrl,
+  contentWidth = 'constrained',
+  contentPadding = 'default',
 }: React.PropsWithChildren<{
   navbar: React.ReactNode
   sidebar: React.ReactNode
   /** Imagen de fondo del área de contenido (estilo WhatsApp) */
   panelWallpaperUrl?: string | null
+  contentWidth?: 'constrained' | 'full'
+  contentPadding?: 'default' | 'none'
 }>) {
   let [showSidebar, setShowSidebar] = useState(false)
 
@@ -63,6 +67,8 @@ export function SidebarLayout({
       ? getProxiedLogoSrc(panelWallpaperUrl.trim())
       : null
   const panelGlassClass = wallpaperSrc ? 'glass-surface-wallpaper' : 'glass-surface'
+  const contentWidthClass = contentWidth === 'full' ? 'max-w-none' : 'max-w-6xl'
+  const contentPaddingClass = contentPadding === 'none' ? 'p-0' : 'p-6 lg:p-10'
 
   return (
     <div className="glass-shell relative isolate flex min-h-svh w-full max-lg:flex-col">
@@ -95,9 +101,9 @@ export function SidebarLayout({
             />
           ) : null}
           <div
-            className={`relative z-10 flex min-h-0 flex-1 flex-col rounded-2xl p-6 lg:p-10 ${panelGlassClass}`}
+            className={`relative z-10 flex min-h-0 flex-1 flex-col rounded-2xl ${contentPaddingClass} ${panelGlassClass}`}
           >
-            <div className="mx-auto min-h-0 w-full max-w-6xl flex-1">{children}</div>
+            <div className={`mx-auto min-h-0 w-full flex-1 ${contentWidthClass}`}>{children}</div>
           </div>
         </div>
       </main>

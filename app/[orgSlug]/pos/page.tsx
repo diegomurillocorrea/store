@@ -1,5 +1,6 @@
-import { ModulePlaceholder } from '@/components/module-placeholder'
+import { PosPanel } from '@/components/pos/pos-panel'
 import { requireViewAccess } from '@/lib/auth/access'
+import { getProductsByOrganizationId } from '@/lib/data/products'
 
 interface PosPageProps {
   params: Promise<{ orgSlug: string }>
@@ -7,7 +8,8 @@ interface PosPageProps {
 
 export default async function PosPage({ params }: PosPageProps) {
   const { orgSlug } = await params
-  await requireViewAccess(orgSlug, 'pos')
+  const access = await requireViewAccess(orgSlug, 'pos')
+  const products = await getProductsByOrganizationId(access.organization.id)
 
-  return <ModulePlaceholder title="Punto de venta" description="Carrito, cobros y tickets. Próximamente." />
+  return <PosPanel products={products} />
 }

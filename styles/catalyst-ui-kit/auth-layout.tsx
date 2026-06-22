@@ -1,11 +1,13 @@
 import type React from 'react'
+import { AuthHeroPanel } from '@/components/auth/auth-hero-panel'
 
 export function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
-    <main className="glass-shell flex min-h-dvh flex-col p-3 sm:p-4">
-      <div className="glass-surface flex flex-1 flex-col items-center justify-center rounded-2xl p-6 sm:rounded-3xl lg:p-10">
-        {children}
+    <div className="flex min-h-dvh bg-white dark:bg-zinc-950">
+      <div className="flex flex-1 flex-col justify-center px-4 py-12 sm:px-6 lg:flex-none lg:px-20 xl:px-24">
+        <div className="mx-auto w-full max-w-sm lg:w-96">{children}</div>
       </div>
-    </main>
+      <AuthHeroPanel />
+    </div>
   )
 }
