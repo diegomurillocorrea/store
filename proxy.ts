@@ -2,6 +2,8 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { getSupabaseAnonKey, getSupabaseUrl } from '@/lib/supabase/env'
 
+import { PATHNAME_HEADER } from '@/lib/request-pathname'
+
 const RESERVED_FIRST_SEGMENTS = new Set(['login', 'register', 'orgs', 'auth', 'api'])
 
 function isTenantPath(pathname: string): boolean {
@@ -12,9 +14,19 @@ function isTenantPath(pathname: string): boolean {
   return true
 }
 
+function createRequestHeaders(request: NextRequest) {
+  const requestHeaders = new Headers(request.headers)
+  requestHeaders.set(PATHNAME_HEADER, request.nextUrl.pathname)
+  return requestHeaders
+}
+
 export async function proxy(request: NextRequest) {
+  const requestHeaders = createRequestHeaders(request)
+
   let supabaseResponse = NextResponse.next({
-    request,
+    request: {
+      headers: requestHeaders,
+    },
   })
 
   const supabase = createServerClient(getSupabaseUrl(), getSupabaseAnonKey(), {
@@ -27,7 +39,9 @@ export async function proxy(request: NextRequest) {
           request.cookies.set(name, value)
         })
         supabaseResponse = NextResponse.next({
-          request,
+          request: {
+            headers: requestHeaders,
+          },
         })
         cookiesToSet.forEach(({ name, value, options }) => {
           supabaseResponse.cookies.set(name, value, options)

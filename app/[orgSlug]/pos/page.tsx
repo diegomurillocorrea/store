@@ -11,5 +11,5 @@ export default async function PosPage({ params }: PosPageProps) {
   const access = await requireViewAccess(orgSlug, 'pos')
   const products = await getProductsByOrganizationId(access.organization.id)
 
-  return <PosPanel products={products} />
+  return <PosPanel orgSlug={orgSlug} products={products} />
 }

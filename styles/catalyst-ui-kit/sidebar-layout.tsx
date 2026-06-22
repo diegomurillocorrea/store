@@ -1,66 +1,42 @@
 'use client'
 
-import * as Headless from '@headlessui/react'
-import React, { useState } from 'react'
+import {
+  Dialog,
+  DialogBackdrop,
+  DialogPanel,
+  TransitionChild,
+} from '@headlessui/react'
+import { Bars3Icon, XMarkIcon } from '@heroicons/react/24/outline'
+import clsx from 'clsx'
+import { useState } from 'react'
 import { getProxiedLogoSrc } from '@/lib/theme/branding'
-import { NavbarItem } from './navbar'
 
-function OpenMenuIcon() {
-  return (
-    <svg data-slot="icon" viewBox="0 0 20 20" aria-hidden="true">
-      <path d="M2 6.75C2 6.33579 2.33579 6 2.75 6H17.25C17.6642 6 18 6.33579 18 6.75C18 7.16421 17.6642 7.5 17.25 7.5H2.75C2.33579 7.5 2 7.16421 2 6.75ZM2 13.25C2 12.8358 2.33579 12.5 2.75 12.5H17.25C17.6642 12.5 18 12.8358 18 13.25C18 13.6642 17.6642 14 17.25 14H2.75C2.33579 14 2 13.6642 2 13.25Z" />
-    </svg>
-  )
-}
+export const LAYOUT_SECONDARY_ASIDE_ID = 'layout-secondary-aside'
 
-function CloseMenuIcon() {
-  return (
-    <svg data-slot="icon" viewBox="0 0 20 20" aria-hidden="true">
-      <path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" />
-    </svg>
-  )
-}
-
-function MobileSidebar({ open, close, children }: React.PropsWithChildren<{ open: boolean; close: () => void }>) {
-  return (
-    <Headless.Dialog open={open} onClose={close} className="lg:hidden">
-      <Headless.DialogBackdrop
-        transition
-        className="fixed inset-0 bg-black/25 backdrop-blur-sm transition data-closed:opacity-0 data-enter:duration-300 data-enter:ease-out data-leave:duration-200 data-leave:ease-in dark:bg-black/45"
-      />
-      <Headless.DialogPanel
-        transition
-        className="fixed inset-y-0 w-full max-w-80 p-2 transition duration-300 ease-in-out data-closed:-translate-x-full"
-      >
-        <div className="glass-surface flex h-full flex-col rounded-2xl">
-          <div className="-mb-3 px-4 pt-3">
-            <Headless.CloseButton as={NavbarItem} aria-label="Close navigation">
-              <CloseMenuIcon />
-            </Headless.CloseButton>
-          </div>
-          {children}
-        </div>
-      </Headless.DialogPanel>
-    </Headless.Dialog>
-  )
+export interface SidebarLayoutProps {
+  sidebar: React.ReactNode
+  mobileTitle: string
+  mobileActions?: React.ReactNode
+  /** Imagen de fondo del área de contenido (configuración de marca) */
+  panelWallpaperUrl?: string | null
+  /** Reserva espacio y monta columna derecha fija (xl+) */
+  reserveSecondaryColumn?: boolean
+  contentWidth?: 'constrained' | 'full'
+  contentPadding?: 'default' | 'none'
+  children: React.ReactNode
 }
 
 export function SidebarLayout({
-  navbar,
   sidebar,
-  children,
+  mobileTitle,
+  mobileActions,
   panelWallpaperUrl,
+  reserveSecondaryColumn = false,
   contentWidth = 'constrained',
   contentPadding = 'default',
-}: React.PropsWithChildren<{
-  navbar: React.ReactNode
-  sidebar: React.ReactNode
-  /** Imagen de fondo del área de contenido (estilo WhatsApp) */
-  panelWallpaperUrl?: string | null
-  contentWidth?: 'constrained' | 'full'
-  contentPadding?: 'default' | 'none'
-}>) {
-  let [showSidebar, setShowSidebar] = useState(false)
+  children,
+}: SidebarLayoutProps) {
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   const wallpaperSrc =
     panelWallpaperUrl && panelWallpaperUrl.trim().length > 0
@@ -68,45 +44,106 @@ export function SidebarLayout({
       : null
   const panelGlassClass = wallpaperSrc ? 'glass-surface-wallpaper' : 'glass-surface'
   const contentWidthClass = contentWidth === 'full' ? 'max-w-none' : 'max-w-6xl'
-  const contentPaddingClass = contentPadding === 'none' ? 'p-0' : 'p-6 lg:p-10'
+  const innerContentPaddingClass =
+    contentPadding === 'none' ? 'p-0' : 'p-6 lg:p-10'
 
   return (
-    <div className="glass-shell relative isolate flex min-h-svh w-full max-lg:flex-col">
-      {/* Sidebar on desktop */}
-      <div className="fixed inset-y-0 left-0 w-64 max-lg:hidden">{sidebar}</div>
+    <>
+      <div className="glass-shell relative isolate min-h-svh w-full">
+        <Dialog
+          open={sidebarOpen}
+          onClose={setSidebarOpen}
+          className="relative z-50 lg:hidden"
+        >
+          <DialogBackdrop
+            transition
+            className="fixed inset-0 bg-zinc-900/80 backdrop-blur-sm transition-opacity duration-300 ease-linear data-closed:opacity-0 dark:bg-black/70"
+          />
 
-      {/* Sidebar on mobile */}
-      <MobileSidebar open={showSidebar} close={() => setShowSidebar(false)}>
-        {sidebar}
-      </MobileSidebar>
+          <div className="fixed inset-0 flex">
+            <DialogPanel
+              transition
+              className="relative mr-16 flex w-full max-w-xs flex-1 transform transition duration-300 ease-in-out data-closed:-translate-x-full"
+            >
+              <TransitionChild>
+                <div className="absolute top-0 left-full flex w-16 justify-center pt-5 duration-300 ease-in-out data-closed:opacity-0">
+                  <button
+                    type="button"
+                    onClick={() => setSidebarOpen(false)}
+                    className="-m-2.5 p-2.5"
+                  >
+                    <span className="sr-only">Cerrar menú</span>
+                    <XMarkIcon aria-hidden="true" className="size-6 text-white" />
+                  </button>
+                </div>
+              </TransitionChild>
 
-      {/* Navbar on mobile */}
-      <header className="glass-shell sticky top-0 z-30 flex items-center border-b border-white/15 px-4 backdrop-blur-xl dark:border-white/10 lg:hidden">
-        <div className="py-2.5">
-          <NavbarItem onClick={() => setShowSidebar(true)} aria-label="Open navigation">
-            <OpenMenuIcon />
-          </NavbarItem>
-        </div>
-        <div className="min-w-0 flex-1">{navbar}</div>
-      </header>
-
-      {/* Content */}
-      <main className="flex flex-1 flex-col pb-2 lg:min-w-0 lg:pt-2 lg:pr-2 lg:pl-64">
-        <div className="relative mx-2 mb-3 flex min-h-0 grow flex-col overflow-hidden rounded-2xl sm:mx-3 lg:mx-0 lg:mb-0 lg:rounded-2xl">
-          {wallpaperSrc ? (
-            <div
-              aria-hidden
-              className="pointer-events-none absolute inset-0 z-0 bg-cover bg-center bg-no-repeat [transform:scale(1.08)]"
-              style={{ backgroundImage: `url(${JSON.stringify(wallpaperSrc)})` }}
-            />
-          ) : null}
-          <div
-            className={`relative z-10 flex min-h-0 flex-1 flex-col rounded-2xl ${contentPaddingClass} ${panelGlassClass}`}
-          >
-            <div className={`mx-auto min-h-0 w-full flex-1 ${contentWidthClass}`}>{children}</div>
+              <div className="glass-surface flex grow flex-col overflow-y-auto rounded-2xl p-2">
+                {sidebar}
+              </div>
+            </DialogPanel>
           </div>
+        </Dialog>
+
+        <div className="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-72 lg:flex-col lg:py-2 lg:pl-2">
+          {sidebar}
         </div>
-      </main>
-    </div>
+
+        <div className="glass-shell sticky top-0 z-40 flex items-center gap-x-6 border-b border-white/15 px-4 py-4 backdrop-blur-xl sm:px-6 lg:hidden dark:border-white/10">
+          <button
+            type="button"
+            onClick={() => setSidebarOpen(true)}
+            className="relative -m-2.5 p-2.5 text-zinc-700 dark:text-zinc-300"
+          >
+            <span className="sr-only">Abrir menú</span>
+            <Bars3Icon aria-hidden="true" className="size-6" />
+          </button>
+          <div className="relative min-w-0 flex-1 truncate text-sm/6 font-semibold text-zinc-900 dark:text-zinc-100">
+            {mobileTitle}
+          </div>
+          {mobileActions ? <div className="relative shrink-0">{mobileActions}</div> : null}
+        </div>
+
+        <main className="flex flex-1 flex-col pb-2 lg:min-w-0 lg:pt-2 lg:pr-2 lg:pl-72">
+          <div
+            className={clsx(
+              'relative mx-2 mb-3 flex min-h-0 grow flex-col overflow-hidden rounded-2xl sm:mx-3 lg:mx-0 lg:mb-0',
+              reserveSecondaryColumn && 'xl:mr-2'
+            )}
+          >
+            <div className={clsx(reserveSecondaryColumn && 'xl:pr-96')}>
+              <div className="relative flex min-h-[calc(100dvh-4.5rem)] flex-col overflow-hidden rounded-2xl lg:min-h-[calc(100dvh-1rem)]">
+                {wallpaperSrc ? (
+                  <div
+                    aria-hidden
+                    className="pointer-events-none absolute inset-0 z-0 bg-cover bg-center bg-no-repeat [transform:scale(1.08)]"
+                    style={{ backgroundImage: `url(${JSON.stringify(wallpaperSrc)})` }}
+                  />
+                ) : null}
+                <div
+                  className={clsx(
+                    'relative z-10 flex min-h-0 flex-1 flex-col rounded-2xl',
+                    innerContentPaddingClass,
+                    panelGlassClass
+                  )}
+                >
+                  <div className={clsx('mx-auto min-h-0 w-full flex-1', contentWidthClass)}>
+                    {children}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </main>
+      </div>
+
+      {reserveSecondaryColumn ? (
+        <aside
+          id={LAYOUT_SECONDARY_ASIDE_ID}
+          aria-label="Panel lateral"
+          className="glass-surface fixed inset-y-0 right-0 z-40 hidden w-96 overflow-y-auto border-l border-white/15 xl:block dark:border-white/10"
+        />
+      ) : null}
+    </>
   )
 }

@@ -10,6 +10,8 @@ import {
 } from '@heroicons/react/24/outline'
 import clsx from 'clsx'
 import { useCallback, useMemo, useState } from 'react'
+import { useLayoutSecondaryAside } from '@/components/pos/pos-secondary-column'
+import { usePersistedPosCart } from '@/lib/hooks/use-persisted-pos-cart'
 import type { ProductRow } from '@/lib/data/product-types'
 import {
   getCartItemCount,
@@ -24,6 +26,7 @@ import { Input, InputGroup } from '@/styles/catalyst-ui-kit/input'
 import { Text } from '@/styles/catalyst-ui-kit/text'
 
 interface PosPanelProps {
+  orgSlug: string
   products: ProductRow[]
 }
 
@@ -42,6 +45,10 @@ function formatCurrency(value: number): string {
 
 function formatQuantity(value: number): string {
   return quantityFormatter.format(value)
+}
+
+function isActionDisabled(condition: boolean): boolean | undefined {
+  return condition ? true : undefined
 }
 
 function filterProducts(products: ProductRow[], query: string): ProductRow[] {
@@ -82,8 +89,16 @@ function ProductCard({
   const atMaxStock = selectedQuantity >= product.availableQuantity
   const lineTotal = selectedQuantity * product.salePrice
 
+  const isDecrementDisabled = selectedQuantity === 0
+  const isIncrementDisabled = isOutOfStock || cannotAddMore
+
+  const handleDecrement = () => {
+    if (isDecrementDisabled) return
+    onDecrement(product.id)
+  }
+
   const handleIncrement = () => {
-    if (isOutOfStock || cannotAddMore) return
+    if (isIncrementDisabled || atMaxStock) return
     if (selectedQuantity === 0) {
       onAdd(product)
       return
@@ -102,10 +117,16 @@ function ProductCard({
     >
       <button
         type="button"
-        onClick={() => onAdd(product)}
-        disabled={isOutOfStock || cannotAddMore}
+        onClick={() => {
+          if (isIncrementDisabled) return
+          onAdd(product)
+        }}
+        aria-disabled={isActionDisabled(isIncrementDisabled)}
         aria-label={`Agregar ${product.name} al carrito`}
-        className="group relative block w-full overflow-hidden text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 focus-visible:ring-inset disabled:cursor-not-allowed"
+        className={clsx(
+          'group relative block w-full overflow-hidden text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 focus-visible:ring-inset',
+          isIncrementDisabled && 'cursor-not-allowed'
+        )}
       >
         <div className="relative aspect-5/4 w-full bg-zinc-100 dark:bg-zinc-800/60">
           {product.imageUrl ? (
@@ -113,7 +134,7 @@ function ProductCard({
             <img
               src={product.imageUrl}
               alt=""
-              className="size-full object-cover transition duration-300 group-hover:scale-[1.03] group-disabled:scale-100"
+              className="size-full object-cover transition duration-300 group-hover:scale-[1.03] group-aria-disabled:scale-100"
             />
           ) : (
             <div
@@ -171,9 +192,12 @@ function ProductCard({
         >
           <button
             type="button"
-            onClick={() => onDecrement(product.id)}
-            disabled={selectedQuantity === 0}
-            className="flex size-9 shrink-0 items-center justify-center rounded-lg text-zinc-600 transition hover:bg-white hover:text-zinc-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 disabled:cursor-not-allowed disabled:opacity-30 dark:text-zinc-300 dark:hover:bg-zinc-700 dark:hover:text-white"
+            onClick={handleDecrement}
+            aria-disabled={isActionDisabled(isDecrementDisabled)}
+            className={clsx(
+              'flex size-9 shrink-0 items-center justify-center rounded-lg text-zinc-600 transition hover:bg-white hover:text-zinc-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 dark:text-zinc-300 dark:hover:bg-zinc-700 dark:hover:text-white',
+              isDecrementDisabled && 'cursor-not-allowed opacity-30'
+            )}
             aria-label={`Reducir cantidad de ${product.name}`}
           >
             <MinusIcon className="size-4" strokeWidth={2.5} aria-hidden="true" />
@@ -203,12 +227,14 @@ function ProductCard({
           <button
             type="button"
             onClick={handleIncrement}
-            disabled={isOutOfStock || cannotAddMore}
+            aria-disabled={isActionDisabled(isIncrementDisabled || atMaxStock)}
             className={clsx(
-              'flex size-9 shrink-0 items-center justify-center rounded-lg transition focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 disabled:cursor-not-allowed disabled:opacity-30',
-              isInCart
-                ? 'bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-600'
-                : 'bg-white text-emerald-700 shadow-sm hover:bg-emerald-600 hover:text-white dark:bg-zinc-700 dark:text-emerald-300 dark:hover:bg-emerald-600 dark:hover:text-white'
+              'flex size-9 shrink-0 items-center justify-center rounded-lg transition focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50',
+              isIncrementDisabled || atMaxStock
+                ? 'cursor-not-allowed opacity-30'
+                : isInCart
+                  ? 'bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-600'
+                  : 'bg-white text-emerald-700 shadow-sm hover:bg-emerald-600 hover:text-white dark:bg-zinc-700 dark:text-emerald-300 dark:hover:bg-emerald-600 dark:hover:text-white'
             )}
             aria-label={`Aumentar cantidad de ${product.name}`}
           >
@@ -282,9 +308,15 @@ function CartLineRow({
             </span>
             <button
               type="button"
-              onClick={() => onIncrement(line.productId)}
-              disabled={atMaxStock}
-              className="rounded-r-lg p-1.5 text-zinc-500 hover:bg-zinc-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:bg-zinc-800"
+              onClick={() => {
+                if (atMaxStock) return
+                onIncrement(line.productId)
+              }}
+              aria-disabled={isActionDisabled(atMaxStock)}
+              className={clsx(
+                'rounded-r-lg p-1.5 text-zinc-500 hover:bg-zinc-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 dark:hover:bg-zinc-800',
+                atMaxStock && 'cursor-not-allowed opacity-40'
+              )}
               aria-label={`Aumentar cantidad de ${line.name}`}
             >
               <PlusIcon className="size-4" aria-hidden="true" />
@@ -321,7 +353,7 @@ function PosCartSidebar({
   className = '',
 }: PosCartSidebarProps) {
   return (
-    <aside className={className}>
+    <div className={className}>
       <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-4 sm:px-6 lg:px-8 dark:border-zinc-800">
         <div className="flex items-center gap-2">
           <ShoppingCartIcon
@@ -378,13 +410,13 @@ function PosCartSidebar({
           </div>
         </>
       )}
-    </aside>
+    </div>
   )
 }
 
-export function PosPanel({ products }: PosPanelProps) {
+export function PosPanel({ orgSlug, products }: PosPanelProps) {
   const [query, setQuery] = useState('')
-  const [cartLines, setCartLines] = useState<PosCartLine[]>([])
+  const [cartLines, setCartLines] = usePersistedPosCart(orgSlug, products)
 
   const filteredProducts = useMemo(
     () => filterProducts(products, query),
@@ -466,11 +498,22 @@ export function PosPanel({ products }: PosPanelProps) {
     onClear: clearCart,
   }
 
+  const desktopCart = useMemo(
+    () => (
+      <PosCartSidebar
+        {...cartProps}
+        className="flex h-full min-h-0 flex-col"
+      />
+    ),
+    [cartLines, itemCount, subtotal, incrementLine, decrementLine, removeLine, clearCart]
+  )
+
+  const secondaryAsidePortal = useLayoutSecondaryAside(desktopCart)
+
   return (
-    <div className="relative min-h-0 flex-1">
-      {/* Centro: productos con espacio reservado para el carrito fijo en xl+ */}
-      <div className="xl:pr-96">
-        <div className="flex min-h-[calc(100svh-5rem)] flex-col px-4 py-6 sm:px-6 lg:px-8 lg:py-6">
+    <>
+      {secondaryAsidePortal}
+      <div className="flex min-h-[calc(100svh-5rem)] flex-col px-4 py-6 sm:px-6 lg:px-8 lg:py-6">
           <div className="shrink-0">
             <Heading>Punto de venta</Heading>
             <Text className="mt-2 max-w-2xl">
@@ -529,14 +572,7 @@ export function PosPanel({ products }: PosPanelProps) {
             {...cartProps}
             className="mt-8 flex flex-col rounded-xl border border-zinc-200 bg-white xl:hidden dark:border-zinc-800 dark:bg-zinc-900"
           />
-        </div>
       </div>
-
-      {/* Carrito fijo a la derecha (patrón Tailwind UI) */}
-      <PosCartSidebar
-        {...cartProps}
-        className="fixed inset-y-0 right-0 z-40 hidden w-96 flex-col overflow-y-auto border-l border-zinc-200 bg-white xl:flex dark:border-zinc-800 dark:bg-zinc-950"
-      />
-    </div>
+    </>
   )
 }
