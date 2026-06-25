@@ -5,6 +5,7 @@ export interface OrganizationRow {
   id: string
   name: string
   slug: string
+  timezone: string
 }
 
 export interface OrgMemberAccess {
@@ -83,7 +84,7 @@ export async function getOrgAccessBySlug(slug: string): Promise<{
 
   const { data: org, error: orgError } = await supabase
     .from('organizations')
-    .select('id, name, slug')
+    .select('id, name, slug, timezone')
     .eq('slug', slug)
     .maybeSingle()
 
@@ -117,7 +118,7 @@ export async function getOrgMemberAccess(slug: string): Promise<OrgMemberAccess 
 
   const { data: org, error: orgError } = await supabase
     .from('organizations')
-    .select('id, name, slug')
+    .select('id, name, slug, timezone')
     .eq('slug', slug)
     .maybeSingle()
 

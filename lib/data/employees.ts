@@ -77,3 +77,24 @@ export async function getEmployeesByOrganizationId(
 
   return (data ?? []).map((row) => mapEmployeeRow(row as unknown as RawEmployeeRow))
 }
+
+export async function getEmployeeFullNameByMemberId(
+  organizationId: string,
+  memberId: string | null | undefined
+): Promise<string | null> {
+  if (!memberId?.trim()) return null
+
+  const supabase = await createSupabaseServerClient()
+  const { data, error } = await supabase.rpc('member_employee_full_name', {
+    p_organization_id: organizationId,
+    p_member_id: memberId,
+  })
+
+  if (error) {
+    console.error('getEmployeeFullNameByMemberId', error)
+    return null
+  }
+
+  const name = typeof data === 'string' ? data.trim() : ''
+  return name.length > 0 ? name : null
+}

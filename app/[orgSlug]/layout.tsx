@@ -17,7 +17,7 @@ export default async function OrgLayout({ children, params }: OrgLayoutProps) {
   const access = await getOrgMemberAccess(orgSlug)
 
   if (!access) {
-    redirect('/orgs?motivo=sin-acceso')
+    redirect('/sucursales?motivo=sin-acceso')
   }
 
   const branding = await getOrganizationBranding(access.organization.id)

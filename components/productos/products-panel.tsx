@@ -1,12 +1,14 @@
 'use client'
 
 import { MagnifyingGlassIcon, PlusIcon } from '@heroicons/react/24/outline'
+import { useRouter } from 'next/navigation'
 import { useMemo, useState } from 'react'
 import { CreateProductDialog } from '@/components/productos/create-product-dialog'
-import { DeleteProductDialog } from '@/components/productos/delete-product-dialog'
-import { EditProductDialog } from '@/components/productos/edit-product-dialog'
+import { OptimizedImage } from '@/components/optimized-image'
+import { ProductInlineFields } from '@/components/productos/product-inline-fields'
 import type { ProductOption, ProductRow } from '@/lib/data/product-types'
 import type { ViewActionFlags } from '@/lib/permissions/views'
+import { IMAGE_SIZES } from '@/lib/utils/image-src'
 import { Button } from '@/styles/catalyst-ui-kit/button'
 import { Input, InputGroup } from '@/styles/catalyst-ui-kit/input'
 import { Subheading } from '@/styles/catalyst-ui-kit/heading'
@@ -26,23 +28,10 @@ const currencyFormatter = new Intl.NumberFormat('en-US', {
   currency: 'USD',
 })
 
-const quantityFormatter = new Intl.NumberFormat('es-MX', {
-  maximumFractionDigits: 2,
-})
-
 const percentFormatter = new Intl.NumberFormat('es-MX', {
   minimumFractionDigits: 0,
   maximumFractionDigits: 1,
 })
-
-function formatCurrency(value: number | null): string {
-  if (value == null) return '—'
-  return currencyFormatter.format(value)
-}
-
-function formatQuantity(value: number): string {
-  return quantityFormatter.format(value)
-}
 
 function getProductProfit(
   salePrice: number,
@@ -58,6 +47,11 @@ function getProductProfitPercent(
 ): number | null {
   if (costPrice == null || salePrice <= 0) return null
   return ((salePrice - costPrice) / salePrice) * 100
+}
+
+function formatCurrency(value: number | null): string {
+  if (value == null) return '—'
+  return currencyFormatter.format(value)
 }
 
 function formatProfitPercent(value: number | null): string {
@@ -84,10 +78,9 @@ export function ProductsPanel({
   suppliers,
   actions,
 }: ProductsPanelProps) {
+  const router = useRouter()
   const [query, setQuery] = useState('')
   const [isCreateOpen, setIsCreateOpen] = useState(false)
-  const [editingProduct, setEditingProduct] = useState<ProductRow | null>(null)
-  const [deletingProduct, setDeletingProduct] = useState<ProductRow | null>(null)
 
   const filteredProducts = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
@@ -111,8 +104,17 @@ export function ProductsPanel({
 
   const handleOpenCreate = () => setIsCreateOpen(true)
   const handleCloseCreate = () => setIsCreateOpen(false)
-  const handleCloseEdit = () => setEditingProduct(null)
-  const handleCloseDelete = () => setDeletingProduct(null)
+
+  const handleRowClick = (productId: string) => {
+    router.push(`/${orgSlug}/productos/${productId}`)
+  }
+
+  const handleRowKeyDown = (event: React.KeyboardEvent<HTMLTableRowElement>, productId: string) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      handleRowClick(productId)
+    }
+  }
 
   return (
     <>
@@ -166,48 +168,45 @@ export function ProductsPanel({
                 <tr>
                   <th
                     scope="col"
-                    className="py-3.5 pr-3 pl-4 text-left text-sm font-semibold text-foreground! sm:pl-6"
+                    className="px-3 py-3.5 text-center text-sm font-semibold text-foreground!"
                   >
                     Imagen
                   </th>
                   <th
                     scope="col"
-                    className="px-3 py-3.5 text-left text-sm font-semibold text-foreground!"
+                    className="px-3 py-3.5 text-center text-sm font-semibold text-foreground!"
                   >
                     Nombre
                   </th>
                   <th
                     scope="col"
-                    className="px-3 py-3.5 text-left text-sm font-semibold text-foreground!"
+                    className="px-3 py-3.5 text-center text-sm font-semibold text-foreground!"
                   >
                     Precio
                   </th>
                   <th
                     scope="col"
-                    className="px-3 py-3.5 text-left text-sm font-semibold text-foreground!"
+                    className="px-3 py-3.5 text-center text-sm font-semibold text-foreground!"
                   >
                     Costo
                   </th>
                   <th
                     scope="col"
-                    className="px-3 py-3.5 text-left text-sm font-semibold text-foreground!"
+                    className="px-3 py-3.5 text-center text-sm font-semibold text-foreground!"
                   >
                     Stock
                   </th>
                   <th
                     scope="col"
-                    className="px-3 py-3.5 text-left text-sm font-semibold text-foreground!"
+                    className="px-3 py-3.5 text-center text-sm font-semibold text-foreground!"
                   >
                     Ganancia
                   </th>
                   <th
                     scope="col"
-                    className="px-3 py-3.5 text-left text-sm font-semibold text-foreground!"
+                    className="px-3 py-3.5 text-center text-sm font-semibold text-foreground!"
                   >
                     % Margen
-                  </th>
-                  <th scope="col" className="py-3.5 pr-4 pl-3 sm:pr-6">
-                    <span className="sr-only">Acciones</span>
                   </th>
                 </tr>
               </thead>
@@ -220,75 +219,55 @@ export function ProductsPanel({
                   )
 
                   return (
-                  <tr key={product.id}>
-                    <td className="py-4 pr-3 pl-4 sm:pl-6">
-                      {product.imageUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={product.imageUrl}
-                          alt=""
-                          className="size-12 rounded-lg border border-border object-cover"
-                        />
-                      ) : (
-                        <div
-                          aria-hidden="true"
-                          className="flex size-12 items-center justify-center rounded-lg border border-dashed border-border bg-muted/40 text-xs text-muted-foreground"
-                        >
-                          —
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-3 py-4 text-sm font-medium whitespace-nowrap text-foreground!">
-                      {product.name}
-                    </td>
-                    <td className="px-3 py-4 text-sm whitespace-nowrap text-foreground!">
-                      {formatCurrency(product.salePrice)}
-                    </td>
-                    <td className="px-3 py-4 text-sm whitespace-nowrap text-foreground!">
-                      {formatCurrency(product.costPrice)}
-                    </td>
-                    <td className="px-3 py-4 text-sm whitespace-nowrap text-foreground!">
-                      {formatQuantity(product.availableQuantity)}
-                    </td>
-                    <td
-                      className={`px-3 py-4 text-sm whitespace-nowrap ${profitToneClass(profit)}`}
+                    <tr
+                      key={product.id}
+                      tabIndex={0}
+                      role="link"
+                      aria-label={`Ver detalle de ${product.name}`}
+                      onClick={() => handleRowClick(product.id)}
+                      onKeyDown={(event) => handleRowKeyDown(event, product.id)}
+                      className="cursor-pointer transition hover:bg-muted/40 focus-visible:bg-muted/40 focus-visible:outline-none"
                     >
-                      {formatCurrency(profit)}
-                    </td>
-                    <td
-                      className={`px-3 py-4 text-sm whitespace-nowrap ${profitToneClass(profitPercent)}`}
-                    >
-                      {formatProfitPercent(profitPercent)}
-                    </td>
-                    <td className="py-4 pr-4 pl-3 text-right text-sm font-medium whitespace-nowrap sm:pr-6">
-                      {actions.canEdit || actions.canDelete ? (
-                        <div className="flex items-center justify-end gap-4">
-                          {actions.canEdit ? (
-                            <button
-                              type="button"
-                              onClick={() => setEditingProduct(product)}
-                              className="text-emerald-600 hover:text-emerald-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 dark:text-emerald-400 dark:hover:text-emerald-300"
+                      <td className="px-3 py-4 text-center">
+                        <div className="flex justify-center">
+                          {product.imageUrl ? (
+                            <OptimizedImage
+                              src={product.imageUrl}
+                              alt=""
+                              width={48}
+                              height={48}
+                              sizes={IMAGE_SIZES.thumbnail}
+                              className="size-12 rounded-lg border border-border"
+                            />
+                          ) : (
+                            <div
+                              aria-hidden="true"
+                              className="flex size-12 items-center justify-center rounded-lg border border-dashed border-border bg-muted/40 text-xs text-muted-foreground"
                             >
-                              Editar
-                              <span className="sr-only">, {product.name}</span>
-                            </button>
-                          ) : null}
-                          {actions.canDelete ? (
-                            <button
-                              type="button"
-                              onClick={() => setDeletingProduct(product)}
-                              className="text-red-600 hover:text-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50 dark:text-red-400 dark:hover:text-red-300"
-                            >
-                              Eliminar
-                              <span className="sr-only">, {product.name}</span>
-                            </button>
-                          ) : null}
+                              —
+                            </div>
+                          )}
                         </div>
-                      ) : (
-                        '—'
-                      )}
-                    </td>
-                  </tr>
+                      </td>
+                      <td className="px-3 py-4 text-center text-sm font-medium whitespace-nowrap text-foreground!">
+                        {product.name}
+                      </td>
+                      <ProductInlineFields
+                        orgSlug={orgSlug}
+                        product={product}
+                        canEdit={actions.canEdit}
+                      />
+                      <td
+                        className={`px-3 py-4 text-center text-sm whitespace-nowrap ${profitToneClass(profit)}`}
+                      >
+                        {formatCurrency(profit)}
+                      </td>
+                      <td
+                        className={`px-3 py-4 text-center text-sm whitespace-nowrap ${profitToneClass(profitPercent)}`}
+                      >
+                        {formatProfitPercent(profitPercent)}
+                      </td>
+                    </tr>
                   )
                 })}
               </tbody>
@@ -304,23 +283,6 @@ export function ProductsPanel({
         suppliers={suppliers}
         open={isCreateOpen}
         onClose={handleCloseCreate}
-      />
-
-      <EditProductDialog
-        orgSlug={orgSlug}
-        organizationId={organizationId}
-        product={editingProduct}
-        categories={categories}
-        suppliers={suppliers}
-        open={editingProduct !== null}
-        onClose={handleCloseEdit}
-      />
-
-      <DeleteProductDialog
-        orgSlug={orgSlug}
-        product={deletingProduct}
-        open={deletingProduct !== null}
-        onClose={handleCloseDelete}
       />
     </>
   )

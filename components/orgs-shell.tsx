@@ -36,13 +36,13 @@ export function OrgsShell({ userEmail, children }: OrgsShellProps) {
 
       <SidebarBody className="flex-1 px-0">
         <SidebarSection>
-          <SidebarItem href="/orgs" current>
+          <SidebarItem href="/sucursales" current>
             <BuildingOffice2Icon data-slot="icon" aria-hidden="true" />
-            <SidebarLabel>Mis organizaciones</SidebarLabel>
+            <SidebarLabel>Mis sucursales</SidebarLabel>
           </SidebarItem>
-          <SidebarItem href="/orgs/nueva">
+          <SidebarItem href="/sucursales/nueva">
             <PlusIcon data-slot="icon" aria-hidden="true" />
-            <SidebarLabel>Nueva organización</SidebarLabel>
+            <SidebarLabel>Nueva sucursal</SidebarLabel>
           </SidebarItem>
         </SidebarSection>
       </SidebarBody>
@@ -62,7 +62,7 @@ export function OrgsShell({ userEmail, children }: OrgsShellProps) {
   return (
     <SidebarLayout
       sidebar={sidebar}
-      mobileTitle="Mis organizaciones"
+      mobileTitle="Mis sucursales"
       mobileActions={<SidebarUserProfile email={userEmail} compact />}
     >
       {children}

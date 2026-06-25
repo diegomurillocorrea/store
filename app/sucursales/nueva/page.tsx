@@ -17,8 +17,8 @@ export default async function NuevaOrgPage() {
     <AuthLayout>
       <div className="grid w-full max-w-lg grid-cols-1 gap-6">
         <CreateOrgForm />
-        <TextLink href="/orgs" className="text-sm">
-          ← Volver a mis organizaciones
+        <TextLink href="/sucursales" className="text-sm">
+          ← Volver a mis sucursales
         </TextLink>
       </div>
     </AuthLayout>

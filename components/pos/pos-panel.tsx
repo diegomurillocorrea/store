@@ -9,9 +9,13 @@ import {
   TrashIcon,
 } from '@heroicons/react/24/outline'
 import clsx from 'clsx'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useLayoutSecondaryAside } from '@/components/pos/pos-secondary-column'
+import { PosCheckoutPanel } from '@/components/pos/pos-checkout-panel'
+import { OptimizedImage } from '@/components/optimized-image'
+import type { CustomerRow } from '@/lib/data/customer-types'
 import { usePersistedPosCart } from '@/lib/hooks/use-persisted-pos-cart'
+import { usePosLayout, POS_CART_TRANSITION_MS } from '@/lib/pos/pos-layout-context'
 import type { ProductRow } from '@/lib/data/product-types'
 import {
   getCartItemCount,
@@ -20,6 +24,7 @@ import {
   productToCartLine,
   type PosCartLine,
 } from '@/lib/pos/cart-types'
+import { IMAGE_SIZES } from '@/lib/utils/image-src'
 import { Button } from '@/styles/catalyst-ui-kit/button'
 import { Heading, Subheading } from '@/styles/catalyst-ui-kit/heading'
 import { Input, InputGroup } from '@/styles/catalyst-ui-kit/input'
@@ -28,6 +33,7 @@ import { Text } from '@/styles/catalyst-ui-kit/text'
 interface PosPanelProps {
   orgSlug: string
   products: ProductRow[]
+  customers: CustomerRow[]
 }
 
 const currencyFormatter = new Intl.NumberFormat('en-US', {
@@ -130,11 +136,12 @@ function ProductCard({
       >
         <div className="relative aspect-5/4 w-full bg-zinc-100 dark:bg-zinc-800/60">
           {product.imageUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
+            <OptimizedImage
               src={product.imageUrl}
-              alt=""
-              className="size-full object-cover transition duration-300 group-hover:scale-[1.03] group-aria-disabled:scale-100"
+              alt={product.name}
+              fill
+              sizes={IMAGE_SIZES.productCard}
+              className="transition duration-300 group-hover:scale-[1.03] group-aria-disabled:scale-100"
             />
           ) : (
             <div
@@ -263,11 +270,13 @@ function CartLineRow({
     <li className="flex gap-3 border-b border-zinc-200 py-3 last:border-b-0 dark:border-zinc-800">
       <div className="shrink-0">
         {line.imageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+          <OptimizedImage
             src={line.imageUrl}
-            alt=""
-            className="size-12 rounded-lg border border-zinc-200 object-cover dark:border-zinc-700"
+            alt={line.name}
+            width={48}
+            height={48}
+            sizes={IMAGE_SIZES.thumbnail}
+            className="size-12 rounded-lg border border-zinc-200 dark:border-zinc-700"
           />
         ) : (
           <div
@@ -335,10 +344,13 @@ interface PosCartSidebarProps {
   cartLines: PosCartLine[]
   itemCount: number
   subtotal: number
+  orgSlug: string
+  customers: CustomerRow[]
   onIncrement: (productId: string) => void
   onDecrement: (productId: string) => void
   onRemove: (productId: string) => void
   onClear: () => void
+  onSaleComplete: () => void
   className?: string
 }
 
@@ -346,12 +358,38 @@ function PosCartSidebar({
   cartLines,
   itemCount,
   subtotal,
+  orgSlug,
+  customers,
   onIncrement,
   onDecrement,
   onRemove,
   onClear,
+  onSaleComplete,
   className = '',
 }: PosCartSidebarProps) {
+  const [step, setStep] = useState<'cart' | 'checkout'>('cart')
+
+  useEffect(() => {
+    if (cartLines.length === 0) {
+      setStep('cart')
+    }
+  }, [cartLines.length])
+
+  if (step === 'checkout' && cartLines.length > 0) {
+    return (
+      <PosCheckoutPanel
+        orgSlug={orgSlug}
+        cartLines={cartLines}
+        subtotal={subtotal}
+        customers={customers}
+        onBack={() => setStep('cart')}
+        onSaleComplete={onSaleComplete}
+        formatCurrency={formatCurrency}
+        className={className}
+      />
+    )
+  }
+
   return (
     <div className={className}>
       <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-4 sm:px-6 lg:px-8 dark:border-zinc-800">
@@ -377,6 +415,12 @@ function PosCartSidebar({
         </div>
       ) : (
         <>
+          <div className="border-b border-zinc-200 px-4 py-3 sm:px-6 lg:px-8 dark:border-zinc-800">
+            <Button type="button" color="light" onClick={onClear} className="w-full">
+              Vaciar
+            </Button>
+          </div>
+
           <ul className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8">
             {cartLines.map((line) => (
               <CartLineRow
@@ -396,17 +440,14 @@ function PosCartSidebar({
                 {formatCurrency(subtotal)}
               </span>
             </div>
-            <div className="mt-4 flex flex-col gap-2">
-              <Button type="button" color="light" onClick={onClear} className="w-full">
-                Vaciar
-              </Button>
-              <Button type="button" color="dark/zinc" disabled className="w-full">
-                Cobrar
-              </Button>
-            </div>
-            <Text className="mt-2 text-center text-xs text-zinc-500 dark:text-zinc-400">
-              El cobro y ticket llegarán en una siguiente etapa.
-            </Text>
+            <Button
+              type="button"
+              color="dark/zinc"
+              className="mt-4 w-full"
+              onClick={() => setStep('checkout')}
+            >
+              Continuar
+            </Button>
           </div>
         </>
       )}
@@ -414,9 +455,12 @@ function PosCartSidebar({
   )
 }
 
-export function PosPanel({ orgSlug, products }: PosPanelProps) {
+export function PosPanel({ orgSlug, products, customers }: PosPanelProps) {
   const [query, setQuery] = useState('')
   const [cartLines, setCartLines] = usePersistedPosCart(orgSlug, products)
+  const posLayout = usePosLayout()
+  const mobileCartRef = useRef<HTMLDivElement>(null)
+  const previousItemCountRef = useRef(0)
 
   const filteredProducts = useMemo(
     () => filterProducts(products, query),
@@ -425,6 +469,32 @@ export function PosPanel({ orgSlug, products }: PosPanelProps) {
 
   const subtotal = useMemo(() => getCartSubtotal(cartLines), [cartLines])
   const itemCount = useMemo(() => getCartItemCount(cartLines), [cartLines])
+  const cartColumnVisible = posLayout?.cartColumnVisible ?? false
+
+  useLayoutEffect(() => {
+    if (!posLayout) return
+    posLayout.setCartItemCount(itemCount)
+    if (itemCount > 0) {
+      posLayout.setCartColumnVisible(true)
+    }
+  }, [itemCount, posLayout])
+
+  useEffect(() => {
+    if (!posLayout || itemCount > 0) return undefined
+
+    const timer = window.setTimeout(() => {
+      posLayout.setCartColumnVisible(false)
+    }, POS_CART_TRANSITION_MS)
+
+    return () => window.clearTimeout(timer)
+  }, [itemCount, posLayout])
+
+  useEffect(() => {
+    if (itemCount > previousItemCountRef.current && itemCount > 0) {
+      mobileCartRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    }
+    previousItemCountRef.current = itemCount
+  }, [itemCount])
 
   const cartQuantityByProductId = useMemo(() => {
     const quantities = new Map<string, number>()
@@ -488,14 +558,21 @@ export function PosPanel({ orgSlug, products }: PosPanelProps) {
     setCartLines([])
   }, [])
 
+  const handleSaleComplete = useCallback(() => {
+    setCartLines([])
+  }, [])
+
   const cartProps = {
     cartLines,
     itemCount,
     subtotal,
+    orgSlug,
+    customers,
     onIncrement: incrementLine,
     onDecrement: decrementLine,
     onRemove: removeLine,
     onClear: clearCart,
+    onSaleComplete: handleSaleComplete,
   }
 
   const desktopCart = useMemo(
@@ -505,15 +582,15 @@ export function PosPanel({ orgSlug, products }: PosPanelProps) {
         className="flex h-full min-h-0 flex-col"
       />
     ),
-    [cartLines, itemCount, subtotal, incrementLine, decrementLine, removeLine, clearCart]
+    [cartLines, itemCount, subtotal, orgSlug, customers, incrementLine, decrementLine, removeLine, clearCart, handleSaleComplete]
   )
 
-  const secondaryAsidePortal = useLayoutSecondaryAside(desktopCart)
+  const secondaryAsidePortal = useLayoutSecondaryAside(desktopCart, cartColumnVisible)
 
   return (
     <>
       {secondaryAsidePortal}
-      <div className="flex min-h-[calc(100svh-5rem)] flex-col px-4 py-6 sm:px-6 lg:px-8 lg:py-6">
+      <div className="flex h-[calc(100dvh-4.5rem)] min-h-0 flex-col overflow-hidden px-4 py-6 sm:px-6 lg:h-[calc(100dvh-1rem)] lg:px-8 lg:py-6">
           <div className="shrink-0">
             <Heading>Punto de venta</Heading>
             <Text className="mt-2 max-w-2xl">
@@ -537,7 +614,7 @@ export function PosPanel({ orgSlug, products }: PosPanelProps) {
           </div>
 
           {filteredProducts.length === 0 ? (
-            <div className="mt-6 flex flex-1 items-center justify-center rounded-xl border border-dashed border-zinc-200 p-8 text-center dark:border-zinc-800">
+            <div className="mt-6 flex min-h-0 flex-1 items-center justify-center rounded-xl border border-dashed border-zinc-200 p-8 text-center dark:border-zinc-800">
               <div>
                 <Subheading level={3}>
                   {products.length === 0 ? 'Sin productos' : 'Sin resultados'}
@@ -550,8 +627,8 @@ export function PosPanel({ orgSlug, products }: PosPanelProps) {
               </div>
             </div>
           ) : (
-            <div className="mt-4 min-h-0 flex-1 overflow-y-auto pb-6">
-              <ul className="grid grid-cols-2 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+            <div className="mt-4 min-h-0 flex-1 overflow-y-auto overscroll-contain pb-2">
+              <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
                 {filteredProducts.map((product) => (
                   <li key={product.id}>
                     <ProductCard
@@ -567,11 +644,23 @@ export function PosPanel({ orgSlug, products }: PosPanelProps) {
             </div>
           )}
 
-          {/* Carrito en flujo para pantallas menores a xl */}
-          <PosCartSidebar
-            {...cartProps}
-            className="mt-8 flex flex-col rounded-xl border border-zinc-200 bg-white xl:hidden dark:border-zinc-800 dark:bg-zinc-900"
-          />
+          {/* Carrito en flujo para pantallas menores a lg */}
+          <div
+            ref={mobileCartRef}
+            aria-hidden={!cartColumnVisible}
+            style={{ transitionDuration: `${POS_CART_TRANSITION_MS}ms` }}
+            className={clsx(
+              'grid shrink-0 overflow-hidden transition-[grid-template-rows,opacity,margin-top] ease-in-out lg:hidden',
+              cartColumnVisible ? 'mt-8 grid-rows-[1fr] opacity-100' : 'mt-0 grid-rows-[0fr] opacity-0'
+            )}
+          >
+            <div className="min-h-0 overflow-hidden">
+              <PosCartSidebar
+                {...cartProps}
+                className="flex flex-col rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900"
+              />
+            </div>
+          </div>
       </div>
     </>
   )

@@ -297,6 +297,73 @@ export async function updateProductAction(
   }
 
   revalidatePath(`/${orgSlug}/productos`)
+  revalidatePath(`/${orgSlug}/productos/${productId}`)
+  return { error: null, ok: true }
+}
+
+export async function updateProductQuickFieldsAction(
+  orgSlug: string,
+  productId: string,
+  _prevState: ProductFormState,
+  formData: FormData
+): Promise<ProductFormState> {
+  const access = await getActionAccess(orgSlug, 'productos', 'edit')
+  if (!access) {
+    return permissionDeniedState()
+  }
+
+  const salePriceRaw = String(formData.get('salePrice') ?? '').trim()
+  const costPriceRaw = String(formData.get('costPrice') ?? '').trim()
+  const availableQuantityRaw = String(formData.get('availableQuantity') ?? '').trim()
+
+  const salePrice = parseNonNegativeNumber(salePriceRaw, 'El precio de venta')
+  if (typeof salePrice !== 'number') return { error: salePrice.error, ok: false }
+
+  const availableQuantity = parseNonNegativeNumber(
+    availableQuantityRaw,
+    'La cantidad disponible'
+  )
+  if (typeof availableQuantity !== 'number') {
+    return { error: availableQuantity.error, ok: false }
+  }
+
+  let costPrice: number | null = null
+  if (costPriceRaw.length > 0) {
+    const parsedCost = parseNonNegativeNumber(costPriceRaw, 'El costo de compra')
+    if (typeof parsedCost !== 'number') return { error: parsedCost.error, ok: false }
+    costPrice = parsedCost
+  }
+
+  const supabase = await createSupabaseServerClient()
+
+  const updatePayload = {
+    sale_price: salePrice,
+    cost_price: costPrice,
+    available_quantity: availableQuantity,
+    updated_at: new Date().toISOString(),
+  }
+
+  let { error } = await supabase
+    .from('products')
+    .update(updatePayload)
+    .eq('id', productId)
+    .eq('organization_id', access.organization.id)
+
+  if (error?.message?.includes('available_quantity')) {
+    const { available_quantity: _aq, ...legacyPayload } = updatePayload
+    ;({ error } = await supabase
+      .from('products')
+      .update(legacyPayload)
+      .eq('id', productId)
+      .eq('organization_id', access.organization.id))
+  }
+
+  if (error) {
+    return { error: mapProductError(error), ok: false }
+  }
+
+  revalidatePath(`/${orgSlug}/productos`)
+  revalidatePath(`/${orgSlug}/productos/${productId}`)
   return { error: null, ok: true }
 }
 

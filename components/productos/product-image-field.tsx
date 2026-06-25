@@ -14,6 +14,8 @@ import {
   deleteProductImageClient,
   uploadProductImageClient,
 } from '@/lib/utils/upload-product-image-client'
+import { IMAGE_SIZES } from '@/lib/utils/image-src'
+import { OptimizedImage } from '@/components/optimized-image'
 import { Field, Label } from '@/styles/catalyst-ui-kit/fieldset'
 import { Text } from '@/styles/catalyst-ui-kit/text'
 
@@ -205,11 +207,14 @@ export function ProductImageField({
         {hasPreview ? (
           <div className={clsx('relative flex flex-col items-center justify-center p-4', compact ? 'min-h-40' : 'min-h-52 p-6')}>
             <div className="relative overflow-hidden rounded-lg border border-border bg-white/70 shadow-sm dark:bg-zinc-950/50">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
+              <OptimizedImage
                 src={previewUrl!}
                 alt="Vista previa del producto"
-                className={clsx('max-w-full object-contain', compact ? 'max-h-36' : 'max-h-56')}
+                width={400}
+                height={224}
+                sizes={IMAGE_SIZES.preview}
+                objectFit="contain"
+                className={clsx('max-w-full', compact ? 'max-h-36' : 'max-h-56')}
               />
               <button
                 type="button"

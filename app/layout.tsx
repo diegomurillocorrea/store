@@ -31,10 +31,8 @@ export default function RootLayout({
       suppressHydrationWarning
       className={`${poppins.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <head>
-        <ThemeInitScript />
-      </head>
       <body className="liquid-app relative h-full min-h-dvh font-sans antialiased">
+        <ThemeInitScript />
         {children}
       </body>
     </html>

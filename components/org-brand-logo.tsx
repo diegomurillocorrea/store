@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { getProxiedLogoSrc } from '@/lib/theme/branding'
+import { OptimizedImage } from '@/components/optimized-image'
+import { IMAGE_SIZES } from '@/lib/utils/image-src'
 import { Text } from '@/styles/catalyst-ui-kit/text'
 
 interface OrgBrandLogoProps {
@@ -11,25 +12,26 @@ interface OrgBrandLogoProps {
 
 export function OrgBrandLogo({ logoUrl, orgName }: OrgBrandLogoProps) {
   const [failed, setFailed] = useState(false)
-  const src = getProxiedLogoSrc(logoUrl)
 
   if (failed) {
     return (
       <Text className="text-xs text-amber-700 dark:text-amber-300" role="alert">
-        No se pudo mostrar el logo (Meta/Instagram suelen bloquear enlaces externos). Sube la imagen a un
-        alojamiento público estable o a Supabase Storage y pega esa URL.
+        No se pudo cargar el logo. Revisa la URL en Marca y colores o usa un enlace público estable.
       </Text>
     )
   }
 
   return (
-    <img
-      src={src}
-      alt={orgName}
-      className="h-10 w-auto max-w-[200px] object-contain object-left"
-      loading="lazy"
-      referrerPolicy="no-referrer"
-      onError={() => setFailed(true)}
-    />
+    <div className="relative h-10 w-[200px]">
+      <OptimizedImage
+        src={logoUrl}
+        alt={orgName}
+        fill
+        sizes={IMAGE_SIZES.logo}
+        objectFit="contain"
+        className="object-left"
+        onError={() => setFailed(true)}
+      />
+    </div>
   )
 }

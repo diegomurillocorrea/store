@@ -46,7 +46,7 @@ export async function createOrganizationAction(
     if (error.code === '23505' || error.message.includes('unique')) {
       return { error: 'Ese slug ya está en uso. Prueba otro.' }
     }
-    return { error: error.message || 'No se pudo crear la organización.' }
+    return { error: error.message || 'No se pudo crear la sucursal.' }
   }
 
   if (!orgId) {
@@ -55,6 +55,6 @@ export async function createOrganizationAction(
 
   await seedDefaultCategories(orgId)
 
-  revalidatePath('/orgs')
+  revalidatePath('/sucursales')
   redirect(`/${slug}/dashboard`)
 }

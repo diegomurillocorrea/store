@@ -16,7 +16,7 @@ export class PermissionDeniedError extends Error {
 export async function requireOrgMemberAccess(orgSlug: string): Promise<OrgMemberAccess> {
   const access = await getOrgMemberAccess(orgSlug)
   if (!access) {
-    redirect('/orgs?motivo=sin-acceso')
+    redirect('/sucursales?motivo=sin-acceso')
   }
   return access
 }

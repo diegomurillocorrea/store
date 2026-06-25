@@ -145,3 +145,103 @@ export async function getProductsByOrganizationId(
 
   return (data ?? []).map((row) => mapProductRow(row as unknown as RawProductRow))
 }
+
+const productSelectQuery = `
+  id,
+  name,
+  sku,
+  barcode,
+  available_quantity,
+  sale_price,
+  cost_price,
+  category_id,
+  supplier_id,
+  image_url,
+  created_at,
+  created_by,
+  category:categories ( id, name ),
+  supplier:suppliers ( id, name ),
+  creator:organization_members!products_created_by_fkey ( display_name )
+`
+
+export async function getProductById(
+  organizationId: string,
+  productId: string
+): Promise<ProductRow | null> {
+  const supabase = await createSupabaseServerClient()
+
+  const { data, error } = await supabase
+    .from('products')
+    .select(productSelectQuery)
+    .eq('organization_id', organizationId)
+    .eq('id', productId)
+    .eq('is_active', true)
+    .maybeSingle()
+
+  if (error) {
+    const isMissingExtendedColumns =
+      error.code === '42703' ||
+      error.code === 'PGRST200' ||
+      error.code === 'PGRST204' ||
+      Boolean(error.message?.includes('available_quantity')) ||
+      Boolean(error.message?.includes('supplier_id')) ||
+      Boolean(error.message?.includes('created_by')) ||
+      Boolean(error.message?.includes('schema cache'))
+
+    if (isMissingExtendedColumns) {
+      const { data: fallbackData, error: fallbackError } = await supabase
+        .from('products')
+        .select(
+          `
+          id,
+          name,
+          sku,
+          barcode,
+          sale_price,
+          cost_price,
+          category_id,
+          created_at,
+          category:categories ( id, name )
+        `
+        )
+        .eq('organization_id', organizationId)
+        .eq('id', productId)
+        .eq('is_active', true)
+        .maybeSingle()
+
+      if (fallbackError || !fallbackData) {
+        console.error('getProductById:fallback', fallbackError)
+        return null
+      }
+
+      const category = Array.isArray(fallbackData.category)
+        ? fallbackData.category[0]
+        : fallbackData.category
+
+      return {
+        id: fallbackData.id,
+        name: fallbackData.name,
+        sku: fallbackData.sku,
+        barcode: fallbackData.barcode,
+        availableQuantity: 0,
+        salePrice: toNumber(fallbackData.sale_price) ?? 0,
+        costPrice: toNumber(fallbackData.cost_price),
+        categoryId: fallbackData.category_id,
+        categoryName: category?.name ?? null,
+        supplierId: null,
+        supplierName: null,
+        imageUrl: null,
+        createdAt: fallbackData.created_at,
+        createdBy: null,
+        createdByName: null,
+      }
+    }
+
+    console.error('getProductById', error)
+    return null
+  }
+
+  if (!data) return null
+
+  return mapProductRow(data as unknown as RawProductRow)
+}

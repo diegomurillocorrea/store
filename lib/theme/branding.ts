@@ -66,8 +66,13 @@ export function isValidLogoUrl(input: string): boolean {
   }
 }
 
+export function isSupabaseStoragePublicUrl(url: string): boolean {
+  return url.includes('/storage/v1/object/public/')
+}
+
 /** Instagram/Meta suelen bloquear <img> directo; usar proxy same-origin */
 export function logoUrlNeedsProxy(url: string): boolean {
+  if (isSupabaseStoragePublicUrl(url)) return false
   const s = url.trim().toLowerCase()
   if (!s.startsWith('http')) return false
   try {

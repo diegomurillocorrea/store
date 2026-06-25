@@ -9,9 +9,12 @@ import {
 import { Bars3Icon, XMarkIcon } from '@heroicons/react/24/outline'
 import clsx from 'clsx'
 import { useState } from 'react'
-import { getProxiedLogoSrc } from '@/lib/theme/branding'
+import { OptimizedImage } from '@/components/optimized-image'
+import { IMAGE_SIZES } from '@/lib/utils/image-src'
 
 export const LAYOUT_SECONDARY_ASIDE_ID = 'layout-secondary-aside'
+
+const SECONDARY_COLUMN_TRANSITION_MS = 300
 
 export interface SidebarLayoutProps {
   sidebar: React.ReactNode
@@ -19,8 +22,10 @@ export interface SidebarLayoutProps {
   mobileActions?: React.ReactNode
   /** Imagen de fondo del área de contenido (configuración de marca) */
   panelWallpaperUrl?: string | null
-  /** Reserva espacio y monta columna derecha fija (xl+) */
+  /** Monta la columna derecha fija (lg+) */
   reserveSecondaryColumn?: boolean
+  /** Controla visibilidad animada de la columna derecha */
+  secondaryColumnOpen?: boolean
   contentWidth?: 'constrained' | 'full'
   contentPadding?: 'default' | 'none'
   children: React.ReactNode
@@ -32,17 +37,17 @@ export function SidebarLayout({
   mobileActions,
   panelWallpaperUrl,
   reserveSecondaryColumn = false,
+  secondaryColumnOpen,
   contentWidth = 'constrained',
   contentPadding = 'default',
   children,
 }: SidebarLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const isSecondaryColumnOpen = secondaryColumnOpen ?? reserveSecondaryColumn
 
-  const wallpaperSrc =
-    panelWallpaperUrl && panelWallpaperUrl.trim().length > 0
-      ? getProxiedLogoSrc(panelWallpaperUrl.trim())
-      : null
-  const panelGlassClass = wallpaperSrc ? 'glass-surface-wallpaper' : 'glass-surface'
+  const hasWallpaper =
+    Boolean(panelWallpaperUrl && panelWallpaperUrl.trim().length > 0)
+  const panelGlassClass = hasWallpaper ? 'glass-surface-wallpaper' : 'glass-surface'
   const contentWidthClass = contentWidth === 'full' ? 'max-w-none' : 'max-w-6xl'
   const innerContentPaddingClass =
     contentPadding === 'none' ? 'p-0' : 'p-6 lg:p-10'
@@ -107,27 +112,46 @@ export function SidebarLayout({
         <main className="flex flex-1 flex-col pb-2 lg:min-w-0 lg:pt-2 lg:pr-2 lg:pl-72">
           <div
             className={clsx(
-              'relative mx-2 mb-3 flex min-h-0 grow flex-col overflow-hidden rounded-2xl sm:mx-3 lg:mx-0 lg:mb-0',
-              reserveSecondaryColumn && 'xl:mr-2'
+              'relative mx-2 mb-3 flex min-h-0 grow flex-col overflow-hidden rounded-2xl transition-[margin-right] duration-300 ease-in-out sm:mx-3 lg:mx-0 lg:mb-0',
+              reserveSecondaryColumn && isSecondaryColumnOpen && 'lg:mr-2'
             )}
           >
-            <div className={clsx(reserveSecondaryColumn && 'xl:pr-96')}>
-              <div className="relative flex min-h-[calc(100dvh-4.5rem)] flex-col overflow-hidden rounded-2xl lg:min-h-[calc(100dvh-1rem)]">
-                {wallpaperSrc ? (
+            <div
+              className={clsx(
+                'transition-[padding-right] duration-300 ease-in-out',
+                reserveSecondaryColumn && isSecondaryColumnOpen && 'lg:pr-96'
+              )}
+            >
+              <div className="relative flex h-[calc(100dvh-4.5rem)] min-h-0 flex-col overflow-hidden rounded-2xl lg:h-[calc(100dvh-1rem)]">
+                {hasWallpaper ? (
                   <div
                     aria-hidden
-                    className="pointer-events-none absolute inset-0 z-0 bg-cover bg-center bg-no-repeat [transform:scale(1.08)]"
-                    style={{ backgroundImage: `url(${JSON.stringify(wallpaperSrc)})` }}
-                  />
+                    className="pointer-events-none absolute inset-0 z-0 overflow-hidden [transform:scale(1.08)]"
+                  >
+                    <OptimizedImage
+                      src={panelWallpaperUrl!.trim()}
+                      alt=""
+                      fill
+                      sizes={IMAGE_SIZES.wallpaper}
+                      priority
+                      className="object-cover"
+                    />
+                  </div>
                 ) : null}
-                <div
-                  className={clsx(
-                    'relative z-10 flex min-h-0 flex-1 flex-col rounded-2xl',
-                    innerContentPaddingClass,
-                    panelGlassClass
-                  )}
-                >
-                  <div className={clsx('mx-auto min-h-0 w-full flex-1', contentWidthClass)}>
+                  <div
+                    className={clsx(
+                      'relative z-10 flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain rounded-2xl',
+                      innerContentPaddingClass,
+                      panelGlassClass
+                    )}
+                  >
+                    <div
+                      className={clsx(
+                        'mx-auto w-full',
+                        contentPadding === 'none' && 'flex h-full min-h-0 flex-col',
+                        contentWidthClass
+                      )}
+                    >
                     {children}
                   </div>
                 </div>
@@ -141,7 +165,15 @@ export function SidebarLayout({
         <aside
           id={LAYOUT_SECONDARY_ASIDE_ID}
           aria-label="Panel lateral"
-          className="glass-surface fixed inset-y-0 right-0 z-40 hidden w-96 overflow-y-auto border-l border-white/15 xl:block dark:border-white/10"
+          aria-hidden={!isSecondaryColumnOpen}
+          style={{ transitionDuration: `${SECONDARY_COLUMN_TRANSITION_MS}ms` }}
+          className={clsx(
+            'glass-surface fixed inset-y-0 right-0 z-40 hidden w-96 flex-col overflow-hidden border-l border-white/15 will-change-transform lg:flex dark:border-white/10',
+            'transition-[transform,opacity] ease-in-out',
+            isSecondaryColumnOpen
+              ? 'translate-x-0 opacity-100'
+              : 'pointer-events-none translate-x-full opacity-0'
+          )}
         />
       ) : null}
     </>

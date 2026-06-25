@@ -17,6 +17,7 @@ import {
   UserGroupIcon,
   UsersIcon,
 } from '@heroicons/react/24/outline'
+import { usePathname } from 'next/navigation'
 import { OrgBrandLogo } from '@/components/org-brand-logo'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { SidebarUserProfile } from '@/components/sidebar-user-profile'
@@ -31,6 +32,7 @@ import {
   SidebarSection,
 } from '@/styles/catalyst-ui-kit/sidebar'
 import { SidebarLayout } from '@/styles/catalyst-ui-kit/sidebar-layout'
+import { PosLayoutProvider, usePosLayout } from '@/lib/pos/pos-layout-context'
 import type { OrganizationBranding } from '@/lib/theme/branding'
 import { hasPermission, type PermissionViewId } from '@/lib/permissions/views'
 
@@ -62,7 +64,7 @@ function getMobilePageTitle(pathname: string, base: string, orgName: string): st
     [`${base}/dashboard`]: 'Inicio',
     [base]: 'Inicio',
     [`${base}/pos`]: 'Punto de venta',
-    [`${base}/caja`]: 'Caja',
+    [`${base}/caja`]: 'Balance',
     [`${base}/productos`]: 'Productos',
     [`${base}/categorias`]: 'Categorías',
     [`${base}/inventario`]: 'Existencias',
@@ -91,11 +93,39 @@ export function OrgDashboardShell({
   userEmail,
   branding,
   permissions,
-  pathname,
+  pathname: pathnameFromServer,
   children,
 }: OrgDashboardShellProps) {
+  return (
+    <PosLayoutProvider>
+      <OrgDashboardShellInner
+        orgSlug={orgSlug}
+        orgName={orgName}
+        userEmail={userEmail}
+        branding={branding}
+        permissions={permissions}
+        pathnameFromServer={pathnameFromServer}
+      >
+        {children}
+      </OrgDashboardShellInner>
+    </PosLayoutProvider>
+  )
+}
+
+function OrgDashboardShellInner({
+  orgSlug,
+  orgName,
+  userEmail,
+  branding,
+  permissions,
+  pathnameFromServer,
+  children,
+}: Omit<OrgDashboardShellProps, 'pathname'> & { pathnameFromServer: string }) {
+  const pathname = usePathname() || pathnameFromServer
+  const posLayout = usePosLayout()
   const base = `/${orgSlug}`
-  const isPosRoute = pathname === `${base}/pos`
+  const isPosRoute = pathname === `${base}/pos` || pathname.startsWith(`${base}/pos/`)
+  const showPosCartColumn = posLayout?.cartColumnVisible ?? false
   const permissionSet = new Set(permissions)
   const mobileTitle = getMobilePageTitle(pathname, base, orgName)
 
@@ -186,7 +216,7 @@ export function OrgDashboardShell({
           </div>
           <div className="mt-2 flex flex-col gap-0.5 px-0.5">
             <span className="org-brand-muted-text text-xs/6 font-semibold tracking-wide uppercase">
-              Organización
+              Sucursal
             </span>
             <span className="truncate text-sm/6 font-semibold text-zinc-900 dark:text-zinc-100">
               {orgName}
@@ -253,9 +283,9 @@ export function OrgDashboardShell({
 
         <div className="mt-auto flex flex-col border-t border-zinc-950/5 pt-4 dark:border-white/5">
           <SidebarSection>
-            <SidebarItem href="/orgs">
+            <SidebarItem href="/sucursales">
               <BuildingOffice2Icon data-slot="icon" aria-hidden="true" />
-              <SidebarLabel>Mis organizaciones</SidebarLabel>
+              <SidebarLabel>Mis sucursales</SidebarLabel>
             </SidebarItem>
             <SignOutButton variant="sidebar" />
           </SidebarSection>
@@ -274,6 +304,7 @@ export function OrgDashboardShell({
       mobileActions={<SidebarUserProfile email={userEmail} compact />}
       panelWallpaperUrl={branding.panelWallpaperUrl}
       reserveSecondaryColumn={isPosRoute}
+      secondaryColumnOpen={showPosCartColumn}
       contentWidth={isPosRoute ? 'full' : 'constrained'}
       contentPadding={isPosRoute ? 'none' : 'default'}
     >

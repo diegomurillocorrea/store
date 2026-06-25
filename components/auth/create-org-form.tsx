@@ -16,7 +16,7 @@ export function CreateOrgForm() {
   return (
     <form action={formAction} className="grid w-full max-w-md grid-cols-1 gap-8">
       <div>
-        <Heading>Nueva organización</Heading>
+        <Heading>Nueva sucursal</Heading>
         <Text className="mt-2">
           Crea el espacio de tu negocio. El slug define la URL{' '}
           <code className="text-sm text-foreground">/tu-slug/dashboard</code>.
@@ -48,7 +48,7 @@ export function CreateOrgForm() {
         </Text>
       ) : null}
       <Button type="submit" className="w-full max-w-xs" disabled={pending} color="dark/zinc">
-        {pending ? 'Creando…' : 'Crear organización'}
+        {pending ? 'Creando…' : 'Crear sucursal'}
       </Button>
     </form>
   )

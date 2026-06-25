@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { createSupabaseBrowserClient } from '@/lib/supabase/client'
 import { Button } from '@/styles/catalyst-ui-kit/button'
+import { Checkbox, CheckboxField } from '@/styles/catalyst-ui-kit/checkbox'
 import { Field, FieldGroup, Fieldset, Label } from '@/styles/catalyst-ui-kit/fieldset'
 import { Heading } from '@/styles/catalyst-ui-kit/heading'
 import { Input } from '@/styles/catalyst-ui-kit/input'
@@ -14,6 +15,7 @@ export function RegisterForm() {
   const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [info, setInfo] = useState<string | null>(null)
   const [isPending, setIsPending] = useState(false)
@@ -30,7 +32,7 @@ export function RegisterForm() {
       email: email.trim(),
       password,
       options: {
-        emailRedirectTo: `${origin}/auth/callback?next=/orgs`,
+        emailRedirectTo: `${origin}/auth/callback?next=/sucursales`,
       },
     })
 
@@ -42,7 +44,7 @@ export function RegisterForm() {
 
     if (data.session) {
       router.refresh()
-      router.push('/orgs')
+      router.push('/sucursales')
       return
     }
 
@@ -70,7 +72,7 @@ export function RegisterForm() {
           <Field>
             <Label>Contraseña</Label>
             <Input
-              type="password"
+              type={showPassword ? 'text' : 'password'}
               name="password"
               autoComplete="new-password"
               required
@@ -79,6 +81,15 @@ export function RegisterForm() {
               onChange={(e) => setPassword(e.target.value)}
             />
           </Field>
+          <CheckboxField>
+            <Checkbox
+              name="show-password"
+              checked={showPassword}
+              onChange={setShowPassword}
+              color="emerald"
+            />
+            <Label>Mostrar contraseña</Label>
+          </CheckboxField>
         </FieldGroup>
       </Fieldset>
       {error ? (

@@ -23,6 +23,7 @@ interface DeleteProductDialogProps {
   product: ProductRow | null
   open: boolean
   onClose: () => void
+  onSuccess?: () => void
 }
 
 export function DeleteProductDialog({
@@ -30,6 +31,7 @@ export function DeleteProductDialog({
   product,
   open,
   onClose,
+  onSuccess,
 }: DeleteProductDialogProps) {
   const boundAction = product
     ? deleteProductAction.bind(null, orgSlug, product.id)
@@ -39,7 +41,7 @@ export function DeleteProductDialog({
     initialState
   )
 
-  useFormActionSuccess(state.ok, onClose, pending)
+  useFormActionSuccess(state.ok, onSuccess ?? onClose, pending)
 
   if (!product || !boundAction) return null
 

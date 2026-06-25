@@ -4,7 +4,7 @@ import { getSupabaseAnonKey, getSupabaseUrl } from '@/lib/supabase/env'
 
 import { PATHNAME_HEADER } from '@/lib/request-pathname'
 
-const RESERVED_FIRST_SEGMENTS = new Set(['login', 'register', 'orgs', 'auth', 'api'])
+const RESERVED_FIRST_SEGMENTS = new Set(['login', 'register', 'sucursales', 'auth', 'api'])
 
 function isTenantPath(pathname: string): boolean {
   const parts = pathname.split('/').filter(Boolean)
@@ -60,12 +60,17 @@ export async function proxy(request: NextRequest) {
 
   if (first === 'login' || first === 'register') {
     if (user) {
-      return NextResponse.redirect(new URL('/orgs', request.url))
+      return NextResponse.redirect(new URL('/sucursales', request.url))
     }
     return supabaseResponse
   }
 
   if (first === 'orgs') {
+    const sucursalesPath = pathname.replace(/^\/orgs/, '/sucursales')
+    return NextResponse.redirect(new URL(sucursalesPath, request.url))
+  }
+
+  if (first === 'sucursales') {
     if (!user) {
       const login = new URL('/login', request.url)
       login.searchParams.set('next', pathname)
