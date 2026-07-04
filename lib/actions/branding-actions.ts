@@ -15,7 +15,7 @@ export async function updateOrganizationBrandingAction(
   _prevState: BrandingFormState,
   formData: FormData
 ): Promise<BrandingFormState> {
-  const access = await getActionAccess(orgSlug, 'configuracion', 'edit')
+  const access = await getActionAccess(orgSlug, 'configuracion-marca', 'edit')
   if (!access) {
     return permissionDeniedState()
   }

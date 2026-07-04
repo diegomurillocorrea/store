@@ -39,7 +39,7 @@ export function DeleteEmployeeDialog({
     initialState
   )
 
-  useFormActionSuccess(state.ok, onClose, pending)
+  useFormActionSuccess(state.ok, onClose, pending, 'Empleado eliminado correctamente.')
 
   if (!employee || !boundAction) return null
 

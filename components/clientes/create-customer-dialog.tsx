@@ -31,7 +31,7 @@ export function CreateCustomerDialog({ orgSlug, open, onClose }: CreateCustomerD
   const boundAction = createCustomerAction.bind(null, orgSlug)
   const [state, formAction, pending] = useActionState(boundAction, initialState)
 
-  useFormActionSuccess(state.ok, onClose, pending)
+  useFormActionSuccess(state.ok, onClose, pending, 'Cliente creado correctamente.')
 
   return (
     <Dialog open={open} onClose={onClose} size="md">

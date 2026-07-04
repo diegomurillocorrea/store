@@ -1,8 +1,8 @@
 'use client'
 
-import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { animate, stagger, utils } from 'animejs'
 import { createSupabaseBrowserClient } from '@/lib/supabase/client'
 
 const inputClassName =
@@ -15,6 +15,8 @@ export function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const nextPath = searchParams.get('next') ?? '/sucursales'
+  const formRootRef = useRef<HTMLDivElement>(null)
+  const submitButtonRef = useRef<HTMLButtonElement>(null)
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -33,10 +35,53 @@ export function LoginForm() {
     }
   }, [searchParams])
 
+  useEffect(() => {
+    const root = formRootRef.current
+    if (!root) return undefined
+
+    const targets = root.querySelectorAll<HTMLElement>('[data-field]')
+    if (!targets.length) return undefined
+
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      utils.set(targets, { opacity: 1, translateY: '0px' })
+      return undefined
+    }
+
+    const fieldTargets = targets
+    const animation = animate(fieldTargets, {
+      opacity: { from: 0, to: 1 },
+      translateY: { from: 16, to: 0 },
+      duration: 650,
+      delay: stagger(90, { start: 260 }),
+      ease: 'outQuad',
+      onComplete: () => {
+        utils.set(fieldTargets, { opacity: 1, translateY: '0px' })
+      },
+    })
+
+    const failsafeId = window.setTimeout(() => {
+      utils.set(fieldTargets, { opacity: 1, translateY: '0px' })
+    }, 1400)
+
+    return () => {
+      window.clearTimeout(failsafeId)
+      animation.cancel()
+      utils.set(fieldTargets, { opacity: 1, translateY: '0px' })
+    }
+  }, [])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
     setIsPending(true)
+
+    if (submitButtonRef.current) {
+      animate(submitButtonRef.current, {
+        scale: [1, 0.96, 1],
+        duration: 320,
+        ease: 'outQuad',
+      })
+    }
 
     const supabase = createSupabaseBrowserClient()
     const { error: signError } = await supabase.auth.signInWithPassword({
@@ -47,6 +92,16 @@ export function LoginForm() {
     if (signError) {
       setError(signError.message)
       setIsPending(false)
+      if (formRootRef.current) {
+        const errorTarget = formRootRef.current.querySelector<HTMLElement>('[data-error]')
+        if (errorTarget) {
+          animate(errorTarget, {
+            translateX: [-8, 8, -6, 6, 0],
+            duration: 420,
+            ease: 'inOutSine',
+          })
+        }
+      }
       return
     }
 
@@ -55,31 +110,16 @@ export function LoginForm() {
   }
 
   return (
-    <>
-      <div>
-        <Link href="/" className="inline-flex items-center gap-2.5">
-          <span className="flex size-10 items-center justify-center rounded-lg bg-emerald-600 text-lg font-bold text-white">
-            S
-          </span>
-          <span className="text-xl font-semibold tracking-tight text-gray-900 dark:text-white">Store</span>
-        </Link>
-        <h2 className="mt-8 text-2xl/9 font-bold tracking-tight text-gray-900 dark:text-white">
+    <div ref={formRootRef}>
+      <div data-field>
+        <h2 className="text-2xl/9 font-bold tracking-tight text-gray-900 dark:text-white">
           Inicia sesión en tu cuenta
         </h2>
-        <p className="mt-2 text-sm/6 text-gray-500 dark:text-zinc-400">
-          ¿No tienes cuenta?{' '}
-          <Link
-            href="/register"
-            className="font-semibold text-emerald-600 hover:text-emerald-500 dark:text-emerald-400 dark:hover:text-emerald-300"
-          >
-            Regístrate gratis
-          </Link>
-        </p>
       </div>
 
       <div className="mt-10">
         <form onSubmit={handleSubmit} className="space-y-6">
-          <div>
+          <div data-field>
             <label htmlFor="email" className="block text-sm/6 font-medium text-gray-900 dark:text-white">
               Correo electrónico
             </label>
@@ -97,7 +137,7 @@ export function LoginForm() {
             </div>
           </div>
 
-          <div>
+          <div data-field>
             <label htmlFor="password" className="block text-sm/6 font-medium text-gray-900 dark:text-white">
               Contraseña
             </label>
@@ -115,9 +155,13 @@ export function LoginForm() {
             </div>
           </div>
 
-          <div className="flex gap-3">
-            <div className="flex h-6 shrink-0 items-center">
-              <div className="group grid size-4 grid-cols-1">
+          <label
+            htmlFor="show-password"
+            className="flex cursor-pointer select-none gap-3"
+            data-field
+          >
+            <span className="flex h-6 shrink-0 items-center">
+              <span className="group grid size-4 grid-cols-1">
                 <input
                   id="show-password"
                   name="show-password"
@@ -140,30 +184,31 @@ export function LoginForm() {
                     className="opacity-0 group-has-checked:opacity-100"
                   />
                 </svg>
-              </div>
-            </div>
-            <label htmlFor="show-password" className="block text-sm/6 text-gray-900 dark:text-white">
+              </span>
+            </span>
+            <span className="block text-sm/6 text-gray-900 dark:text-white">
               Mostrar contraseña
-            </label>
-          </div>
+            </span>
+          </label>
 
           {error ? (
-            <p className="text-sm text-red-600 dark:text-red-400" role="alert">
+            <p className="text-sm text-red-600 dark:text-red-400" role="alert" data-error>
               {error}
             </p>
           ) : null}
 
-          <div>
+          <div data-field>
             <button
+              ref={submitButtonRef}
               type="submit"
               disabled={isPending}
-              className="flex w-full justify-center rounded-md bg-emerald-600 px-3 py-1.5 text-sm/6 font-semibold text-white shadow-xs hover:bg-emerald-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 disabled:opacity-50"
+              className="flex w-full justify-center rounded-md bg-emerald-600 px-3 py-1.5 text-sm/6 font-semibold text-white shadow-xs transition-colors hover:bg-emerald-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 disabled:opacity-50"
             >
               {isPending ? 'Entrando…' : 'Iniciar sesión'}
             </button>
           </div>
         </form>
       </div>
-    </>
+    </div>
   )
 }

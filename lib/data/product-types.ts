@@ -8,6 +8,8 @@ export interface ProductRow {
   costPrice: number | null
   categoryId: string | null
   categoryName: string | null
+  subCategoryId: string | null
+  subCategoryName: string | null
   supplierId: string | null
   supplierName: string | null
   imageUrl: string | null
@@ -19,4 +21,10 @@ export interface ProductRow {
 export interface ProductOption {
   id: string
   name: string
+}
+
+export interface SubCategoryProductOption {
+  id: string
+  name: string
+  categoryId: string
 }

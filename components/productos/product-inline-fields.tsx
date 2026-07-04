@@ -49,7 +49,7 @@ export function ProductInlineFields({
     setAvailableQuantity(toInputValue(product.availableQuantity))
   }, [product.salePrice, product.costPrice, product.availableQuantity])
 
-  useFormActionSuccess(state.ok, () => {}, pending)
+  useFormActionSuccess(state.ok, () => {}, pending, 'Cambios guardados correctamente.')
 
   const submitValues = () => {
     if (!canEdit || pending) return

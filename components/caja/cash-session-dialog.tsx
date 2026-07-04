@@ -47,7 +47,7 @@ export function CashSessionDialog({
   const state = isOpenMode ? openState : closeState
   const pending = isOpenMode ? openPending : closePending
 
-  useFormActionSuccess(state.ok, onClose, pending)
+  useFormActionSuccess(state.ok, onClose, pending, 'Sesión de caja registrada correctamente.')
 
   return (
     <Dialog open={open} onClose={onClose} size="md">

@@ -6,7 +6,7 @@ import { useMemo, useState } from 'react'
 import { CreateProductDialog } from '@/components/productos/create-product-dialog'
 import { OptimizedImage } from '@/components/optimized-image'
 import { ProductInlineFields } from '@/components/productos/product-inline-fields'
-import type { ProductOption, ProductRow } from '@/lib/data/product-types'
+import type { ProductOption, ProductRow, SubCategoryProductOption } from '@/lib/data/product-types'
 import type { ViewActionFlags } from '@/lib/permissions/views'
 import { IMAGE_SIZES } from '@/lib/utils/image-src'
 import { Button } from '@/styles/catalyst-ui-kit/button'
@@ -19,6 +19,7 @@ interface ProductsPanelProps {
   organizationId: string
   products: ProductRow[]
   categories: ProductOption[]
+  subCategories: SubCategoryProductOption[]
   suppliers: ProductOption[]
   actions: Pick<ViewActionFlags, 'canCreate' | 'canEdit' | 'canDelete'>
 }
@@ -75,6 +76,7 @@ export function ProductsPanel({
   organizationId,
   products,
   categories,
+  subCategories,
   suppliers,
   actions,
 }: ProductsPanelProps) {
@@ -280,6 +282,7 @@ export function ProductsPanel({
         orgSlug={orgSlug}
         organizationId={organizationId}
         categories={categories}
+        subCategories={subCategories}
         suppliers={suppliers}
         open={isCreateOpen}
         onClose={handleCloseCreate}

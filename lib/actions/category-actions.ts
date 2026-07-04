@@ -1,9 +1,14 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
 import { getActionAccess, permissionDeniedState } from '@/lib/auth/access'
-import { getActiveMemberIdForOrganization } from '@/lib/data/categories'
+import {
+  findCategoryIdByName,
+  getCreateFanOutTargets,
+  newOwnerSharedKey,
+  revalidateCatalogPaths,
+} from '@/lib/data/owner-shared-entities'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
+import { revalidatePath } from 'next/cache'
 
 export interface CategoryFormState {
   error: string | null
@@ -35,20 +40,42 @@ export async function createCategoryAction(
     return { error: parsed.error, ok: false }
   }
 
-  const memberId = await getActiveMemberIdForOrganization(access.organization.id)
-
-  const supabase = await createSupabaseServerClient()
-  const { error } = await supabase.from('categories').insert({
-    organization_id: access.organization.id,
-    name: parsed.name,
-    created_by: memberId,
-  })
-
-  if (error) {
-    return { error: error.message || 'No se pudo crear la categoría.', ok: false }
+  const targets = await getCreateFanOutTargets(access.organization.id)
+  if (targets.length === 0) {
+    return { error: 'No se pudo resolver la sucursal actual.', ok: false }
   }
 
-  revalidatePath(`/${orgSlug}/categorias`)
+  const sharedKey = newOwnerSharedKey()
+  const supabase = await createSupabaseServerClient()
+
+  for (const target of targets) {
+    const existingId = await findCategoryIdByName(target.organizationId, parsed.name)
+    if (existingId) {
+      const { error: linkError } = await supabase
+        .from('categories')
+        .update({ owner_shared_key: sharedKey })
+        .eq('id', existingId)
+        .eq('organization_id', target.organizationId)
+
+      if (linkError) {
+        return { error: linkError.message || 'No se pudo crear la categoría.', ok: false }
+      }
+      continue
+    }
+
+    const { error } = await supabase.from('categories').insert({
+      organization_id: target.organizationId,
+      name: parsed.name,
+      owner_shared_key: sharedKey,
+      created_by: target.memberId,
+    })
+
+    if (error) {
+      return { error: error.message || 'No se pudo crear la categoría.', ok: false }
+    }
+  }
+
+  revalidateCatalogPaths(targets, 'categories', orgSlug)
   return { error: null, ok: true }
 }
 
@@ -90,6 +117,7 @@ export async function updateCategoryAction(
   }
 
   revalidatePath(`/${orgSlug}/categorias`)
+  revalidatePath(`/${orgSlug}/categorias/sub-categorias`)
   return { error: null, ok: true }
 }
 
@@ -116,5 +144,6 @@ export async function deleteCategoryAction(
   }
 
   revalidatePath(`/${orgSlug}/categorias`)
+  revalidatePath(`/${orgSlug}/categorias/sub-categorias`)
   return { error: null, ok: true }
 }

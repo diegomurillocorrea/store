@@ -8,6 +8,7 @@ import {
   type BrandingFormState,
 } from '@/lib/actions/branding-actions'
 import type { OrganizationBranding } from '@/lib/theme/branding'
+import { useActionStateNotification } from '@/lib/hooks/use-action-state-notification'
 import { Button } from '@/styles/catalyst-ui-kit/button'
 import { Field, FieldGroup, Fieldset, Label } from '@/styles/catalyst-ui-kit/fieldset'
 import { Subheading } from '@/styles/catalyst-ui-kit/heading'
@@ -82,6 +83,8 @@ export function BrandingForm({ orgSlug, initial, canEdit = true }: BrandingFormP
   const [sbd, setSbd] = useState(initial.shellBackgroundDark)
   const [ssl, setSsl] = useState(initial.shellSurfaceLight)
   const [ssd, setSsd] = useState(initial.shellSurfaceDark)
+
+  useActionStateNotification(state.ok, pending, 'Cambios guardados correctamente.')
 
   useEffect(() => {
     if (state.ok) {
@@ -286,12 +289,6 @@ export function BrandingForm({ orgSlug, initial, canEdit = true }: BrandingFormP
           {state.error}
         </Text>
       ) : null}
-      {state.ok ? (
-        <Text className="text-emerald-700 dark:text-emerald-400" role="status">
-          Cambios guardados.
-        </Text>
-      ) : null}
-
       <Button type="submit" color="dark/zinc" disabled={pending || !canEdit}>
         {pending ? 'Guardando…' : 'Guardar marca'}
       </Button>

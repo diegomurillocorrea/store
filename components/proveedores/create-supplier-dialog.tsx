@@ -31,7 +31,7 @@ export function CreateSupplierDialog({ orgSlug, open, onClose }: CreateSupplierD
   const boundAction = createSupplierAction.bind(null, orgSlug)
   const [state, formAction, pending] = useActionState(boundAction, initialState)
 
-  useFormActionSuccess(state.ok, onClose, pending)
+  useFormActionSuccess(state.ok, onClose, pending, 'Proveedor creado correctamente.')
 
   return (
     <Dialog open={open} onClose={onClose} size="md">

@@ -1,8 +1,9 @@
 'use client'
 
+import { CategorySubCategoryFields } from '@/components/productos/category-subcategory-fields'
 import { ProductImageField } from '@/components/productos/product-image-field'
 import { ProductOptionCombobox } from '@/components/productos/product-option-combobox'
-import type { ProductOption } from '@/lib/data/product-types'
+import type { ProductOption, SubCategoryProductOption } from '@/lib/data/product-types'
 import { Field, Label } from '@/styles/catalyst-ui-kit/fieldset'
 import { Input } from '@/styles/catalyst-ui-kit/input'
 
@@ -13,6 +14,7 @@ export interface ProductFormDefaults {
   salePrice?: number
   costPrice?: number | null
   categoryId?: string | null
+  subCategoryId?: string | null
   supplierId?: string | null
   imageUrl?: string | null
 }
@@ -21,6 +23,7 @@ interface ProductFormFieldsProps {
   idPrefix: string
   organizationId: string
   categories: ProductOption[]
+  subCategories: SubCategoryProductOption[]
   suppliers: ProductOption[]
   defaults?: ProductFormDefaults
   resetKey?: boolean | string | number
@@ -64,6 +67,7 @@ export function ProductFormFields({
   idPrefix,
   organizationId,
   categories,
+  subCategories,
   suppliers,
   defaults,
   resetKey,
@@ -143,26 +147,24 @@ export function ProductFormFields({
         </Field>
       </div>
 
-      <div className="grid grid-cols-1 gap-8 sm:grid-cols-2">
-        <ProductOptionCombobox
-          id={`${idPrefix}-category`}
-          name="categoryId"
-          label="Categoría"
-          options={categories}
-          defaultOptionId={defaults?.categoryId}
-          emptyLabel="Sin categoría"
-          resetKey={resetKey}
-        />
-        <ProductOptionCombobox
-          id={`${idPrefix}-supplier`}
-          name="supplierId"
-          label="Proveedor"
-          options={suppliers}
-          defaultOptionId={defaults?.supplierId}
-          emptyLabel="Sin proveedor"
-          resetKey={resetKey}
-        />
-      </div>
+      <CategorySubCategoryFields
+        idPrefix={idPrefix}
+        categories={categories}
+        subCategories={subCategories}
+        defaultCategoryId={defaults?.categoryId}
+        defaultSubCategoryId={defaults?.subCategoryId}
+        resetKey={resetKey}
+      />
+
+      <ProductOptionCombobox
+        id={`${idPrefix}-supplier`}
+        name="supplierId"
+        label="Proveedor"
+        options={suppliers}
+        defaultOptionId={defaults?.supplierId}
+        emptyLabel="Sin proveedor"
+        resetKey={resetKey}
+      />
     </div>
   )
 }

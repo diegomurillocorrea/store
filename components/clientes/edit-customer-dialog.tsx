@@ -38,7 +38,7 @@ export function EditCustomerDialog({ orgSlug, customer, open, onClose }: EditCus
     initialState
   )
 
-  useFormActionSuccess(state.ok, onClose, pending)
+  useFormActionSuccess(state.ok, onClose, pending, 'Cliente actualizado correctamente.')
 
   if (!customer || !boundAction) return null
 

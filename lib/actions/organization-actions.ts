@@ -1,9 +1,13 @@
 'use server'
 
+import { seedDefaultCategories } from '@/lib/data/categories'
+import {
+  cloneOwnerCatalogToOrganization,
+  getOwnerCatalogSourceOrganizationId,
+} from '@/lib/data/owner-shared-entities'
+import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
-import { seedDefaultCategories } from '@/lib/data/categories'
-import { createSupabaseServerClient } from '@/lib/supabase/server'
 
 export interface CreateOrgState {
   error: string | null
@@ -54,6 +58,23 @@ export async function createOrganizationAction(
   }
 
   await seedDefaultCategories(orgId)
+
+  const sourceOrganizationId = await getOwnerCatalogSourceOrganizationId(orgId)
+  if (sourceOrganizationId) {
+    const { data: targetMember } = await supabase
+      .from('organization_members')
+      .select('id')
+      .eq('organization_id', orgId)
+      .eq('user_id', user.id)
+      .eq('status', 'active')
+      .maybeSingle()
+
+    await cloneOwnerCatalogToOrganization(
+      sourceOrganizationId,
+      orgId,
+      targetMember?.id ?? null
+    )
+  }
 
   revalidatePath('/sucursales')
   redirect(`/${slug}/dashboard`)

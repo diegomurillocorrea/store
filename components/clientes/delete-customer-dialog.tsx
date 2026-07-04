@@ -39,7 +39,7 @@ export function DeleteCustomerDialog({
     initialState
   )
 
-  useFormActionSuccess(state.ok, onClose, pending)
+  useFormActionSuccess(state.ok, onClose, pending, 'Cliente eliminado correctamente.')
 
   if (!customer || !boundAction) return null
 

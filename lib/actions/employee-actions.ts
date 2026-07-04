@@ -1,15 +1,20 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
 import { getActionAccess, permissionDeniedState } from '@/lib/auth/access'
-import { getActiveMemberIdForOrganization } from '@/lib/data/categories'
 import type { EmployeeStatus } from '@/lib/data/employee-types'
+import {
+  getCreateFanOutTargets,
+  newOwnerSharedKey,
+  resolveRoleIdBySlugInOrg,
+  revalidateCatalogPaths,
+} from '@/lib/data/owner-shared-entities'
 import {
   isAssignableEmployeeRoleForOrganization,
   isPropietarioRoleForOrganization,
 } from '@/lib/data/roles'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { parsePhoneFormValue } from '@/lib/utils/phone'
+import { revalidatePath } from 'next/cache'
 
 export interface EmployeeFormState {
   error: string | null
@@ -142,25 +147,42 @@ export async function createEmployeeAction(
     return { error: roleError, ok: false }
   }
 
-  const memberId = await getActiveMemberIdForOrganization(access.organization.id)
-  const supabase = await createSupabaseServerClient()
-
-  const { error } = await supabase.from('employees').insert({
-    organization_id: access.organization.id,
-    first_name: parsed.firstName,
-    last_name: parsed.lastName,
-    phone: parsed.phone,
-    email: parsed.email,
-    status: parsed.status,
-    role_id: parsed.roleId,
-    created_by: memberId,
-  })
-
-  if (error) {
-    return { error: error.message || 'No se pudo crear el empleado.', ok: false }
+  const targets = await getCreateFanOutTargets(access.organization.id)
+  if (targets.length === 0) {
+    return { error: 'No se pudo resolver la sucursal actual.', ok: false }
   }
 
-  revalidatePath(`/${orgSlug}/empleados`)
+  const sharedKey = newOwnerSharedKey()
+  const supabase = await createSupabaseServerClient()
+
+  for (const target of targets) {
+    const roleId =
+      target.organizationId === access.organization.id
+        ? parsed.roleId
+        : await resolveRoleIdBySlugInOrg(
+          target.organizationId,
+          parsed.roleId,
+          access.organization.id
+        )
+
+    const { error } = await supabase.from('employees').insert({
+      organization_id: target.organizationId,
+      first_name: parsed.firstName,
+      last_name: parsed.lastName,
+      phone: parsed.phone,
+      email: parsed.email,
+      status: parsed.status,
+      role_id: roleId,
+      owner_shared_key: sharedKey,
+      created_by: target.memberId,
+    })
+
+    if (error) {
+      return { error: error.message || 'No se pudo crear el empleado.', ok: false }
+    }
+  }
+
+  revalidateCatalogPaths(targets, 'employees', orgSlug)
   return { error: null, ok: true }
 }
 

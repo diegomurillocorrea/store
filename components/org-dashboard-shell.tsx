@@ -10,6 +10,7 @@ import {
   ComputerDesktopIcon,
   CubeIcon,
   CurrencyDollarIcon,
+  Cog6ToothIcon,
   FolderIcon,
   HomeIcon,
   ShieldCheckIcon,
@@ -67,6 +68,7 @@ function getMobilePageTitle(pathname: string, base: string, orgName: string): st
     [`${base}/caja`]: 'Balance',
     [`${base}/productos`]: 'Productos',
     [`${base}/categorias`]: 'Categorías',
+    [`${base}/categorias/sub-categorias`]: 'Subcategorías',
     [`${base}/inventario`]: 'Existencias',
     [`${base}/movimientos`]: 'Movimientos',
     [`${base}/clientes`]: 'Clientes',
@@ -75,6 +77,7 @@ function getMobilePageTitle(pathname: string, base: string, orgName: string): st
     [`${base}/roles`]: 'Roles y permisos',
     [`${base}/cuentas-por-cobrar`]: 'Cuentas por cobrar',
     [`${base}/cuentas-por-pagar`]: 'Cuentas por pagar',
+    [`${base}/configuracion`]: 'Configuración',
     [`${base}/configuracion/marca`]: 'Marca y colores',
   }
 
@@ -188,10 +191,16 @@ function OrgDashboardShellInner({
 
   const systemLinks: NavItemDefinition[] = [
     {
+      href: `${base}/configuracion`,
+      label: 'Configuración',
+      icon: Cog6ToothIcon,
+      viewId: 'configuracion',
+    },
+    {
       href: `${base}/configuracion/marca`,
       label: 'Marca y colores',
       icon: SwatchIcon,
-      viewId: 'configuracion',
+      viewId: 'configuracion-marca',
     },
   ]
 

@@ -39,7 +39,7 @@ export function DeleteSupplierDialog({
     initialState
   )
 
-  useFormActionSuccess(state.ok, onClose, pending)
+  useFormActionSuccess(state.ok, onClose, pending, 'Proveedor eliminado correctamente.')
 
   if (!supplier || !boundAction) return null
 

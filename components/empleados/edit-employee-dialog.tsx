@@ -50,7 +50,7 @@ export function EditEmployeeDialog({
     initialState
   )
 
-  useFormActionSuccess(state.ok, onClose, pending)
+  useFormActionSuccess(state.ok, onClose, pending, 'Empleado actualizado correctamente.')
 
   if (!employee || !boundAction) return null
 

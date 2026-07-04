@@ -23,7 +23,8 @@ export const PERMISSION_VIEWS: PermissionViewDefinition[] = [
   { id: 'roles', label: 'Roles y permisos', path: '/roles', section: 'Personas' },
   { id: 'cuentas-por-cobrar', label: 'Cuentas por cobrar', path: '/cuentas-por-cobrar', section: 'Finanzas' },
   { id: 'cuentas-por-pagar', label: 'Cuentas por pagar', path: '/cuentas-por-pagar', section: 'Finanzas' },
-  { id: 'configuracion', label: 'Marca y colores', path: '/configuracion/marca', section: 'Sistema' },
+  { id: 'configuracion-marca', label: 'Marca y colores', path: '/configuracion/marca', section: 'Sistema' },
+  { id: 'configuracion', label: 'Configuración', path: '/configuracion', section: 'Sistema' },
 ]
 
 export type PermissionViewId = (typeof PERMISSION_VIEWS)[number]['id']

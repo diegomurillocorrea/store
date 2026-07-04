@@ -1,5 +1,6 @@
 import { Suspense } from 'react'
 import { LoginForm } from '@/components/auth/login-form'
+import { LoginAnimatedBackground } from '@/components/auth/login-animated-background'
 import { AuthLayout } from '@/styles/catalyst-ui-kit/auth-layout'
 
 function LoginFallback() {
@@ -12,7 +13,7 @@ function LoginFallback() {
 
 export default function LoginPage() {
   return (
-    <AuthLayout>
+    <AuthLayout animated background={<LoginAnimatedBackground />}>
       <Suspense fallback={<LoginFallback />}>
         <LoginForm />
       </Suspense>

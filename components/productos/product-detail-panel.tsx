@@ -10,7 +10,7 @@ import {
   updateProductAction,
   type ProductFormState,
 } from '@/lib/actions/product-actions'
-import type { ProductOption, ProductRow } from '@/lib/data/product-types'
+import type { ProductOption, ProductRow, SubCategoryProductOption } from '@/lib/data/product-types'
 import type { ViewActionFlags } from '@/lib/permissions/views'
 import { useFormActionSuccess } from '@/lib/hooks/use-form-action-success'
 import { Button } from '@/styles/catalyst-ui-kit/button'
@@ -25,6 +25,7 @@ interface ProductDetailPanelProps {
   organizationId: string
   product: ProductRow
   categories: ProductOption[]
+  subCategories: SubCategoryProductOption[]
   suppliers: ProductOption[]
   actions: Pick<ViewActionFlags, 'canEdit' | 'canDelete'>
 }
@@ -34,11 +35,13 @@ export function ProductDetailPanel({
   organizationId,
   product,
   categories,
+  subCategories,
   suppliers,
   actions,
 }: ProductDetailPanelProps) {
   const router = useRouter()
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
+  const [formResetKey, setFormResetKey] = useState(0)
 
   const boundUpdateAction = updateProductAction.bind(null, orgSlug, product.id)
   const [updateState, updateFormAction, updatePending] = useActionState(
@@ -46,13 +49,22 @@ export function ProductDetailPanel({
     initialState
   )
 
-  useFormActionSuccess(updateState.ok, () => {}, updatePending)
+  useFormActionSuccess(updateState.ok, () => {}, updatePending, 'Cambios guardados correctamente.')
 
   useEffect(() => {
     if (updateState.ok && !updatePending) {
+      setFormResetKey((current) => current + 1)
       router.refresh()
     }
   }, [updateState.ok, updatePending, router])
+
+  const formDefaultsKey = [
+    product.id,
+    product.categoryId ?? '',
+    product.subCategoryId ?? '',
+    product.supplierId ?? '',
+    formResetKey,
+  ].join(':')
 
   const handleDeleteSuccess = () => {
     router.push(`/${orgSlug}/productos`)
@@ -90,7 +102,9 @@ export function ProductDetailPanel({
               idPrefix="detail-product"
               organizationId={organizationId}
               categories={categories}
+              subCategories={subCategories}
               suppliers={suppliers}
+              resetKey={formDefaultsKey}
               defaults={{
                 barcode: product.barcode ?? '',
                 name: product.name,
@@ -98,6 +112,7 @@ export function ProductDetailPanel({
                 salePrice: product.salePrice,
                 costPrice: product.costPrice,
                 categoryId: product.categoryId,
+                subCategoryId: product.subCategoryId,
                 supplierId: product.supplierId,
                 imageUrl: product.imageUrl,
               }}
@@ -112,11 +127,6 @@ export function ProductDetailPanel({
               </Text>
             ) : null}
 
-            {updateState.ok ? (
-              <Text className="mt-4 text-emerald-600 dark:text-emerald-400" role="status">
-                Cambios guardados correctamente.
-              </Text>
-            ) : null}
           </Fieldset>
 
           <div className="mt-8 flex justify-end">
@@ -131,7 +141,9 @@ export function ProductDetailPanel({
             idPrefix="detail-product-readonly"
             organizationId={organizationId}
             categories={categories}
+            subCategories={subCategories}
             suppliers={suppliers}
+            resetKey={formDefaultsKey}
             defaults={{
               barcode: product.barcode ?? '',
               name: product.name,
@@ -139,6 +151,7 @@ export function ProductDetailPanel({
               salePrice: product.salePrice,
               costPrice: product.costPrice,
               categoryId: product.categoryId,
+              subCategoryId: product.subCategoryId,
               supplierId: product.supplierId,
               imageUrl: product.imageUrl,
             }}

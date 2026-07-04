@@ -39,7 +39,7 @@ export function DeleteCategoryDialog({
     initialState
   )
 
-  useFormActionSuccess(state.ok, onClose, pending)
+  useFormActionSuccess(state.ok, onClose, pending, 'Categoría eliminada correctamente.')
 
   if (!category || !boundAction) return null
 

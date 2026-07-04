@@ -32,7 +32,7 @@ export function EditCategoryDialog({ orgSlug, category, open, onClose }: EditCat
   const boundAction = updateCategoryAction.bind(null, orgSlug)
   const [state, formAction, pending] = useActionState(boundAction, initialState)
 
-  useFormActionSuccess(state.ok, onClose, pending)
+  useFormActionSuccess(state.ok, onClose, pending, 'Categoría actualizada correctamente.')
 
   if (!category) return null
 

@@ -1,8 +1,17 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
+import { validateProductSubCategory } from '@/lib/actions/subcategory-actions'
 import { getActionAccess, permissionDeniedState } from '@/lib/auth/access'
-import { getActiveMemberIdForOrganization } from '@/lib/data/categories'
+import {
+  getCreateFanOutTargets,
+  getSharedEntityRef,
+  getSubCategorySharedRef,
+  newOwnerSharedKey,
+  resolveCategoryIdInOrg,
+  resolveSubCategoryIdInOrg,
+  resolveSupplierIdInOrg,
+  revalidateCatalogPaths,
+} from '@/lib/data/owner-shared-entities'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import {
   deleteProductImageByUrl,
@@ -10,6 +19,7 @@ import {
   parseImageUrlFromForm,
   shouldRemoveProductImage,
 } from '@/lib/utils/product-image'
+import { revalidatePath } from 'next/cache'
 
 export interface ProductFormState {
   error: string | null
@@ -23,6 +33,7 @@ interface ParsedProductForm {
   salePrice: number
   costPrice: number | null
   categoryId: string | null
+  subCategoryId: string | null
   supplierId: string | null
 }
 
@@ -95,6 +106,7 @@ function parseProductForm(formData: FormData): { error: string } | ParsedProduct
     salePrice,
     costPrice,
     categoryId: parseOptionalUuid(formData.get('categoryId')),
+    subCategoryId: parseOptionalUuid(formData.get('subCategoryId')),
     supplierId: parseOptionalUuid(formData.get('supplierId')),
   }
 }
@@ -110,7 +122,7 @@ function mapProductError(error: { code?: string; message?: string }): string {
   }
 
   if (error.code === '23503') {
-    return 'La categoría o el proveedor seleccionado no es válido.'
+    return 'La categoría, subcategoría o el proveedor seleccionado no es válido.'
   }
 
   return error.message || 'No se pudo guardar el producto.'
@@ -162,7 +174,20 @@ export async function createProductAction(
     return { error: parsed.error, ok: false }
   }
 
-  const memberId = await getActiveMemberIdForOrganization(access.organization.id)
+  const subCategoryResult = await validateProductSubCategory(
+    access.organization.id,
+    parsed.categoryId,
+    parsed.subCategoryId
+  )
+  if ('error' in subCategoryResult) {
+    return { error: subCategoryResult.error, ok: false }
+  }
+
+  const targets = await getCreateFanOutTargets(access.organization.id)
+  if (targets.length === 0) {
+    return { error: 'No se pudo resolver la sucursal actual.', ok: false }
+  }
+
   const supabase = await createSupabaseServerClient()
 
   const imageResult = await resolveProductImageUrl(formData, access.organization.id, null)
@@ -170,47 +195,87 @@ export async function createProductAction(
     return { error: imageResult.error, ok: false }
   }
 
-  const payload = {
-    organization_id: access.organization.id,
-    name: parsed.name,
-    sku: buildProductSku(parsed.name, parsed.barcode),
-    barcode: parsed.barcode,
-    available_quantity: parsed.availableQuantity,
-    sale_price: parsed.salePrice,
-    cost_price: parsed.costPrice,
-    category_id: parsed.categoryId,
-    supplier_id: parsed.supplierId,
-    image_url: imageResult.imageUrl,
-    created_by: memberId,
-  }
+  const categoryRef = await getSharedEntityRef(
+    'categories',
+    access.organization.id,
+    parsed.categoryId
+  )
+  const supplierRef = await getSharedEntityRef(
+    'suppliers',
+    access.organization.id,
+    parsed.supplierId
+  )
+  const subCategoryRef = await getSubCategorySharedRef(
+    access.organization.id,
+    subCategoryResult.subCategoryId
+  )
 
-  let { error } = await supabase.from('products').insert(payload)
+  const sharedKey = newOwnerSharedKey()
+  const sku = buildProductSku(parsed.name, parsed.barcode)
 
-  if (error?.message?.includes('available_quantity') || error?.message?.includes('supplier_id')) {
-    const {
-      available_quantity: _aq,
-      supplier_id: _si,
-      image_url: _iu,
-      created_by: _cb,
-      ...legacyPayload
-    } = payload
-    ;({ error } = await supabase.from('products').insert(legacyPayload))
-  } else if (error?.message?.includes('created_by')) {
-    const { created_by: _cb, ...payloadWithoutCreator } = payload
-    ;({ error } = await supabase.from('products').insert(payloadWithoutCreator))
-  } else if (error?.message?.includes('image_url')) {
-    const { image_url: _iu, ...payloadWithoutImage } = payload
-    ;({ error } = await supabase.from('products').insert(payloadWithoutImage))
-  }
+  for (const target of targets) {
+    const isCurrent = target.organizationId === access.organization.id
+    const categoryId = isCurrent
+      ? parsed.categoryId
+      : await resolveCategoryIdInOrg(target.organizationId, categoryRef)
+    const supplierId = isCurrent
+      ? parsed.supplierId
+      : await resolveSupplierIdInOrg(target.organizationId, supplierRef)
+    const subCategoryId = isCurrent
+      ? subCategoryResult.subCategoryId
+      : await resolveSubCategoryIdInOrg(target.organizationId, subCategoryRef, categoryId)
 
-  if (error) {
-    if (imageResult.imageUrl) {
-      await deleteProductImageByUrl(supabase, imageResult.imageUrl)
+    const payload = {
+      organization_id: target.organizationId,
+      name: parsed.name,
+      sku,
+      barcode: parsed.barcode,
+      available_quantity: parsed.availableQuantity,
+      sale_price: parsed.salePrice,
+      cost_price: parsed.costPrice,
+      category_id: categoryId,
+      sub_category_id: subCategoryId,
+      supplier_id: supplierId,
+      image_url: imageResult.imageUrl,
+      owner_shared_key: sharedKey,
+      created_by: target.memberId,
     }
-    return { error: mapProductError(error), ok: false }
+
+    let { error } = await supabase.from('products').insert(payload)
+
+    if (error?.message?.includes('available_quantity') || error?.message?.includes('supplier_id')) {
+      const {
+        available_quantity: _aq,
+        supplier_id: _si,
+        image_url: _iu,
+        created_by: _cb,
+        owner_shared_key: _key,
+        ...legacyPayload
+      } = payload
+      ;({ error } = await supabase.from('products').insert(legacyPayload))
+    } else if (error?.message?.includes('sub_category_id')) {
+      const { sub_category_id: _sc, ...payloadWithoutSubCategory } = payload
+      ;({ error } = await supabase.from('products').insert(payloadWithoutSubCategory))
+    } else if (error?.message?.includes('owner_shared_key')) {
+      const { owner_shared_key: _key, ...payloadWithoutKey } = payload
+      ;({ error } = await supabase.from('products').insert(payloadWithoutKey))
+    } else if (error?.message?.includes('created_by')) {
+      const { created_by: _cb, ...payloadWithoutCreator } = payload
+      ;({ error } = await supabase.from('products').insert(payloadWithoutCreator))
+    } else if (error?.message?.includes('image_url')) {
+      const { image_url: _iu, ...payloadWithoutImage } = payload
+      ;({ error } = await supabase.from('products').insert(payloadWithoutImage))
+    }
+
+    if (error) {
+      if (imageResult.imageUrl && isCurrent) {
+        await deleteProductImageByUrl(supabase, imageResult.imageUrl)
+      }
+      return { error: mapProductError(error), ok: false }
+    }
   }
 
-  revalidatePath(`/${orgSlug}/productos`)
+  revalidateCatalogPaths(targets, 'products', orgSlug)
   return { error: null, ok: true }
 }
 
@@ -228,6 +293,15 @@ export async function updateProductAction(
   const parsed = parseProductForm(formData)
   if ('error' in parsed) {
     return { error: parsed.error, ok: false }
+  }
+
+  const subCategoryResult = await validateProductSubCategory(
+    access.organization.id,
+    parsed.categoryId,
+    parsed.subCategoryId
+  )
+  if ('error' in subCategoryResult) {
+    return { error: subCategoryResult.error, ok: false }
   }
 
   const supabase = await createSupabaseServerClient()
@@ -260,6 +334,7 @@ export async function updateProductAction(
     sale_price: parsed.salePrice,
     cost_price: parsed.costPrice,
     category_id: parsed.categoryId,
+    sub_category_id: subCategoryResult.subCategoryId,
     supplier_id: parsed.supplierId,
     image_url: imageResult.imageUrl,
     updated_at: new Date().toISOString(),
@@ -281,6 +356,13 @@ export async function updateProductAction(
     ;({ error } = await supabase
       .from('products')
       .update(legacyPayload)
+      .eq('id', productId)
+      .eq('organization_id', access.organization.id))
+  } else if (error?.message?.includes('sub_category_id')) {
+    const { sub_category_id: _sc, ...payloadWithoutSubCategory } = updatePayload
+    ;({ error } = await supabase
+      .from('products')
+      .update(payloadWithoutSubCategory)
       .eq('id', productId)
       .eq('organization_id', access.organization.id))
   } else if (error?.message?.includes('image_url')) {

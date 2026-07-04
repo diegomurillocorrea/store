@@ -1,10 +1,14 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
 import { getActionAccess, permissionDeniedState } from '@/lib/auth/access'
-import { getActiveMemberIdForOrganization } from '@/lib/data/categories'
+import {
+  getCreateFanOutTargets,
+  newOwnerSharedKey,
+  revalidateCatalogPaths,
+} from '@/lib/data/owner-shared-entities'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { parsePhoneFormValue } from '@/lib/utils/phone'
+import { revalidatePath } from 'next/cache'
 
 export interface CustomerFormState {
   error: string | null
@@ -77,42 +81,60 @@ export async function createCustomerAction(
     return { error: parsed.error, ok: false }
   }
 
-  const memberId = await getActiveMemberIdForOrganization(access.organization.id)
+  const targets = await getCreateFanOutTargets(access.organization.id)
+  if (targets.length === 0) {
+    return { error: 'No se pudo resolver la sucursal actual.', ok: false }
+  }
 
+  const sharedKey = newOwnerSharedKey()
   const supabase = await createSupabaseServerClient()
   const fullName = buildCustomerFullName(parsed.firstName, parsed.lastName)
 
-  let { error } = await supabase.from('customers').insert({
-    organization_id: access.organization.id,
-    first_name: parsed.firstName,
-    last_name: parsed.lastName,
-    phone: parsed.phone,
-    email: parsed.email,
-    created_by: memberId,
-  })
-
-  if (isMissingCustomerNameColumns(error)) {
-    ;({ error } = await supabase.from('customers').insert({
-      organization_id: access.organization.id,
-      name: fullName,
-      phone: parsed.phone,
-      email: parsed.email,
-    }))
-  } else if (error?.message?.includes('created_by')) {
-    ;({ error } = await supabase.from('customers').insert({
-      organization_id: access.organization.id,
+  for (const target of targets) {
+    let { error } = await supabase.from('customers').insert({
+      organization_id: target.organizationId,
       first_name: parsed.firstName,
       last_name: parsed.lastName,
       phone: parsed.phone,
       email: parsed.email,
-    }))
+      owner_shared_key: sharedKey,
+      created_by: target.memberId,
+    })
+
+    if (isMissingCustomerNameColumns(error)) {
+      ;({ error } = await supabase.from('customers').insert({
+        organization_id: target.organizationId,
+        name: fullName,
+        phone: parsed.phone,
+        email: parsed.email,
+        owner_shared_key: sharedKey,
+      }))
+    } else if (error?.message?.includes('created_by')) {
+      ;({ error } = await supabase.from('customers').insert({
+        organization_id: target.organizationId,
+        first_name: parsed.firstName,
+        last_name: parsed.lastName,
+        phone: parsed.phone,
+        email: parsed.email,
+        owner_shared_key: sharedKey,
+      }))
+    } else if (error?.message?.includes('owner_shared_key')) {
+      ;({ error } = await supabase.from('customers').insert({
+        organization_id: target.organizationId,
+        first_name: parsed.firstName,
+        last_name: parsed.lastName,
+        phone: parsed.phone,
+        email: parsed.email,
+        created_by: target.memberId,
+      }))
+    }
+
+    if (error) {
+      return { error: error.message || 'No se pudo crear el cliente.', ok: false }
+    }
   }
 
-  if (error) {
-    return { error: error.message || 'No se pudo crear el cliente.', ok: false }
-  }
-
-  revalidatePath(`/${orgSlug}/clientes`)
+  revalidateCatalogPaths(targets, 'customers', orgSlug)
   return { error: null, ok: true }
 }
 

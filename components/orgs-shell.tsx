@@ -1,6 +1,7 @@
 'use client'
 
 import { BuildingOffice2Icon, PlusIcon } from '@heroicons/react/24/outline'
+import { DaiegoLogo } from '@/components/daiego-logo'
 import { SidebarUserProfile } from '@/components/sidebar-user-profile'
 import { SignOutButton } from '@/components/sign-out-button'
 import { ThemeToggle } from '@/components/theme-toggle'
@@ -26,7 +27,12 @@ export function OrgsShell({ userEmail, children }: OrgsShellProps) {
       <Sidebar className="flex h-full min-h-0 flex-col">
       <SidebarHeader className="border-b border-zinc-200 px-0 pb-4 dark:border-zinc-800">
         <div className="flex h-16 shrink-0 items-center justify-between gap-3">
-          <span className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Store</span>
+          <span className="inline-flex items-center gap-2">
+            <DaiegoLogo size={32} />
+            <span className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+              DAIEGO Store
+            </span>
+          </span>
           <ThemeToggle />
         </div>
         <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">

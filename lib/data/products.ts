@@ -12,11 +12,13 @@ interface RawProductRow {
   sale_price: number | string
   cost_price: number | string | null
   category_id: string | null
+  sub_category_id: string | null
   supplier_id: string | null
   image_url: string | null
   created_at: string
   created_by: string | null
   category: { id: string; name: string } | { id: string; name: string }[] | null
+  sub_category: { id: string; name: string } | { id: string; name: string }[] | null
   supplier: { id: string; name: string } | { id: string; name: string }[] | null
   creator: { display_name: string | null } | { display_name: string | null }[] | null
 }
@@ -29,6 +31,7 @@ function toNumber(value: number | string | null | undefined): number | null {
 
 function mapProductRow(row: RawProductRow): ProductRow {
   const category = Array.isArray(row.category) ? row.category[0] : row.category
+  const subCategory = Array.isArray(row.sub_category) ? row.sub_category[0] : row.sub_category
   const supplier = Array.isArray(row.supplier) ? row.supplier[0] : row.supplier
   const creator = Array.isArray(row.creator) ? row.creator[0] : row.creator
 
@@ -42,6 +45,8 @@ function mapProductRow(row: RawProductRow): ProductRow {
     costPrice: toNumber(row.cost_price),
     categoryId: row.category_id,
     categoryName: category?.name ?? null,
+    subCategoryId: row.sub_category_id,
+    subCategoryName: subCategory?.name ?? null,
     supplierId: row.supplier_id,
     supplierName: supplier?.name ?? null,
     imageUrl: row.image_url,
@@ -68,11 +73,13 @@ export async function getProductsByOrganizationId(
       sale_price,
       cost_price,
       category_id,
+      sub_category_id,
       supplier_id,
       image_url,
       created_at,
       created_by,
       category:categories ( id, name ),
+      sub_category:subcategories ( id, name ),
       supplier:suppliers ( id, name ),
       creator:organization_members!products_created_by_fkey ( display_name )
     `
@@ -88,6 +95,7 @@ export async function getProductsByOrganizationId(
       error.code === 'PGRST204' ||
       Boolean(error.message?.includes('available_quantity')) ||
       Boolean(error.message?.includes('supplier_id')) ||
+      Boolean(error.message?.includes('sub_category_id')) ||
       Boolean(error.message?.includes('created_by')) ||
       Boolean(error.message?.includes('schema cache'))
 
@@ -129,6 +137,8 @@ export async function getProductsByOrganizationId(
           costPrice: toNumber(row.cost_price),
           categoryId: row.category_id,
           categoryName: category?.name ?? null,
+          subCategoryId: null,
+          subCategoryName: null,
           supplierId: null,
           supplierName: null,
           imageUrl: null,
@@ -155,11 +165,13 @@ const productSelectQuery = `
   sale_price,
   cost_price,
   category_id,
+  sub_category_id,
   supplier_id,
   image_url,
   created_at,
   created_by,
   category:categories ( id, name ),
+  sub_category:subcategories ( id, name ),
   supplier:suppliers ( id, name ),
   creator:organization_members!products_created_by_fkey ( display_name )
 `
@@ -185,6 +197,7 @@ export async function getProductById(
       error.code === 'PGRST204' ||
       Boolean(error.message?.includes('available_quantity')) ||
       Boolean(error.message?.includes('supplier_id')) ||
+      Boolean(error.message?.includes('sub_category_id')) ||
       Boolean(error.message?.includes('created_by')) ||
       Boolean(error.message?.includes('schema cache'))
 
@@ -228,6 +241,8 @@ export async function getProductById(
         costPrice: toNumber(fallbackData.cost_price),
         categoryId: fallbackData.category_id,
         categoryName: category?.name ?? null,
+        subCategoryId: null,
+        subCategoryName: null,
         supplierId: null,
         supplierName: null,
         imageUrl: null,

@@ -11,9 +11,9 @@ interface MarcaPageProps {
 
 export default async function MarcaPage({ params }: MarcaPageProps) {
   const { orgSlug } = await params
-  const access = await requireViewAccess(orgSlug, 'configuracion')
+  const access = await requireViewAccess(orgSlug, 'configuracion-marca')
   const branding = await getOrganizationBranding(access.organization.id)
-  const { canEdit } = getViewActionFlags(access.permissions, 'configuracion')
+  const { canEdit } = getViewActionFlags(access.permissions, 'configuracion-marca')
 
   return (
     <div>

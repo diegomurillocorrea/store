@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
-import { OrgsShell } from '@/components/orgs-shell'
+import { LoginAnimatedBackground } from '@/components/auth/login-animated-background'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
+import { AuthLayout } from '@/styles/catalyst-ui-kit/auth-layout'
 
 interface OrgsDashboardLayoutProps {
   children: React.ReactNode
@@ -17,6 +18,8 @@ export default async function OrgsDashboardLayout({ children }: OrgsDashboardLay
   }
 
   return (
-    <OrgsShell userEmail={user.email ?? 'usuario@daiego.app'}>{children}</OrgsShell>
+    <AuthLayout animated background={<LoginAnimatedBackground />}>
+      {children}
+    </AuthLayout>
   )
 }

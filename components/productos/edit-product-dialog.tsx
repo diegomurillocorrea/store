@@ -5,7 +5,7 @@ import {
   updateProductAction,
   type ProductFormState,
 } from '@/lib/actions/product-actions'
-import type { ProductOption, ProductRow } from '@/lib/data/product-types'
+import type { ProductOption, ProductRow, SubCategoryProductOption } from '@/lib/data/product-types'
 import { ProductFormFields } from '@/components/productos/product-form-fields'
 import { useFormActionSuccess } from '@/lib/hooks/use-form-action-success'
 import { Button } from '@/styles/catalyst-ui-kit/button'
@@ -26,6 +26,7 @@ interface EditProductDialogProps {
   organizationId: string
   product: ProductRow | null
   categories: ProductOption[]
+  subCategories: SubCategoryProductOption[]
   suppliers: ProductOption[]
   open: boolean
   onClose: () => void
@@ -36,6 +37,7 @@ export function EditProductDialog({
   organizationId,
   product,
   categories,
+  subCategories,
   suppliers,
   open,
   onClose,
@@ -48,7 +50,7 @@ export function EditProductDialog({
     initialState
   )
 
-  useFormActionSuccess(state.ok, onClose, pending)
+  useFormActionSuccess(state.ok, onClose, pending, 'Producto actualizado correctamente.')
 
   if (!product || !boundAction) return null
 
@@ -66,6 +68,7 @@ export function EditProductDialog({
               idPrefix="edit-product"
               organizationId={organizationId}
               categories={categories}
+              subCategories={subCategories}
               suppliers={suppliers}
               defaults={{
                 barcode: product.barcode ?? '',
@@ -74,6 +77,7 @@ export function EditProductDialog({
                 salePrice: product.salePrice,
                 costPrice: product.costPrice,
                 categoryId: product.categoryId,
+                subCategoryId: product.subCategoryId,
                 supplierId: product.supplierId,
                 imageUrl: product.imageUrl,
               }}

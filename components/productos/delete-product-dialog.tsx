@@ -41,7 +41,7 @@ export function DeleteProductDialog({
     initialState
   )
 
-  useFormActionSuccess(state.ok, onSuccess ?? onClose, pending)
+  useFormActionSuccess(state.ok, onSuccess ?? onClose, pending, 'Producto eliminado correctamente.')
 
   if (!product || !boundAction) return null
 

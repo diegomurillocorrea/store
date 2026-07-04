@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
+import { useNotifications } from '@/components/notifications/notification-provider'
 import { createSupabaseBrowserClient } from '@/lib/supabase/client'
 import { Button } from '@/styles/catalyst-ui-kit/button'
 import { Checkbox, CheckboxField } from '@/styles/catalyst-ui-kit/checkbox'
@@ -13,17 +14,16 @@ import { TextLink } from '@/styles/catalyst-ui-kit/text-link'
 
 export function RegisterForm() {
   const router = useRouter()
+  const { notify } = useNotifications()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [info, setInfo] = useState<string | null>(null)
   const [isPending, setIsPending] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
-    setInfo(null)
     setIsPending(true)
 
     const origin = window.location.origin
@@ -48,7 +48,11 @@ export function RegisterForm() {
       return
     }
 
-    setInfo('Revisa tu correo para confirmar la cuenta (si está activada la verificación en Supabase).')
+    notify({
+      title: 'Revisa tu correo',
+      description: 'Confirma tu cuenta desde el enlace que te enviamos (si está activada la verificación en Supabase).',
+      variant: 'success',
+    })
     setIsPending(false)
     router.refresh()
   }
@@ -95,11 +99,6 @@ export function RegisterForm() {
       {error ? (
         <Text className="text-red-600 dark:text-red-400" role="alert">
           {error}
-        </Text>
-      ) : null}
-      {info ? (
-        <Text className="text-emerald-700 dark:text-emerald-400" role="status">
-          {info}
         </Text>
       ) : null}
       <Button type="submit" className="w-full" disabled={isPending} color="dark/zinc">

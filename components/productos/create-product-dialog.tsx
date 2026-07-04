@@ -5,7 +5,7 @@ import {
   createProductAction,
   type ProductFormState,
 } from '@/lib/actions/product-actions'
-import type { ProductOption } from '@/lib/data/product-types'
+import type { ProductOption, SubCategoryProductOption } from '@/lib/data/product-types'
 import { ProductFormFields } from '@/components/productos/product-form-fields'
 import { useFormActionSuccess } from '@/lib/hooks/use-form-action-success'
 import { Button } from '@/styles/catalyst-ui-kit/button'
@@ -25,6 +25,7 @@ interface CreateProductDialogProps {
   orgSlug: string
   organizationId: string
   categories: ProductOption[]
+  subCategories: SubCategoryProductOption[]
   suppliers: ProductOption[]
   open: boolean
   onClose: () => void
@@ -34,6 +35,7 @@ export function CreateProductDialog({
   orgSlug,
   organizationId,
   categories,
+  subCategories,
   suppliers,
   open,
   onClose,
@@ -41,7 +43,7 @@ export function CreateProductDialog({
   const boundAction = createProductAction.bind(null, orgSlug)
   const [state, formAction, pending] = useActionState(boundAction, initialState)
 
-  useFormActionSuccess(state.ok, onClose, pending)
+  useFormActionSuccess(state.ok, onClose, pending, 'Producto creado correctamente.')
 
   return (
     <Dialog open={open} onClose={onClose} size="3xl">
@@ -57,6 +59,7 @@ export function CreateProductDialog({
               idPrefix="product"
               organizationId={organizationId}
               categories={categories}
+              subCategories={subCategories}
               suppliers={suppliers}
               resetKey={open}
             />

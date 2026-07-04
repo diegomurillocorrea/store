@@ -28,6 +28,9 @@ const nextConfig: NextConfig = {
         pathname: '/api/brand-logo',
         // Omit search so proxied logo URLs (?url=...) are allowed.
       },
+      {
+        pathname: '/DAIEGO.png',
+      },
     ],
     remotePatterns: supabasePattern ? [supabasePattern] : [],
   },

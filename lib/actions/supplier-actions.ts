@@ -1,10 +1,14 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
 import { getActionAccess, permissionDeniedState } from '@/lib/auth/access'
-import { getActiveMemberIdForOrganization } from '@/lib/data/categories'
+import {
+  getCreateFanOutTargets,
+  newOwnerSharedKey,
+  revalidateCatalogPaths,
+} from '@/lib/data/owner-shared-entities'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { parsePhoneFormValue } from '@/lib/utils/phone'
+import { revalidatePath } from 'next/cache'
 
 export interface SupplierFormState {
   error: string | null
@@ -55,29 +59,40 @@ export async function createSupplierAction(
     return { error: parsed.error, ok: false }
   }
 
-  const memberId = await getActiveMemberIdForOrganization(access.organization.id)
+  const targets = await getCreateFanOutTargets(access.organization.id)
+  if (targets.length === 0) {
+    return { error: 'No se pudo resolver la sucursal actual.', ok: false }
+  }
 
+  const sharedKey = newOwnerSharedKey()
   const supabase = await createSupabaseServerClient()
-  const payload = {
-    organization_id: access.organization.id,
-    name: parsed.name,
-    phone: parsed.phone,
-    email: parsed.email,
-    created_by: memberId,
+
+  for (const target of targets) {
+    const payload = {
+      organization_id: target.organizationId,
+      name: parsed.name,
+      phone: parsed.phone,
+      email: parsed.email,
+      owner_shared_key: sharedKey,
+      created_by: target.memberId,
+    }
+
+    let { error } = await supabase.from('suppliers').insert(payload)
+
+    if (error?.message?.includes('created_by')) {
+      const { created_by: _ignored, ...payloadWithoutCreator } = payload
+      ;({ error } = await supabase.from('suppliers').insert(payloadWithoutCreator))
+    } else if (error?.message?.includes('owner_shared_key')) {
+      const { owner_shared_key: _key, ...payloadWithoutKey } = payload
+      ;({ error } = await supabase.from('suppliers').insert(payloadWithoutKey))
+    }
+
+    if (error) {
+      return { error: error.message || 'No se pudo crear el proveedor.', ok: false }
+    }
   }
 
-  let { error } = await supabase.from('suppliers').insert(payload)
-
-  if (error?.message?.includes('created_by')) {
-    const { created_by: _ignored, ...payloadWithoutCreator } = payload
-    ;({ error } = await supabase.from('suppliers').insert(payloadWithoutCreator))
-  }
-
-  if (error) {
-    return { error: error.message || 'No se pudo crear el proveedor.', ok: false }
-  }
-
-  revalidatePath(`/${orgSlug}/proveedores`)
+  revalidateCatalogPaths(targets, 'suppliers', orgSlug)
   return { error: null, ok: true }
 }
 

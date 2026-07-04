@@ -36,7 +36,7 @@ export function CreateEmployeeDialog({
   const boundAction = createEmployeeAction.bind(null, orgSlug)
   const [state, formAction, pending] = useActionState(boundAction, initialState)
 
-  useFormActionSuccess(state.ok, onClose, pending)
+  useFormActionSuccess(state.ok, onClose, pending, 'Empleado creado correctamente.')
 
   return (
     <Dialog open={open} onClose={onClose} size="md">

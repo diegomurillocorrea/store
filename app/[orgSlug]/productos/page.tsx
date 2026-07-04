@@ -2,6 +2,7 @@ import { ProductsPanel } from '@/components/productos/products-panel'
 import { requireViewAccess } from '@/lib/auth/access'
 import { getCategoriesByOrganizationId } from '@/lib/data/categories'
 import { getProductsByOrganizationId } from '@/lib/data/products'
+import { getSubCategoryOptionsByOrganizationId } from '@/lib/data/subcategories'
 import { getSuppliersByOrganizationId } from '@/lib/data/suppliers'
 import { getViewActionFlags } from '@/lib/permissions/views'
 import { Heading } from '@/styles/catalyst-ui-kit/heading'
@@ -16,9 +17,10 @@ export default async function ProductosPage({ params }: ProductosPageProps) {
   const organizationId = access.organization.id
   const actions = getViewActionFlags(access.permissions, 'productos')
 
-  const [products, categories, suppliers] = await Promise.all([
+  const [products, categories, subCategories, suppliers] = await Promise.all([
     getProductsByOrganizationId(organizationId),
     getCategoriesByOrganizationId(organizationId),
+    getSubCategoryOptionsByOrganizationId(organizationId),
     getSuppliersByOrganizationId(organizationId),
   ])
 
@@ -40,6 +42,7 @@ export default async function ProductosPage({ params }: ProductosPageProps) {
         organizationId={organizationId}
         products={products}
         categories={categoryOptions}
+        subCategories={subCategories}
         suppliers={supplierOptions}
         actions={actions}
       />

@@ -1,6 +1,7 @@
 'use client'
 
 import { Fragment, useActionState, useMemo } from 'react'
+import { useActionStateNotification } from '@/lib/hooks/use-action-state-notification'
 import {
   updateRolePermissionsAction,
   type RolePermissionsFormState,
@@ -66,6 +67,8 @@ function RolePermissionsGrid({
   const boundAction = updateRolePermissionsAction.bind(null, orgSlug)
   const [state, formAction, isPending] = useActionState(boundAction, initialState)
 
+  useActionStateNotification(state.ok, isPending, 'Permisos guardados correctamente.')
+
   const sections = useMemo(() => {
     const grouped = new Map<string, typeof PERMISSION_VIEWS>()
 
@@ -99,12 +102,6 @@ function RolePermissionsGrid({
       {state.error ? (
         <Text className="mt-4 text-red-600 dark:text-red-400" role="alert">
           {state.error}
-        </Text>
-      ) : null}
-
-      {state.ok ? (
-        <Text className="mt-4 text-emerald-700 dark:text-emerald-400" role="status">
-          Permisos guardados correctamente.
         </Text>
       ) : null}
 

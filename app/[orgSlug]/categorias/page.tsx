@@ -1,3 +1,4 @@
+import { CatalogNav } from '@/components/categorias/catalog-nav'
 import { CategoriesPanel } from '@/components/categorias/categories-panel'
 import { requireViewAccess } from '@/lib/auth/access'
 import { getCategoriesByOrganizationId } from '@/lib/data/categories'
@@ -17,7 +18,10 @@ export default async function CategoriasPage({ params }: CategoriasPageProps) {
   return (
     <div className="px-4 sm:px-6 lg:px-8">
       <Heading>Categorías</Heading>
-      <CategoriesPanel orgSlug={orgSlug} categories={categories} actions={actions} />
+      <CatalogNav orgSlug={orgSlug} />
+      <div className="mt-8">
+        <CategoriesPanel orgSlug={orgSlug} categories={categories} actions={actions} />
+      </div>
     </div>
   )
 }

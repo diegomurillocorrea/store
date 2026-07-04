@@ -30,7 +30,7 @@ export function CreateCategoryDialog({ orgSlug, open, onClose }: CreateCategoryD
   const boundAction = createCategoryAction.bind(null, orgSlug)
   const [state, formAction, pending] = useActionState(boundAction, initialState)
 
-  useFormActionSuccess(state.ok, onClose, pending)
+  useFormActionSuccess(state.ok, onClose, pending, 'Categoría creada correctamente.')
 
   return (
     <Dialog open={open} onClose={onClose} size="md">

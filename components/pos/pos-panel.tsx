@@ -67,12 +67,52 @@ function filterProducts(products: ProductRow[], query: string): ProductRow[] {
       product.barcode ?? '',
       product.sku,
       product.categoryName ?? '',
+      product.subCategoryName ?? '',
     ]
       .join(' ')
       .toLowerCase()
 
     return haystack.includes(normalizedQuery)
   })
+}
+
+const DOT_BADGE_TONES = {
+  blue: {
+    badge: 'bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-400',
+    dot: 'fill-blue-500',
+  },
+  purple: {
+    badge: 'bg-purple-100 text-purple-700 dark:bg-purple-500/15 dark:text-purple-400',
+    dot: 'fill-purple-500',
+  },
+} as const
+
+function DotBadge({
+  children,
+  tone,
+}: {
+  children: string
+  tone: keyof typeof DOT_BADGE_TONES
+}) {
+  const styles = DOT_BADGE_TONES[tone]
+
+  return (
+    <span
+      className={clsx(
+        'inline-flex max-w-full items-center gap-x-1.5 truncate rounded-md px-2 py-1 text-xs font-medium',
+        styles.badge
+      )}
+    >
+      <svg
+        viewBox="0 0 6 6"
+        aria-hidden="true"
+        className={clsx('size-1.5 shrink-0', styles.dot)}
+      >
+        <circle r={3} cx={3} cy={3} />
+      </svg>
+      <span className="truncate">{children}</span>
+    </span>
+  )
 }
 
 function ProductCard({
@@ -115,7 +155,7 @@ function ProductCard({
   return (
     <article
       className={clsx(
-        'flex flex-col overflow-hidden rounded-2xl border bg-white shadow-sm transition-all duration-200 hover:shadow-md dark:bg-zinc-900',
+        'flex h-full flex-col overflow-hidden rounded-2xl border bg-white shadow-sm transition-all duration-200 hover:shadow-md dark:bg-zinc-900',
         isInCart
           ? 'border-emerald-500/70 shadow-emerald-500/10 ring-1 ring-emerald-500/20'
           : 'border-zinc-200/90 hover:border-zinc-300 dark:border-zinc-800 dark:hover:border-zinc-700'
@@ -178,15 +218,24 @@ function ProductCard({
       </button>
 
       <div className="flex flex-1 flex-col gap-3 p-3.5">
-        <div className="min-h-0 space-y-1.5">
-          <h3 className="line-clamp-2 text-sm leading-snug font-semibold text-zinc-900 dark:text-zinc-50">
+        <div className="flex min-h-17 flex-col gap-1.5">
+          <h3 className="line-clamp-2 min-h-10 text-sm leading-snug font-semibold text-zinc-900 dark:text-zinc-50">
             {product.name}
           </h3>
-          {product.categoryName ? (
-            <span className="inline-flex max-w-full truncate rounded-md bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
-              {product.categoryName}
+          {product.categoryName || product.subCategoryName ? (
+            <div className="flex min-h-5 flex-wrap items-center gap-1.5">
+              {product.categoryName ? (
+                <DotBadge tone="blue">{product.categoryName}</DotBadge>
+              ) : null}
+              {product.subCategoryName ? (
+                <DotBadge tone="purple">{product.subCategoryName}</DotBadge>
+              ) : null}
+            </div>
+          ) : (
+            <span className="invisible inline-flex min-h-5 max-h-5 items-center px-2 text-xs">
+              Sin categoría
             </span>
-          ) : null}
+          )}
         </div>
 
         <div
@@ -628,9 +677,9 @@ export function PosPanel({ orgSlug, products, customers }: PosPanelProps) {
             </div>
           ) : (
             <div className="mt-4 min-h-0 flex-1 overflow-y-auto overscroll-contain pb-2">
-              <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+              <ul className="grid auto-rows-fr grid-cols-2 items-stretch gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
                 {filteredProducts.map((product) => (
-                  <li key={product.id}>
+                  <li key={product.id} className="h-full min-h-0">
                     <ProductCard
                       product={product}
                       selectedQuantity={cartQuantityByProductId.get(product.id) ?? 0}

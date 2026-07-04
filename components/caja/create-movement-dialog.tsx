@@ -40,7 +40,7 @@ export function CreateMovementDialog({
   const boundAction = createFinancialMovementAction.bind(null, orgSlug)
   const [state, formAction, pending] = useActionState(boundAction, initialState)
 
-  useFormActionSuccess(state.ok, onClose, pending)
+  useFormActionSuccess(state.ok, onClose, pending, 'Movimiento registrado correctamente.')
 
   return (
     <Dialog open={open} onClose={onClose} size="md">
