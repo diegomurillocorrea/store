@@ -2,10 +2,10 @@
 
 import { getActionAccess, permissionDeniedState } from '@/lib/auth/access'
 import {
+  ensureCategoryInOrg,
   getCreateFanOutTargets,
   getSharedEntityRef,
   newOwnerSharedKey,
-  resolveCategoryIdInOrg,
   revalidateCatalogPaths,
 } from '@/lib/data/owner-shared-entities'
 import { getSubCategoryById } from '@/lib/data/subcategories'
@@ -93,19 +93,49 @@ export async function createSubCategoryAction(
     access.organization.id,
     parsed.categoryId
   )
+  if (!categoryRef.name && !categoryRef.sharedKey) {
+    return { error: 'La categoría seleccionada no es válida.', ok: false }
+  }
+
   const sharedKey = newOwnerSharedKey()
   const supabase = await createSupabaseServerClient()
+
+  let syncedCategoryRef = categoryRef
+  if (!syncedCategoryRef.sharedKey) {
+    const categorySharedKey = newOwnerSharedKey()
+    const { error: linkError } = await supabase
+      .from('categories')
+      .update({ owner_shared_key: categorySharedKey })
+      .eq('id', parsed.categoryId)
+      .eq('organization_id', access.organization.id)
+
+    if (linkError) {
+      return {
+        error: linkError.message || 'No se pudo sincronizar la categoría.',
+        ok: false,
+      }
+    }
+
+    syncedCategoryRef = {
+      ...syncedCategoryRef,
+      sharedKey: categorySharedKey,
+    }
+  }
 
   for (const target of targets) {
     const categoryId =
       target.organizationId === access.organization.id
         ? parsed.categoryId
-        : await resolveCategoryIdInOrg(target.organizationId, categoryRef)
+        : await ensureCategoryInOrg(
+          target.organizationId,
+          syncedCategoryRef,
+          target.memberId
+        )
 
     if (!categoryId) {
       return {
         error:
-          'La categoría no existe en todas las sucursales. Créala o sincronízala antes de agregar la subcategoría.',
+          'No se pudo sincronizar la categoría en todas las sucursales. Intenta de nuevo.',
         ok: false,
       }
     }

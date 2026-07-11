@@ -6,6 +6,7 @@ const STORAGE_PREFIX = 'store:pos-cart:'
 interface StoredCartLine {
   productId: string
   quantity: number
+  unitPrice?: number
 }
 
 function getStorageKey(orgSlug: string): string {
@@ -29,10 +30,19 @@ function parseStoredCart(raw: string | null): StoredCartLine[] {
         return []
       }
 
-      const { productId, quantity } = entry as StoredCartLine
+      const { productId, quantity, unitPrice } = entry as StoredCartLine
       if (!Number.isFinite(quantity) || quantity <= 0) return []
 
-      return [{ productId, quantity }]
+      const hasValidUnitPrice =
+        typeof unitPrice === 'number' && Number.isFinite(unitPrice) && unitPrice >= 0
+
+      return [
+        {
+          productId,
+          quantity,
+          ...(hasValidUnitPrice ? { unitPrice } : {}),
+        },
+      ]
     })
   } catch {
     return []
@@ -47,7 +57,7 @@ export function restorePosCart(orgSlug: string, products: ProductRow[]): PosCart
 
   const productById = new Map(products.map((product) => [product.id, product]))
 
-  return stored.flatMap(({ productId, quantity }) => {
+  return stored.flatMap(({ productId, quantity, unitPrice }) => {
     const product = productById.get(productId)
     if (!product || product.availableQuantity <= 0) return []
 
@@ -56,7 +66,10 @@ export function restorePosCart(orgSlug: string, products: ProductRow[]): PosCart
       product.availableQuantity
     )
 
-    return [productToCartLine(product, safeQuantity)]
+    const line = productToCartLine(product, safeQuantity)
+    if (unitPrice === undefined) return [line]
+
+    return [{ ...line, unitPrice }]
   })
 }
 
@@ -66,6 +79,7 @@ export function persistPosCart(orgSlug: string, lines: PosCartLine[]): void {
   const payload: StoredCartLine[] = lines.map((line) => ({
     productId: line.productId,
     quantity: line.quantity,
+    unitPrice: line.unitPrice,
   }))
 
   const key = getStorageKey(orgSlug)
@@ -94,7 +108,6 @@ export function syncPosCartWithProducts(
       {
         ...line,
         name: product.name,
-        unitPrice: product.salePrice,
         imageUrl: product.imageUrl,
         availableQuantity: product.availableQuantity,
         quantity,

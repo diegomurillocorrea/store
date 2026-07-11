@@ -42,7 +42,8 @@ export function CreateEmployeeDialog({
     <Dialog open={open} onClose={onClose} size="md">
       <DialogTitle>Nuevo empleado</DialogTitle>
       <DialogDescription>
-        Registra un empleado con su información de contacto, estado y rol.
+        Registra un empleado con acceso al sistema. El correo y la contraseña
+        se usan para iniciar sesión (cuenta confirmada automáticamente).
       </DialogDescription>
 
       <form action={formAction}>
@@ -50,6 +51,7 @@ export function CreateEmployeeDialog({
           <EmployeeFormFields
             assignableRoles={assignableRoles}
             formKey={open ? 'create' : 'closed'}
+            requirePassword
           />
 
           {state.error ? (

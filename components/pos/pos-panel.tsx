@@ -24,6 +24,7 @@ import {
   productToCartLine,
   type PosCartLine,
 } from '@/lib/pos/cart-types'
+import { roundMoney } from '@/lib/utils/money'
 import { IMAGE_SIZES } from '@/lib/utils/image-src'
 import { Button } from '@/styles/catalyst-ui-kit/button'
 import { Heading, Subheading } from '@/styles/catalyst-ui-kit/heading'
@@ -302,18 +303,43 @@ function ProductCard({
   )
 }
 
+function formatUnitPriceDraft(value: number): string {
+  return roundMoney(value).toFixed(2)
+}
+
 function CartLineRow({
   line,
   onIncrement,
   onDecrement,
   onRemove,
+  onUpdatePrice,
 }: {
   line: PosCartLine
   onIncrement: (productId: string) => void
   onDecrement: (productId: string) => void
   onRemove: (productId: string) => void
+  onUpdatePrice: (productId: string, unitPrice: number) => void
 }) {
   const atMaxStock = line.quantity >= line.availableQuantity
+  const [priceDraft, setPriceDraft] = useState(() => formatUnitPriceDraft(line.unitPrice))
+
+  useEffect(() => {
+    setPriceDraft(formatUnitPriceDraft(line.unitPrice))
+  }, [line.unitPrice])
+
+  function commitPrice() {
+    const parsed = Number.parseFloat(priceDraft.replace(',', '.'))
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      setPriceDraft(formatUnitPriceDraft(line.unitPrice))
+      return
+    }
+
+    const nextPrice = roundMoney(parsed)
+    setPriceDraft(formatUnitPriceDraft(nextPrice))
+    if (nextPrice !== line.unitPrice) {
+      onUpdatePrice(line.productId, nextPrice)
+    }
+  }
 
   return (
     <li className="flex gap-3 border-b border-zinc-200 py-3 last:border-b-0 dark:border-zinc-800">
@@ -348,9 +374,28 @@ function CartLineRow({
             <TrashIcon className="size-4" aria-hidden="true" />
           </button>
         </div>
-        <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
-          {formatCurrency(line.unitPrice)} c/u
-        </p>
+        <div className="mt-1 flex items-center gap-1.5">
+          <span className="text-xs text-zinc-500 dark:text-zinc-400" aria-hidden="true">
+            $
+          </span>
+          <input
+            type="number"
+            inputMode="decimal"
+            min={0}
+            step="0.01"
+            value={priceDraft}
+            onChange={(event) => setPriceDraft(event.target.value)}
+            onBlur={commitPrice}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.currentTarget.blur()
+              }
+            }}
+            aria-label={`Precio unitario de ${line.name}`}
+            className="w-20 rounded-md border border-zinc-200 bg-white px-2 py-1 text-xs tabular-nums text-zinc-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:focus:border-emerald-400"
+          />
+          <span className="text-xs text-zinc-500 dark:text-zinc-400">c/u</span>
+        </div>
         <div className="mt-2 flex items-center justify-between gap-2">
           <div className="inline-flex items-center rounded-lg border border-zinc-200 dark:border-zinc-700">
             <button
@@ -398,6 +443,7 @@ interface PosCartSidebarProps {
   onIncrement: (productId: string) => void
   onDecrement: (productId: string) => void
   onRemove: (productId: string) => void
+  onUpdatePrice: (productId: string, unitPrice: number) => void
   onClear: () => void
   onSaleComplete: () => void
   className?: string
@@ -412,6 +458,7 @@ function PosCartSidebar({
   onIncrement,
   onDecrement,
   onRemove,
+  onUpdatePrice,
   onClear,
   onSaleComplete,
   className = '',
@@ -478,6 +525,7 @@ function PosCartSidebar({
                 onIncrement={onIncrement}
                 onDecrement={onDecrement}
                 onRemove={onRemove}
+                onUpdatePrice={onUpdatePrice}
               />
             ))}
           </ul>
@@ -603,6 +651,15 @@ export function PosPanel({ orgSlug, products, customers }: PosPanelProps) {
     setCartLines((current) => current.filter((line) => line.productId !== productId))
   }, [])
 
+  const updateLinePrice = useCallback((productId: string, unitPrice: number) => {
+    setCartLines((current) =>
+      current.map((line) => {
+        if (line.productId !== productId) return line
+        return { ...line, unitPrice }
+      })
+    )
+  }, [])
+
   const clearCart = useCallback(() => {
     setCartLines([])
   }, [])
@@ -620,6 +677,7 @@ export function PosPanel({ orgSlug, products, customers }: PosPanelProps) {
     onIncrement: incrementLine,
     onDecrement: decrementLine,
     onRemove: removeLine,
+    onUpdatePrice: updateLinePrice,
     onClear: clearCart,
     onSaleComplete: handleSaleComplete,
   }
@@ -631,7 +689,7 @@ export function PosPanel({ orgSlug, products, customers }: PosPanelProps) {
         className="flex h-full min-h-0 flex-col"
       />
     ),
-    [cartLines, itemCount, subtotal, orgSlug, customers, incrementLine, decrementLine, removeLine, clearCart, handleSaleComplete]
+    [cartLines, itemCount, subtotal, orgSlug, customers, incrementLine, decrementLine, removeLine, updateLinePrice, clearCart, handleSaleComplete]
   )
 
   const secondaryAsidePortal = useLayoutSecondaryAside(desktopCart, cartColumnVisible)

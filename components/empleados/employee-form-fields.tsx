@@ -20,6 +20,8 @@ interface EmployeeFormFieldsProps {
   defaultStatus?: EmployeeStatus
   defaultRoleId?: string | null
   formKey?: string | number
+  /** Solo al crear: una sola contraseña (sin confirmación). */
+  requirePassword?: boolean
 }
 
 export function EmployeeFormFields({
@@ -33,6 +35,7 @@ export function EmployeeFormFields({
   defaultStatus = 'active',
   defaultRoleId = null,
   formKey,
+  requirePassword = false,
 }: EmployeeFormFieldsProps) {
   const assignableRoles = assignableRolesProp ?? roles ?? []
 
@@ -75,10 +78,25 @@ export function EmployeeFormFields({
             name="email"
             type="email"
             autoComplete="email"
+            required={requirePassword}
             placeholder="Ej. empleado@correo.com"
             defaultValue={defaultEmail ?? ''}
           />
         </Field>
+        {requirePassword ? (
+          <Field>
+            <Label htmlFor="employee-password">Contraseña</Label>
+            <Input
+              id="employee-password"
+              name="password"
+              type="password"
+              autoComplete="new-password"
+              required
+              minLength={6}
+              placeholder="Mínimo 6 caracteres"
+            />
+          </Field>
+        ) : null}
         <Field>
           <Label htmlFor="employee-status">Estado</Label>
           <select

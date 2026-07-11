@@ -8,11 +8,15 @@ import {
   MagnifyingGlassIcon,
   WalletIcon,
 } from '@heroicons/react/24/outline'
+import { ChevronDownIcon } from '@heroicons/react/20/solid'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
 import { CashSessionDialog } from '@/components/caja/cash-session-dialog'
 import { CreateMovementDialog } from '@/components/caja/create-movement-dialog'
+import { EditSaleDialog } from '@/components/caja/edit-sale-dialog'
 import { SaleDetailSidebar } from '@/components/caja/sale-detail-sidebar'
+import { SaleReceiptDialog } from '@/components/caja/sale-receipt-dialog'
+import { VoidSaleDialog } from '@/components/caja/void-sale-dialog'
 import { getSaleDetailAction } from '@/lib/actions/sale-detail-actions'
 import type {
   BalanceMainTab,
@@ -25,19 +29,37 @@ import type {
   ReceivableBalanceRow,
 } from '@/lib/data/balance-types'
 import { PAYMENT_METHOD_LABELS } from '@/lib/data/balance-types'
+import type { CustomerRow } from '@/lib/data/customer-types'
 import type { FinancialMovementType } from '@/lib/data/financial-movement-types'
 import type { SaleDetail } from '@/lib/data/sale-detail-types'
 import type { ViewActionFlags } from '@/lib/permissions/views'
 import { formatCurrency } from '@/lib/utils/money'
-import { formatDisplayDate, getBrowserLocalDateString } from '@/lib/utils/local-date'
+import {
+  BALANCE_PERIOD_OPTIONS,
+  formatDisplayDateRange,
+  getBrowserLocalDateString,
+  type BalancePeriod,
+} from '@/lib/utils/local-date'
 import { Badge } from '@/styles/catalyst-ui-kit/badge'
 import { Button } from '@/styles/catalyst-ui-kit/button'
+import {
+  Dropdown,
+  DropdownButton,
+  DropdownItem,
+  DropdownMenu,
+} from '@/styles/catalyst-ui-kit/dropdown'
 import { Input, InputGroup } from '@/styles/catalyst-ui-kit/input'
 import { Text } from '@/styles/catalyst-ui-kit/text'
 
 interface BalancePanelProps {
   orgSlug: string
+  organizationName: string
+  customers: CustomerRow[]
   selectedDate: string
+  selectedEndDate: string
+  startDate: string
+  endDate: string
+  selectedPeriod: BalancePeriod
   hasExplicitDate: boolean
   timeZone: string
   summary: BalanceSummary
@@ -48,6 +70,7 @@ interface BalancePanelProps {
   payables: PayableBalanceRow[]
   cashClosings: CashClosingRow[]
   actions: Pick<ViewActionFlags, 'canCreate' | 'canDelete'>
+  saleActions: Pick<ViewActionFlags, 'canEdit' | 'canDelete'>
 }
 
 const mainTabs: { id: BalanceMainTab; label: string }[] = [
@@ -227,7 +250,13 @@ function EmptyState({
 
 export function BalancePanel({
   orgSlug,
+  organizationName,
+  customers,
   selectedDate,
+  selectedEndDate,
+  startDate,
+  endDate,
+  selectedPeriod,
   hasExplicitDate,
   timeZone,
   summary,
@@ -238,6 +267,7 @@ export function BalancePanel({
   payables,
   cashClosings,
   actions,
+  saleActions,
 }: BalancePanelProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -251,8 +281,37 @@ export function BalancePanel({
   const [saleDetailOpen, setSaleDetailOpen] = useState(false)
   const [saleDetailError, setSaleDetailError] = useState<string | null>(null)
   const [isSaleDetailPending, startSaleDetailTransition] = useTransition()
+  const [receiptOpen, setReceiptOpen] = useState(false)
+  const [receiptAutoPrint, setReceiptAutoPrint] = useState(false)
+  const [editSaleOpen, setEditSaleOpen] = useState(false)
+  const [voidSaleOpen, setVoidSaleOpen] = useState(false)
 
   const isCashOpen = Boolean(openSession)
+  const periodLabel =
+    BALANCE_PERIOD_OPTIONS.find((option) => option.id === selectedPeriod)?.label ?? 'Diario'
+  const isCustomPeriod = selectedPeriod === 'personalizado'
+
+  const buildCajaHref = useCallback(
+    ({
+      fecha = selectedDate,
+      fechaHasta = selectedEndDate,
+      periodo = selectedPeriod,
+    }: {
+      fecha?: string
+      fechaHasta?: string
+      periodo?: BalancePeriod
+    } = {}) => {
+      const params = new URLSearchParams()
+      if (fecha) params.set('fecha', fecha)
+      if (periodo !== 'diario') params.set('periodo', periodo)
+      if (periodo === 'personalizado' && fechaHasta) {
+        params.set('fechaHasta', fechaHasta)
+      }
+      const query = params.toString()
+      return query ? `/${orgSlug}/caja?${query}` : `/${orgSlug}/caja`
+    },
+    [orgSlug, selectedDate, selectedEndDate, selectedPeriod]
+  )
 
   useEffect(() => {
     const fechaParam = searchParams.get('fecha')
@@ -260,9 +319,9 @@ export function BalancePanel({
 
     const localToday = getBrowserLocalDateString()
     if (selectedDate !== localToday) {
-      router.replace(`/${orgSlug}/caja?fecha=${localToday}`)
+      router.replace(buildCajaHref({ fecha: localToday }))
     }
-  }, [hasExplicitDate, orgSlug, router, searchParams, selectedDate])
+  }, [buildCajaHref, hasExplicitDate, router, searchParams, selectedDate])
 
   const handleSaleClick = useCallback(
     (saleId: string) => {
@@ -286,7 +345,48 @@ export function BalancePanel({
     setSaleDetailOpen(false)
     setSaleDetailError(null)
     setSelectedSale(null)
+    setReceiptOpen(false)
+    setEditSaleOpen(false)
+    setVoidSaleOpen(false)
   }, [])
+
+  const reloadSelectedSale = useCallback(
+    (saleId: string) => {
+      startSaleDetailTransition(async () => {
+        const detail = await getSaleDetailAction(orgSlug, saleId)
+        if (!detail) {
+          setSaleDetailError('No se pudo cargar el detalle de la venta.')
+          return
+        }
+        setSelectedSale(detail)
+      })
+    },
+    [orgSlug]
+  )
+
+  const handlePrintSale = useCallback(() => {
+    if (!selectedSale) return
+    setReceiptAutoPrint(true)
+    setReceiptOpen(true)
+  }, [selectedSale])
+
+  const handleReceiptSale = useCallback(() => {
+    if (!selectedSale) return
+    setReceiptAutoPrint(false)
+    setReceiptOpen(true)
+  }, [selectedSale])
+
+  const handleEditSaleSuccess = useCallback(() => {
+    setEditSaleOpen(false)
+    if (selectedSale) {
+      reloadSelectedSale(selectedSale.id)
+    }
+  }, [reloadSelectedSale, selectedSale])
+
+  const handleVoidSaleSuccess = useCallback(() => {
+    setVoidSaleOpen(false)
+    handleCloseSaleDetail()
+  }, [handleCloseSaleDetail])
 
   const filteredIncome = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
@@ -310,11 +410,33 @@ export function BalancePanel({
     )
   }, [expenseTransactions, searchQuery])
 
+  const handlePeriodChange = (periodo: BalancePeriod) => {
+    if (periodo === selectedPeriod) return
+    router.push(
+      buildCajaHref({
+        periodo,
+        fechaHasta: periodo === 'personalizado' ? selectedEndDate || selectedDate : undefined,
+      })
+    )
+  }
+
   const handleDateChange = (value: string) => {
-    const params = new URLSearchParams()
-    if (value) params.set('fecha', value)
-    const query = params.toString()
-    router.push(query ? `/${orgSlug}/caja?${query}` : `/${orgSlug}/caja`)
+    router.push(
+      buildCajaHref({
+        fecha: value,
+        fechaHasta:
+          isCustomPeriod && selectedEndDate < value ? value : selectedEndDate,
+      })
+    )
+  }
+
+  const handleEndDateChange = (value: string) => {
+    router.push(
+      buildCajaHref({
+        fechaHasta: value,
+        fecha: selectedDate > value ? value : selectedDate,
+      })
+    )
   }
 
   const handleOpenMovementDialog = (type: FinancialMovementType = 'income') => {
@@ -322,11 +444,16 @@ export function BalancePanel({
     setMovementDialogOpen(true)
   }
 
+  const emptyPeriodMessage =
+    startDate === endDate
+      ? 'Aún no tienes registros creados en esta fecha.'
+      : 'Aún no tienes registros creados en este periodo.'
+
   const renderTransactionRows = (rows: BalanceTransactionRow[]) => {
     if (rows.length === 0) {
       return (
         <EmptyState
-          message="Aún no tienes registros creados en esta fecha."
+          message={emptyPeriodMessage}
           canCreate={actions.canCreate}
           onCreate={() =>
             handleOpenMovementDialog(transactionTab === 'egresos' ? 'expense' : 'income')
@@ -574,24 +701,61 @@ export function BalancePanel({
         <>
           <div className="mt-6 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex flex-wrap items-center gap-2">
-              <div
-                className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm ${balanceSurfaceClass}`}
-              >
-                <CalendarDaysIcon className="size-4 text-zinc-500 dark:text-zinc-400" aria-hidden="true" />
-                <span className="text-zinc-700 dark:text-zinc-200">Diario</span>
-              </div>
-              <Input
-                type="date"
-                value={selectedDate}
-                onChange={(event) => handleDateChange(event.target.value)}
-                aria-label="Fecha"
-                className={`w-auto ${balanceInputClass}`}
-              />
+              <Dropdown>
+                <DropdownButton
+                  outline
+                  className={`rounded-xl! ${balanceSurfaceClass}`}
+                  aria-label="Periodo"
+                >
+                  <CalendarDaysIcon data-slot="icon" aria-hidden="true" />
+                  {periodLabel}
+                  <ChevronDownIcon data-slot="icon" aria-hidden="true" />
+                </DropdownButton>
+                <DropdownMenu anchor="bottom start">
+                  {BALANCE_PERIOD_OPTIONS.map((option) => (
+                    <DropdownItem
+                      key={option.id}
+                      onClick={() => handlePeriodChange(option.id)}
+                    >
+                      {option.label}
+                    </DropdownItem>
+                  ))}
+                </DropdownMenu>
+              </Dropdown>
+
+              {isCustomPeriod ? (
+                <>
+                  <Input
+                    type="date"
+                    value={selectedDate}
+                    onChange={(event) => handleDateChange(event.target.value)}
+                    aria-label="Fecha desde"
+                    className={`w-auto ${balanceInputClass}`}
+                  />
+                  <span className="text-sm text-zinc-500 dark:text-zinc-400">a</span>
+                  <Input
+                    type="date"
+                    value={selectedEndDate}
+                    onChange={(event) => handleEndDateChange(event.target.value)}
+                    aria-label="Fecha hasta"
+                    className={`w-auto ${balanceInputClass}`}
+                  />
+                </>
+              ) : (
+                <Input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(event) => handleDateChange(event.target.value)}
+                  aria-label="Fecha"
+                  className={`w-auto ${balanceInputClass}`}
+                />
+              )}
+
               <span
                 className={`inline-flex rounded-xl px-3 py-2 text-sm ${balanceSurfaceClass}`}
               >
                 <span className="text-zinc-600 dark:text-zinc-300">
-                  {formatDisplayDate(selectedDate, timeZone)}
+                  {formatDisplayDateRange(startDate, endDate, timeZone)}
                 </span>
               </span>
             </div>
@@ -696,7 +860,41 @@ export function BalancePanel({
         sale={selectedSale}
         isLoading={isSaleDetailPending}
         error={saleDetailError}
+        canEdit={saleActions.canEdit}
+        canDelete={saleActions.canDelete}
         onClose={handleCloseSaleDetail}
+        onPrint={handlePrintSale}
+        onReceipt={handleReceiptSale}
+        onEdit={() => setEditSaleOpen(true)}
+        onDelete={() => setVoidSaleOpen(true)}
+      />
+
+      <SaleReceiptDialog
+        open={receiptOpen}
+        sale={selectedSale}
+        organizationName={organizationName}
+        autoPrint={receiptAutoPrint}
+        onClose={() => {
+          setReceiptOpen(false)
+          setReceiptAutoPrint(false)
+        }}
+      />
+
+      <EditSaleDialog
+        orgSlug={orgSlug}
+        sale={selectedSale}
+        customers={customers}
+        open={editSaleOpen}
+        onClose={() => setEditSaleOpen(false)}
+        onSuccess={handleEditSaleSuccess}
+      />
+
+      <VoidSaleDialog
+        orgSlug={orgSlug}
+        sale={selectedSale}
+        open={voidSaleOpen}
+        onClose={() => setVoidSaleOpen(false)}
+        onSuccess={handleVoidSaleSuccess}
       />
     </>
   )

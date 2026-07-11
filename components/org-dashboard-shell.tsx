@@ -128,6 +128,7 @@ function OrgDashboardShellInner({
   const posLayout = usePosLayout()
   const base = `/${orgSlug}`
   const isPosRoute = pathname === `${base}/pos` || pathname.startsWith(`${base}/pos/`)
+  const isProductosListRoute = pathname === `${base}/productos`
   const showPosCartColumn = posLayout?.cartColumnVisible ?? false
   const permissionSet = new Set(permissions)
   const mobileTitle = getMobilePageTitle(pathname, base, orgName)
@@ -314,7 +315,7 @@ function OrgDashboardShellInner({
       panelWallpaperUrl={branding.panelWallpaperUrl}
       reserveSecondaryColumn={isPosRoute}
       secondaryColumnOpen={showPosCartColumn}
-      contentWidth={isPosRoute ? 'full' : 'constrained'}
+      contentWidth={isPosRoute || isProductosListRoute ? 'full' : 'constrained'}
       contentPadding={isPosRoute ? 'none' : 'default'}
     >
       {children}

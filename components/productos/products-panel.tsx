@@ -1,14 +1,15 @@
 'use client'
 
 import { MagnifyingGlassIcon, PlusIcon } from '@heroicons/react/24/outline'
+import clsx from 'clsx'
 import { useRouter } from 'next/navigation'
 import { useMemo, useState } from 'react'
 import { CreateProductDialog } from '@/components/productos/create-product-dialog'
+import { ColumnFilterHeader } from '@/components/productos/column-filter-header'
 import { OptimizedImage } from '@/components/optimized-image'
 import { ProductInlineFields } from '@/components/productos/product-inline-fields'
 import type { ProductOption, ProductRow, SubCategoryProductOption } from '@/lib/data/product-types'
 import type { ViewActionFlags } from '@/lib/permissions/views'
-import { IMAGE_SIZES } from '@/lib/utils/image-src'
 import { Button } from '@/styles/catalyst-ui-kit/button'
 import { Input, InputGroup } from '@/styles/catalyst-ui-kit/input'
 import { Subheading } from '@/styles/catalyst-ui-kit/heading'
@@ -24,6 +25,18 @@ interface ProductsPanelProps {
   actions: Pick<ViewActionFlags, 'canCreate' | 'canEdit' | 'canDelete'>
 }
 
+type ColumnKey =
+  | 'name'
+  | 'category'
+  | 'subCategory'
+  | 'salePrice'
+  | 'costPrice'
+  | 'stock'
+  | 'profit'
+  | 'profitPercent'
+
+type ColumnFilters = Partial<Record<ColumnKey, string[]>>
+
 const currencyFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
   currency: 'USD',
@@ -33,6 +46,45 @@ const percentFormatter = new Intl.NumberFormat('es-MX', {
   minimumFractionDigits: 0,
   maximumFractionDigits: 1,
 })
+
+const DOT_BADGE_TONES = {
+  blue: {
+    badge: 'bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-400',
+    dot: 'fill-blue-500',
+  },
+  purple: {
+    badge: 'bg-purple-100 text-purple-700 dark:bg-purple-500/15 dark:text-purple-400',
+    dot: 'fill-purple-500',
+  },
+} as const
+
+function DotBadge({
+  children,
+  tone,
+}: {
+  children: string
+  tone: keyof typeof DOT_BADGE_TONES
+}) {
+  const styles = DOT_BADGE_TONES[tone]
+
+  return (
+    <span
+      className={clsx(
+        'inline-flex max-w-full items-center gap-x-1.5 truncate rounded-md px-2 py-1 text-xs font-medium',
+        styles.badge
+      )}
+    >
+      <svg
+        viewBox="0 0 6 6"
+        aria-hidden="true"
+        className={clsx('size-1.5 shrink-0', styles.dot)}
+      >
+        <circle r={3} cx={3} cy={3} />
+      </svg>
+      <span className="truncate">{children}</span>
+    </span>
+  )
+}
 
 function getProductProfit(
   salePrice: number,
@@ -71,6 +123,33 @@ function profitToneClass(value: number | null): string {
   return 'text-muted-foreground'
 }
 
+function getColumnValue(product: ProductRow, key: ColumnKey): string {
+  switch (key) {
+    case 'name':
+      return product.name
+    case 'category':
+      return product.categoryName ?? 'Sin categoría'
+    case 'subCategory':
+      return product.subCategoryName ?? 'Sin subcategoría'
+    case 'salePrice':
+      return formatCurrency(product.salePrice)
+    case 'costPrice':
+      return formatCurrency(product.costPrice)
+    case 'stock':
+      return String(product.availableQuantity)
+    case 'profit':
+      return formatCurrency(getProductProfit(product.salePrice, product.costPrice))
+    case 'profitPercent':
+      return formatProfitPercent(
+        getProductProfitPercent(product.salePrice, product.costPrice)
+      )
+  }
+}
+
+function uniqueSortedValues(values: string[]): string[] {
+  return [...new Set(values)].sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }))
+}
+
 export function ProductsPanel({
   orgSlug,
   organizationId,
@@ -82,18 +161,81 @@ export function ProductsPanel({
 }: ProductsPanelProps) {
   const router = useRouter()
   const [query, setQuery] = useState('')
+  const [columnFilters, setColumnFilters] = useState<ColumnFilters>({})
   const [isCreateOpen, setIsCreateOpen] = useState(false)
+
+  const columnOptions = useMemo(() => {
+    const selectedCategoryNames = columnFilters.category ?? []
+    const categoryNameById = new Map(categories.map((category) => [category.id, category.name]))
+
+    const productValues: Record<ColumnKey, string[]> = {
+      name: [],
+      category: [],
+      subCategory: [],
+      salePrice: [],
+      costPrice: [],
+      stock: [],
+      profit: [],
+      profitPercent: [],
+    }
+
+    for (const product of products) {
+      for (const key of Object.keys(productValues) as ColumnKey[]) {
+        productValues[key].push(getColumnValue(product, key))
+      }
+    }
+
+    const catalogSubCategoryNames = subCategories
+      .filter((subCategory) => {
+        if (selectedCategoryNames.length === 0) return true
+        const categoryName = categoryNameById.get(subCategory.categoryId)
+        return categoryName != null && selectedCategoryNames.includes(categoryName)
+      })
+      .map((subCategory) => subCategory.name)
+
+    const productSubCategoryNames = products
+      .filter((product) => {
+        if (selectedCategoryNames.length === 0) return true
+        return selectedCategoryNames.includes(product.categoryName ?? 'Sin categoría')
+      })
+      .map((product) => product.subCategoryName ?? 'Sin subcategoría')
+
+    return {
+      name: uniqueSortedValues(productValues.name),
+      category: uniqueSortedValues([
+        ...categories.map((category) => category.name),
+        ...productValues.category,
+      ]),
+      subCategory: uniqueSortedValues([
+        ...catalogSubCategoryNames,
+        ...productSubCategoryNames,
+      ]),
+      salePrice: uniqueSortedValues(productValues.salePrice),
+      costPrice: uniqueSortedValues(productValues.costPrice),
+      stock: uniqueSortedValues(productValues.stock),
+      profit: uniqueSortedValues(productValues.profit),
+      profitPercent: uniqueSortedValues(productValues.profitPercent),
+    }
+  }, [products, categories, subCategories, columnFilters.category])
 
   const filteredProducts = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
-    if (!normalizedQuery) return products
 
     return products.filter((product) => {
+      for (const key of Object.keys(columnFilters) as ColumnKey[]) {
+        const selected = columnFilters[key]
+        if (!selected || selected.length === 0) continue
+        if (!selected.includes(getColumnValue(product, key))) return false
+      }
+
+      if (!normalizedQuery) return true
+
       const haystack = [
         product.name,
         product.barcode ?? '',
         product.sku,
         product.categoryName ?? '',
+        product.subCategoryName ?? '',
         product.supplierName ?? '',
         product.createdByName ?? '',
       ]
@@ -102,7 +244,14 @@ export function ProductsPanel({
 
       return haystack.includes(normalizedQuery)
     })
-  }, [products, query])
+  }, [products, query, columnFilters])
+
+  const handleColumnFilterChange = (key: ColumnKey, selected: string[]) => {
+    setColumnFilters((previous) => ({
+      ...previous,
+      [key]: selected,
+    }))
+  }
 
   const handleOpenCreate = () => setIsCreateOpen(true)
   const handleCloseCreate = () => setIsCreateOpen(false)
@@ -151,127 +300,204 @@ export function ProductsPanel({
         </InputGroup>
       </div>
 
-      {filteredProducts.length === 0 ? (
+      {products.length === 0 ? (
         <div className="glass-surface mt-8 rounded-xl p-8 text-center sm:rounded-2xl">
-          <Subheading level={3}>
-            {products.length === 0 ? 'Sin productos' : 'Sin resultados'}
-          </Subheading>
+          <Subheading level={3}>Sin productos</Subheading>
           <Text className="mt-2">
-            {products.length === 0
-              ? 'Registra tu primer producto con el botón de arriba.'
-              : 'Prueba con otro término de búsqueda.'}
+            Registra tu primer producto con el botón de arriba.
           </Text>
         </div>
       ) : (
-        <div className="glass-surface mt-8 overflow-hidden rounded-xl sm:rounded-2xl">
-          <div className="overflow-x-auto">
-            <table className="relative min-w-full divide-y divide-border">
+        <div className="glass-surface mt-8 w-full overflow-hidden rounded-xl sm:rounded-2xl">
+          <div className="w-full overflow-x-auto">
+            <table className="relative w-full table-fixed divide-y divide-border">
               <thead>
                 <tr>
                   <th
                     scope="col"
-                    className="px-3 py-3.5 text-center text-sm font-semibold text-foreground!"
+                    className="w-24 px-3 py-3.5 text-center text-sm font-semibold text-foreground!"
                   >
                     Imagen
                   </th>
                   <th
                     scope="col"
-                    className="px-3 py-3.5 text-center text-sm font-semibold text-foreground!"
+                    className="w-[18%] px-3 py-3.5 text-center text-sm font-semibold text-foreground!"
                   >
-                    Nombre
+                    <ColumnFilterHeader
+                      label="Nombre"
+                      options={columnOptions.name}
+                      selected={columnFilters.name ?? []}
+                      onChange={(selected) => handleColumnFilterChange('name', selected)}
+                    />
                   </th>
                   <th
                     scope="col"
-                    className="px-3 py-3.5 text-center text-sm font-semibold text-foreground!"
+                    className="w-[12%] px-3 py-3.5 text-center text-sm font-semibold text-foreground!"
                   >
-                    Precio
+                    <ColumnFilterHeader
+                      label="Categoría"
+                      options={columnOptions.category}
+                      selected={columnFilters.category ?? []}
+                      onChange={(selected) => handleColumnFilterChange('category', selected)}
+                    />
                   </th>
                   <th
                     scope="col"
-                    className="px-3 py-3.5 text-center text-sm font-semibold text-foreground!"
+                    className="w-[12%] px-3 py-3.5 text-center text-sm font-semibold text-foreground!"
                   >
-                    Costo
+                    <ColumnFilterHeader
+                      label="Subcategoría"
+                      options={columnOptions.subCategory}
+                      selected={columnFilters.subCategory ?? []}
+                      onChange={(selected) => handleColumnFilterChange('subCategory', selected)}
+                    />
                   </th>
                   <th
                     scope="col"
-                    className="px-3 py-3.5 text-center text-sm font-semibold text-foreground!"
+                    className="w-[10%] px-3 py-3.5 text-center text-sm font-semibold text-foreground!"
                   >
-                    Stock
+                    <ColumnFilterHeader
+                      label="Precio"
+                      options={columnOptions.salePrice}
+                      selected={columnFilters.salePrice ?? []}
+                      onChange={(selected) => handleColumnFilterChange('salePrice', selected)}
+                    />
                   </th>
                   <th
                     scope="col"
-                    className="px-3 py-3.5 text-center text-sm font-semibold text-foreground!"
+                    className="w-[10%] px-3 py-3.5 text-center text-sm font-semibold text-foreground!"
                   >
-                    Ganancia
+                    <ColumnFilterHeader
+                      label="Costo"
+                      options={columnOptions.costPrice}
+                      selected={columnFilters.costPrice ?? []}
+                      onChange={(selected) => handleColumnFilterChange('costPrice', selected)}
+                    />
                   </th>
                   <th
                     scope="col"
-                    className="px-3 py-3.5 text-center text-sm font-semibold text-foreground!"
+                    className="w-[8%] px-3 py-3.5 text-center text-sm font-semibold text-foreground!"
                   >
-                    % Margen
+                    <ColumnFilterHeader
+                      label="Stock"
+                      options={columnOptions.stock}
+                      selected={columnFilters.stock ?? []}
+                      onChange={(selected) => handleColumnFilterChange('stock', selected)}
+                    />
+                  </th>
+                  <th
+                    scope="col"
+                    className="w-[10%] px-3 py-3.5 text-center text-sm font-semibold text-foreground!"
+                  >
+                    <ColumnFilterHeader
+                      label="Ganancia"
+                      options={columnOptions.profit}
+                      selected={columnFilters.profit ?? []}
+                      onChange={(selected) => handleColumnFilterChange('profit', selected)}
+                    />
+                  </th>
+                  <th
+                    scope="col"
+                    className="w-[10%] px-3 py-3.5 text-center text-sm font-semibold text-foreground!"
+                  >
+                    <ColumnFilterHeader
+                      label="% Margen"
+                      options={columnOptions.profitPercent}
+                      selected={columnFilters.profitPercent ?? []}
+                      onChange={(selected) => handleColumnFilterChange('profitPercent', selected)}
+                    />
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {filteredProducts.map((product) => {
-                  const profit = getProductProfit(product.salePrice, product.costPrice)
-                  const profitPercent = getProductProfitPercent(
-                    product.salePrice,
-                    product.costPrice
-                  )
+                {filteredProducts.length === 0 ? (
+                  <tr>
+                    <td colSpan={9} className="px-3 py-10 text-center">
+                      <Subheading level={3}>Sin resultados</Subheading>
+                      <Text className="mt-2">
+                        Prueba con otro término de búsqueda o ajusta los filtros de columna.
+                      </Text>
+                    </td>
+                  </tr>
+                ) : (
+                  filteredProducts.map((product) => {
+                    const profit = getProductProfit(product.salePrice, product.costPrice)
+                    const profitPercent = getProductProfitPercent(
+                      product.salePrice,
+                      product.costPrice
+                    )
 
-                  return (
-                    <tr
-                      key={product.id}
-                      tabIndex={0}
-                      role="link"
-                      aria-label={`Ver detalle de ${product.name}`}
-                      onClick={() => handleRowClick(product.id)}
-                      onKeyDown={(event) => handleRowKeyDown(event, product.id)}
-                      className="cursor-pointer transition hover:bg-muted/40 focus-visible:bg-muted/40 focus-visible:outline-none"
-                    >
-                      <td className="px-3 py-4 text-center">
-                        <div className="flex justify-center">
-                          {product.imageUrl ? (
-                            <OptimizedImage
-                              src={product.imageUrl}
-                              alt=""
-                              width={48}
-                              height={48}
-                              sizes={IMAGE_SIZES.thumbnail}
-                              className="size-12 rounded-lg border border-border"
-                            />
-                          ) : (
-                            <div
-                              aria-hidden="true"
-                              className="flex size-12 items-center justify-center rounded-lg border border-dashed border-border bg-muted/40 text-xs text-muted-foreground"
-                            >
-                              —
+                    return (
+                      <tr
+                        key={product.id}
+                        tabIndex={0}
+                        role="link"
+                        aria-label={`Ver detalle de ${product.name}`}
+                        onClick={() => handleRowClick(product.id)}
+                        onKeyDown={(event) => handleRowKeyDown(event, product.id)}
+                        className="cursor-pointer transition hover:bg-muted/40 focus-visible:bg-muted/40 focus-visible:outline-none"
+                      >
+                        <td className="px-3 py-4 text-center">
+                          <div className="flex justify-center">
+                            {product.imageUrl ? (
+                              <OptimizedImage
+                                src={product.imageUrl}
+                                alt=""
+                                width={64}
+                                height={64}
+                                sizes="64px"
+                                className="size-16 rounded-lg border border-border object-cover"
+                              />
+                            ) : (
+                              <div
+                                aria-hidden="true"
+                                className="flex size-16 items-center justify-center rounded-lg border border-dashed border-border bg-muted/40 text-xs text-muted-foreground"
+                              >
+                                —
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-3 py-4 text-center text-sm font-medium text-foreground!">
+                          <span className="line-clamp-2 break-words">{product.name}</span>
+                        </td>
+                        <td className="px-3 py-4 text-center">
+                          {product.categoryName ? (
+                            <div className="flex justify-center">
+                              <DotBadge tone="blue">{product.categoryName}</DotBadge>
                             </div>
+                          ) : (
+                            <span className="text-sm text-muted-foreground">—</span>
                           )}
-                        </div>
-                      </td>
-                      <td className="px-3 py-4 text-center text-sm font-medium whitespace-nowrap text-foreground!">
-                        {product.name}
-                      </td>
-                      <ProductInlineFields
-                        orgSlug={orgSlug}
-                        product={product}
-                        canEdit={actions.canEdit}
-                      />
-                      <td
-                        className={`px-3 py-4 text-center text-sm whitespace-nowrap ${profitToneClass(profit)}`}
-                      >
-                        {formatCurrency(profit)}
-                      </td>
-                      <td
-                        className={`px-3 py-4 text-center text-sm whitespace-nowrap ${profitToneClass(profitPercent)}`}
-                      >
-                        {formatProfitPercent(profitPercent)}
-                      </td>
-                    </tr>
-                  )
-                })}
+                        </td>
+                        <td className="px-3 py-4 text-center">
+                          {product.subCategoryName ? (
+                            <div className="flex justify-center">
+                              <DotBadge tone="purple">{product.subCategoryName}</DotBadge>
+                            </div>
+                          ) : (
+                            <span className="text-sm text-muted-foreground">—</span>
+                          )}
+                        </td>
+                        <ProductInlineFields
+                          orgSlug={orgSlug}
+                          product={product}
+                          canEdit={actions.canEdit}
+                        />
+                        <td
+                          className={`px-3 py-4 text-center text-sm whitespace-nowrap ${profitToneClass(profit)}`}
+                        >
+                          {formatCurrency(profit)}
+                        </td>
+                        <td
+                          className={`px-3 py-4 text-center text-sm whitespace-nowrap ${profitToneClass(profitPercent)}`}
+                        >
+                          {formatProfitPercent(profitPercent)}
+                        </td>
+                      </tr>
+                    )
+                  })
+                )}
               </tbody>
             </table>
           </div>

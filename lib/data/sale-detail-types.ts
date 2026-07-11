@@ -25,6 +25,7 @@ export interface SaleDetail {
   createdAt: string
   paymentMethod: string | null
   paymentStatus: SalePaymentStatus
+  customerId: string | null
   customerName: string | null
   employeeName: string | null
   lines: SaleDetailLine[]

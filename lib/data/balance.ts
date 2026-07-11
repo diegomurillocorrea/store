@@ -8,7 +8,7 @@ import type {
   ReceivableBalanceRow,
 } from '@/lib/data/balance-types'
 import { roundMoney } from '@/lib/utils/money'
-import { getDayBoundsInTimeZone } from '@/lib/utils/local-date'
+import { getDateRangeBoundsInTimeZone } from '@/lib/utils/local-date'
 import { formatSaleLinesConcept, type SaleLineConceptInput } from '@/lib/utils/sale-format'
 
 function toNumber(value: unknown): number {
@@ -176,11 +176,12 @@ export async function getCashClosings(
 
 async function getSaleIncomeTransactions(
   organizationId: string,
-  date: string,
+  startDate: string,
+  endDate: string,
   timeZone: string
 ): Promise<BalanceTransactionRow[]> {
   const supabase = await createSupabaseServerClient()
-  const { start, end } = getDayBoundsInTimeZone(date, timeZone)
+  const { start, end } = getDateRangeBoundsInTimeZone(startDate, endDate, timeZone)
 
   const { data: sales, error } = await supabase
     .from('sales')
@@ -243,11 +244,12 @@ async function getSaleIncomeTransactions(
 
 async function getReceivablePaymentTransactions(
   organizationId: string,
-  date: string,
+  startDate: string,
+  endDate: string,
   timeZone: string
 ): Promise<BalanceTransactionRow[]> {
   const supabase = await createSupabaseServerClient()
-  const { start, end } = getDayBoundsInTimeZone(date, timeZone)
+  const { start, end } = getDateRangeBoundsInTimeZone(startDate, endDate, timeZone)
 
   const { data, error } = await supabase
     .from('receivable_payments')
@@ -304,7 +306,8 @@ async function getReceivablePaymentTransactions(
 
 async function getManualIncomeTransactions(
   organizationId: string,
-  date: string
+  startDate: string,
+  endDate: string
 ): Promise<BalanceTransactionRow[]> {
   const supabase = await createSupabaseServerClient()
 
@@ -313,7 +316,8 @@ async function getManualIncomeTransactions(
     .select('id, concept, amount, payment_method, reference, created_at, movement_date')
     .eq('organization_id', organizationId)
     .eq('movement_type', 'income')
-    .eq('movement_date', date)
+    .gte('movement_date', startDate)
+    .lte('movement_date', endDate)
     .order('created_at', { ascending: false })
 
   if (error || !data) {
@@ -338,11 +342,12 @@ async function getManualIncomeTransactions(
 
 async function getPayablePaymentTransactions(
   organizationId: string,
-  date: string,
+  startDate: string,
+  endDate: string,
   timeZone: string
 ): Promise<BalanceTransactionRow[]> {
   const supabase = await createSupabaseServerClient()
-  const { start, end } = getDayBoundsInTimeZone(date, timeZone)
+  const { start, end } = getDateRangeBoundsInTimeZone(startDate, endDate, timeZone)
 
   const { data, error } = await supabase
     .from('payable_payments')
@@ -396,7 +401,8 @@ async function getPayablePaymentTransactions(
 
 async function getManualExpenseTransactions(
   organizationId: string,
-  date: string
+  startDate: string,
+  endDate: string
 ): Promise<BalanceTransactionRow[]> {
   const supabase = await createSupabaseServerClient()
 
@@ -405,7 +411,8 @@ async function getManualExpenseTransactions(
     .select('id, concept, amount, payment_method, reference, created_at, movement_date')
     .eq('organization_id', organizationId)
     .eq('movement_type', 'expense')
-    .eq('movement_date', date)
+    .gte('movement_date', startDate)
+    .lte('movement_date', endDate)
     .order('created_at', { ascending: false })
 
   if (error || !data) {
@@ -430,13 +437,14 @@ async function getManualExpenseTransactions(
 
 export async function getIncomeTransactions(
   organizationId: string,
-  date: string,
+  startDate: string,
+  endDate: string,
   timeZone: string
 ): Promise<BalanceTransactionRow[]> {
   const [sales, receivablePayments, manual] = await Promise.all([
-    getSaleIncomeTransactions(organizationId, date, timeZone),
-    getReceivablePaymentTransactions(organizationId, date, timeZone),
-    getManualIncomeTransactions(organizationId, date),
+    getSaleIncomeTransactions(organizationId, startDate, endDate, timeZone),
+    getReceivablePaymentTransactions(organizationId, startDate, endDate, timeZone),
+    getManualIncomeTransactions(organizationId, startDate, endDate),
   ])
 
   return [...sales, ...receivablePayments, ...manual].sort(
@@ -446,12 +454,13 @@ export async function getIncomeTransactions(
 
 export async function getExpenseTransactions(
   organizationId: string,
-  date: string,
+  startDate: string,
+  endDate: string,
   timeZone: string
 ): Promise<BalanceTransactionRow[]> {
   const [payablePayments, manual] = await Promise.all([
-    getPayablePaymentTransactions(organizationId, date, timeZone),
-    getManualExpenseTransactions(organizationId, date),
+    getPayablePaymentTransactions(organizationId, startDate, endDate, timeZone),
+    getManualExpenseTransactions(organizationId, startDate, endDate),
   ])
 
   return [...payablePayments, ...manual].sort(
@@ -551,12 +560,13 @@ export async function getOpenPayables(organizationId: string): Promise<PayableBa
 
 export async function getBalanceSummary(
   organizationId: string,
-  date: string,
+  startDate: string,
+  endDate: string,
   timeZone: string
 ): Promise<BalanceSummary> {
   const [incomeRows, expenseRows] = await Promise.all([
-    getIncomeTransactions(organizationId, date, timeZone),
-    getExpenseTransactions(organizationId, date, timeZone),
+    getIncomeTransactions(organizationId, startDate, endDate, timeZone),
+    getExpenseTransactions(organizationId, startDate, endDate, timeZone),
   ])
 
   const totalSales = roundMoney(

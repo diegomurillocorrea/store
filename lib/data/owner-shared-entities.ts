@@ -222,6 +222,87 @@ export async function resolveCategoryIdInOrg (
   return null
 }
 
+/**
+ * Asegura que la categoría exista en la sucursal destino (por shared key o nombre).
+ * Si falta, la crea; si existe por nombre sin key, la enlaza.
+ */
+export async function ensureCategoryInOrg (
+  targetOrganizationId: string,
+  ref: SharedEntityRef,
+  targetMemberId: string | null,
+  source?: { organizationId: string; categoryId: string }
+): Promise<string | null> {
+  if (!ref.sharedKey && !ref.name) return null
+
+  const supabase = await createSupabaseServerClient()
+  let sharedKey = ref.sharedKey
+
+  if (!sharedKey && source?.categoryId) {
+    sharedKey = newOwnerSharedKey()
+    const { error: sourceKeyError } = await supabase
+      .from('categories')
+      .update({ owner_shared_key: sharedKey })
+      .eq('id', source.categoryId)
+      .eq('organization_id', source.organizationId)
+
+    if (sourceKeyError) {
+      console.error('ensureCategoryInOrg source key', sourceKeyError)
+      return null
+    }
+  }
+
+  if (sharedKey) {
+    const { data: byKey } = await supabase
+      .from('categories')
+      .select('id')
+      .eq('organization_id', targetOrganizationId)
+      .eq('owner_shared_key', sharedKey)
+      .maybeSingle()
+    if (byKey?.id) return byKey.id
+  }
+
+  if (ref.name) {
+    const { data: byName } = await supabase
+      .from('categories')
+      .select('id, owner_shared_key')
+      .eq('organization_id', targetOrganizationId)
+      .ilike('name', ref.name)
+      .limit(1)
+      .maybeSingle()
+
+    if (byName?.id) {
+      if (sharedKey && byName.owner_shared_key !== sharedKey) {
+        await supabase
+          .from('categories')
+          .update({ owner_shared_key: sharedKey })
+          .eq('id', byName.id)
+          .eq('organization_id', targetOrganizationId)
+      }
+      return byName.id
+    }
+  }
+
+  if (!ref.name) return null
+
+  const { data: inserted, error } = await supabase
+    .from('categories')
+    .insert({
+      organization_id: targetOrganizationId,
+      name: ref.name,
+      owner_shared_key: sharedKey,
+      created_by: targetMemberId,
+    })
+    .select('id')
+    .maybeSingle()
+
+  if (error || !inserted?.id) {
+    console.error('ensureCategoryInOrg insert', error)
+    return null
+  }
+
+  return inserted.id
+}
+
 export async function resolveSupplierIdInOrg (
   organizationId: string,
   ref: SharedEntityRef
@@ -585,7 +666,7 @@ export async function cloneOwnerCatalogToOrganization (
 
   const { data: sourceEmployees } = await supabase
     .from('employees')
-    .select('id, first_name, last_name, phone, email, status, role_id, owner_shared_key')
+    .select('id, first_name, last_name, phone, email, status, role_id, user_id, owner_shared_key')
     .eq('organization_id', sourceOrganizationId)
 
   for (const employee of sourceEmployees ?? []) {
@@ -620,9 +701,46 @@ export async function cloneOwnerCatalogToOrganization (
       email: employee.email,
       status: employee.status,
       role_id: targetRoleId,
+      user_id: employee.user_id,
       owner_shared_key: sharedKey,
       created_by: targetMemberId,
     })
+
+    if (!employee.user_id) continue
+
+    const displayName = `${employee.first_name} ${employee.last_name}`.trim()
+    const memberStatus = employee.status === 'active' ? 'active' : 'suspended'
+
+    const { data: existingMember } = await supabase
+      .from('organization_members')
+      .select('id')
+      .eq('organization_id', targetOrganizationId)
+      .eq('user_id', employee.user_id)
+      .maybeSingle()
+
+    let memberId = existingMember?.id ?? null
+
+    if (!memberId) {
+      const { data: createdMember } = await supabase
+        .from('organization_members')
+        .insert({
+          organization_id: targetOrganizationId,
+          user_id: employee.user_id,
+          status: memberStatus,
+          display_name: displayName || null,
+        })
+        .select('id')
+        .single()
+
+      memberId = createdMember?.id ?? null
+    }
+
+    if (memberId && targetRoleId) {
+      await supabase.from('member_roles').upsert(
+        { member_id: memberId, role_id: targetRoleId },
+        { onConflict: 'member_id,role_id' }
+      )
+    }
   }
 
   const { data: sourceProducts } = await supabase

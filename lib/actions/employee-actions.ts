@@ -30,6 +30,11 @@ interface ParsedEmployeeForm {
   roleId: string | null
 }
 
+interface ParsedCreateEmployeeForm extends ParsedEmployeeForm {
+  email: string
+  password: string
+}
+
 const EMPLOYEE_STATUSES: EmployeeStatus[] = ['active', 'inactive']
 
 function parseEmployeeForm(formData: FormData): { error: string } | ParsedEmployeeForm {
@@ -72,6 +77,106 @@ function parseEmployeeForm(formData: FormData): { error: string } | ParsedEmploy
     status: statusRaw as EmployeeStatus,
     roleId,
   }
+}
+
+function parseCreateEmployeeForm(
+  formData: FormData
+): { error: string } | ParsedCreateEmployeeForm {
+  const parsed = parseEmployeeForm(formData)
+  if ('error' in parsed) {
+    return parsed
+  }
+
+  if (!parsed.email) {
+    return { error: 'El correo electrónico es obligatorio para crear el acceso.' }
+  }
+
+  const password = String(formData.get('password') ?? '')
+  if (password.length < 6) {
+    return { error: 'La contraseña debe tener al menos 6 caracteres.' }
+  }
+
+  return {
+    ...parsed,
+    email: parsed.email,
+    password,
+  }
+}
+
+function employeeDisplayName(firstName: string, lastName: string): string {
+  return `${firstName} ${lastName}`.trim()
+}
+
+function memberStatusFromEmployee(status: EmployeeStatus): 'active' | 'suspended' {
+  return status === 'active' ? 'active' : 'suspended'
+}
+
+async function ensureEmployeeMembership(
+  organizationId: string,
+  userId: string,
+  displayName: string,
+  status: EmployeeStatus,
+  roleId: string | null
+): Promise<{ error: string } | { memberId: string }> {
+  const supabase = await createSupabaseServerClient()
+
+  const { data: existing, error: existingError } = await supabase
+    .from('organization_members')
+    .select('id')
+    .eq('organization_id', organizationId)
+    .eq('user_id', userId)
+    .maybeSingle()
+
+  if (existingError) {
+    return { error: existingError.message || 'No se pudo verificar la membresía.' }
+  }
+
+  let memberId = existing?.id ?? null
+
+  if (!memberId) {
+    const { data: created, error: createError } = await supabase
+      .from('organization_members')
+      .insert({
+        organization_id: organizationId,
+        user_id: userId,
+        status: memberStatusFromEmployee(status),
+        display_name: displayName || null,
+      })
+      .select('id')
+      .single()
+
+    if (createError || !created) {
+      return { error: createError?.message || 'No se pudo registrar la membresía.' }
+    }
+
+    memberId = created.id
+  } else {
+    const { error: updateError } = await supabase
+      .from('organization_members')
+      .update({
+        status: memberStatusFromEmployee(status),
+        display_name: displayName || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', memberId)
+
+    if (updateError) {
+      return { error: updateError.message || 'No se pudo actualizar la membresía.' }
+    }
+  }
+
+  if (roleId) {
+    const { error: roleError } = await supabase.from('member_roles').upsert(
+      { member_id: memberId, role_id: roleId },
+      { onConflict: 'member_id,role_id' }
+    )
+
+    if (roleError) {
+      return { error: roleError.message || 'No se pudo asignar el rol al usuario.' }
+    }
+  }
+
+  return { memberId }
 }
 
 async function validateRoleForCreate(
@@ -137,7 +242,7 @@ export async function createEmployeeAction(
     return permissionDeniedState()
   }
 
-  const parsed = parseEmployeeForm(formData)
+  const parsed = parseCreateEmployeeForm(formData)
   if ('error' in parsed) {
     return { error: parsed.error, ok: false }
   }
@@ -152,8 +257,23 @@ export async function createEmployeeAction(
     return { error: 'No se pudo resolver la sucursal actual.', ok: false }
   }
 
+  const displayName = employeeDisplayName(parsed.firstName, parsed.lastName)
   const sharedKey = newOwnerSharedKey()
   const supabase = await createSupabaseServerClient()
+
+  const { data: userId, error: authError } = await supabase.rpc('create_confirmed_auth_user', {
+    p_email: parsed.email,
+    p_password: parsed.password,
+    p_full_name: displayName,
+  })
+
+  if (authError || !userId) {
+    const message = authError?.message || 'No se pudo crear el usuario del empleado.'
+    if (message.includes('Ya existe un usuario')) {
+      return { error: 'Ya existe un usuario con ese correo electrónico.', ok: false }
+    }
+    return { error: message, ok: false }
+  }
 
   for (const target of targets) {
     const roleId =
@@ -165,6 +285,18 @@ export async function createEmployeeAction(
           access.organization.id
         )
 
+    const membership = await ensureEmployeeMembership(
+      target.organizationId,
+      userId as string,
+      displayName,
+      parsed.status,
+      roleId
+    )
+
+    if ('error' in membership) {
+      return { error: membership.error, ok: false }
+    }
+
     const { error } = await supabase.from('employees').insert({
       organization_id: target.organizationId,
       first_name: parsed.firstName,
@@ -173,6 +305,7 @@ export async function createEmployeeAction(
       email: parsed.email,
       status: parsed.status,
       role_id: roleId,
+      user_id: userId as string,
       owner_shared_key: sharedKey,
       created_by: target.memberId,
     })

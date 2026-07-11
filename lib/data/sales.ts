@@ -77,6 +77,7 @@ export async function getSaleDetailById(
       discount_percent,
       total,
       created_at,
+      customer_id,
       customer:customers ( first_name, last_name ),
       creator:organization_members!sales_created_by_fkey ( id, display_name ),
       payments:sale_payments ( method, amount, created_at ),
@@ -154,6 +155,7 @@ export async function getSaleDetailById(
       toNumber(data.total),
       paidAmount
     ),
+    customerId: data.customer_id ?? null,
     customerName,
     employeeName,
     lines,

@@ -27,7 +27,13 @@ interface SaleDetailSidebarProps {
   sale: SaleDetail | null
   isLoading: boolean
   error: string | null
+  canEdit?: boolean
+  canDelete?: boolean
   onClose: () => void
+  onPrint?: () => void
+  onReceipt?: () => void
+  onEdit?: () => void
+  onDelete?: () => void
 }
 
 const paymentStatusLabels: Record<SaleDetail['paymentStatus'], string> = {
@@ -44,7 +50,7 @@ const paymentStatusColors: Record<SaleDetail['paymentStatus'], 'emerald' | 'ambe
   draft: 'zinc',
 }
 
-function formatDetailDateTime(value: string): string {
+function formatDetailDateTime (value: string): string {
   const date = new Date(value)
   const timePart = new Intl.DateTimeFormat('es-MX', {
     hour: 'numeric',
@@ -60,13 +66,13 @@ function formatDetailDateTime(value: string): string {
   return `${timePart} | ${datePart}`
 }
 
-function formatQuantityLabel(quantity: number): string {
+function formatQuantityLabel (quantity: number): string {
   const label = Number.isInteger(quantity) ? String(quantity) : quantity.toFixed(2)
   const unit = quantity === 1 ? 'Unidad' : 'Unidades'
   return `${label} ${unit}`
 }
 
-function DetailRow({
+function DetailRow ({
   icon: Icon,
   label,
   value,
@@ -90,7 +96,7 @@ function DetailRow({
   )
 }
 
-function ProductLineItem({ line }: { line: SaleDetailLine }) {
+function ProductLineItem ({ line }: { line: SaleDetailLine }) {
   return (
     <div className="flex items-center gap-3 py-3">
       <div className="relative size-14 shrink-0 overflow-hidden rounded-xl bg-zinc-100 dark:bg-zinc-800">
@@ -125,23 +131,26 @@ function ProductLineItem({ line }: { line: SaleDetailLine }) {
   )
 }
 
-function ActionButton({
+function ActionButton ({
   label,
   icon: Icon,
   tone = 'default',
-  disabled = true,
+  disabled = false,
+  onClick,
 }: {
   label: string
   icon: React.ComponentType<{ className?: string }>
   tone?: 'default' | 'danger'
   disabled?: boolean
+  onClick?: () => void
 }) {
   return (
     <button
       type="button"
       disabled={disabled}
+      onClick={onClick}
       className={clsx(
-        'flex flex-col items-center gap-2 disabled:cursor-not-allowed disabled:opacity-50',
+        'flex flex-col items-center gap-2 transition hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:opacity-50',
         tone === 'danger' ? 'text-red-600 dark:text-red-400' : 'text-zinc-700 dark:text-zinc-300'
       )}
     >
@@ -160,13 +169,22 @@ function ActionButton({
   )
 }
 
-export function SaleDetailSidebar({
+export function SaleDetailSidebar ({
   open,
   sale,
   isLoading,
   error,
+  canEdit = false,
+  canDelete = false,
   onClose,
+  onPrint,
+  onReceipt,
+  onEdit,
+  onDelete,
 }: SaleDetailSidebarProps) {
+  const isVoided = sale?.paymentStatus === 'voided' || sale?.status === 'voided'
+  const canMutate = Boolean(sale) && !isVoided
+
   return (
     <>
       <div
@@ -302,10 +320,31 @@ export function SaleDetailSidebar({
         {sale ? (
           <div className="border-t border-zinc-200 bg-white px-5 py-4 dark:border-zinc-800 dark:bg-zinc-900">
             <div className="grid grid-cols-4 gap-2">
-              <ActionButton label="Imprimir" icon={PrinterIcon} />
-              <ActionButton label="Comprobante" icon={DocumentTextIcon} />
-              <ActionButton label="Editar" icon={PencilSquareIcon} />
-              <ActionButton label="Eliminar" icon={TrashIcon} tone="danger" />
+              <ActionButton
+                label="Imprimir"
+                icon={PrinterIcon}
+                onClick={onPrint}
+                disabled={!onPrint}
+              />
+              <ActionButton
+                label="Comprobante"
+                icon={DocumentTextIcon}
+                onClick={onReceipt}
+                disabled={!onReceipt}
+              />
+              <ActionButton
+                label="Editar"
+                icon={PencilSquareIcon}
+                onClick={onEdit}
+                disabled={!canEdit || !canMutate || !onEdit}
+              />
+              <ActionButton
+                label="Eliminar"
+                icon={TrashIcon}
+                tone="danger"
+                onClick={onDelete}
+                disabled={!canDelete || !canMutate || !onDelete}
+              />
             </div>
           </div>
         ) : null}
