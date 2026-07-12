@@ -3,6 +3,7 @@ import type {
   BalanceSummary,
   BalanceTransactionRow,
   CashClosingRow,
+  CashOperatorOption,
   CashSessionSummary,
   PayableBalanceRow,
   ReceivableBalanceRow,
@@ -74,6 +75,57 @@ export async function getOrCreateDefaultCashRegisterId(
   }
 
   return data.id
+}
+
+export async function getCashOperators(
+  organizationId: string
+): Promise<CashOperatorOption[]> {
+  const supabase = await createSupabaseServerClient()
+
+  const [membersResult, employeesResult] = await Promise.all([
+    supabase
+      .from('organization_members')
+      .select('id, display_name, user_id')
+      .eq('organization_id', organizationId)
+      .eq('status', 'active')
+      .order('display_name', { ascending: true }),
+    supabase
+      .from('employees')
+      .select('user_id, first_name, last_name')
+      .eq('organization_id', organizationId)
+      .eq('status', 'active')
+      .not('user_id', 'is', null),
+  ])
+
+  if (membersResult.error) {
+    console.error('getCashOperators members', membersResult.error)
+    return []
+  }
+
+  if (employeesResult.error) {
+    console.error('getCashOperators employees', employeesResult.error)
+  }
+
+  const employeeNameByUserId = new Map<string, string>()
+  for (const employee of employeesResult.data ?? []) {
+    if (!employee.user_id) continue
+    const name = [employee.first_name, employee.last_name]
+      .filter(Boolean)
+      .join(' ')
+      .trim()
+    if (name) employeeNameByUserId.set(employee.user_id, name)
+  }
+
+  return (membersResult.data ?? []).map((member) => {
+    const employeeName = member.user_id
+      ? employeeNameByUserId.get(member.user_id)
+      : null
+    const displayName = member.display_name?.trim() || null
+    return {
+      id: member.id,
+      name: employeeName || displayName || 'Sin nombre',
+    }
+  })
 }
 
 export async function getOpenCashSession(
@@ -232,7 +284,7 @@ async function getSaleIncomeTransactions(
       referenceId: sale.id,
       concept,
       amount,
-      occurredAt: primaryPayment?.created_at ?? sale.created_at,
+      occurredAt: sale.created_at,
       paymentMethod: primaryPayment?.method ?? null,
       reference: sale.sale_number,
       counterpartyName: customerName,

@@ -47,9 +47,25 @@ export async function openCashSessionAction(
     return initialFailure('Ya hay una caja abierta. Ciérrala antes de abrir otra.')
   }
 
-  const memberId = await getActiveMemberIdForOrganization(access.organization.id)
-  if (!memberId) {
-    return initialFailure('No se pudo identificar al usuario activo.')
+  const currentMemberId = access.memberId
+  const requestedOpenedBy = String(formData.get('openedBy') ?? '').trim()
+  let openedBy = currentMemberId
+
+  const supabase = await createSupabaseServerClient()
+
+  if (requestedOpenedBy && requestedOpenedBy !== currentMemberId) {
+    const { data: operator, error: operatorError } = await supabase
+      .from('organization_members')
+      .select('id')
+      .eq('id', requestedOpenedBy)
+      .eq('organization_id', access.organization.id)
+      .eq('status', 'active')
+      .maybeSingle()
+
+    if (operatorError || !operator) {
+      return initialFailure('El empleado encargado no es válido.')
+    }
+    openedBy = operator.id
   }
 
   const locationId = await getOrCreateDefaultLocationId(access.organization.id)
@@ -62,13 +78,12 @@ export async function openCashSessionAction(
     return initialFailure('No se pudo preparar la caja registradora.')
   }
 
-  const supabase = await createSupabaseServerClient()
   const { error } = await supabase.from('cash_sessions').insert({
     organization_id: access.organization.id,
     cash_register_id: registerId,
     status: 'open',
     opening_amount: openingAmount,
-    opened_by: memberId,
+    opened_by: openedBy,
     notes: String(formData.get('notes') ?? '').trim() || null,
   })
 

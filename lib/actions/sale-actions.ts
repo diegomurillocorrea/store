@@ -451,6 +451,36 @@ export async function voidSaleAction (
   return { error: null, ok: true, saleId: sale.id }
 }
 
+function parseSaleDateInput (value: string, originalIso: string): string | { error: string } {
+  const trimmed = value.trim()
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return { error: 'Fecha de la venta inválida.' }
+  }
+
+  const [year, month, day] = trimmed.split('-').map((part) => Number(part))
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) {
+    return { error: 'Fecha de la venta inválida.' }
+  }
+
+  const original = new Date(originalIso)
+  if (Number.isNaN(original.getTime())) {
+    return { error: 'Fecha de la venta inválida.' }
+  }
+
+  const next = new Date(original)
+  next.setFullYear(year, month - 1, day)
+
+  if (
+    next.getFullYear() !== year ||
+    next.getMonth() !== month - 1 ||
+    next.getDate() !== day
+  ) {
+    return { error: 'Fecha de la venta inválida.' }
+  }
+
+  return next.toISOString()
+}
+
 export async function updateSaleAction (
   orgSlug: string,
   saleId: string,
@@ -471,6 +501,8 @@ export async function updateSaleAction (
   const customerId = customerIdRaw || null
   const paymentMethod = String(formData.get('paymentMethod') ?? '').trim() as PosPaymentMethod
   const allowedMethods: PosPaymentMethod[] = ['cash', 'card', 'transfer', 'other', 'credit']
+  const saleDateRaw = String(formData.get('saleDate') ?? '').trim()
+  const discountPercent = Number(String(formData.get('discountPercent') ?? '').replace(',', '.'))
 
   if (!allowedMethods.includes(paymentMethod)) {
     return { error: 'Método de pago inválido.', ok: false }
@@ -478,6 +510,10 @@ export async function updateSaleAction (
 
   if (paymentMethod === 'credit' && !customerId) {
     return { error: 'Selecciona un cliente para ventas al crédito.', ok: false }
+  }
+
+  if (!Number.isFinite(discountPercent) || discountPercent < 0 || discountPercent > 100) {
+    return { error: 'El porcentaje de descuento debe estar entre 0 y 100.', ok: false }
   }
 
   const supabase = await createSupabaseServerClient()
@@ -488,10 +524,13 @@ export async function updateSaleAction (
       `
       id,
       status,
+      subtotal,
       total,
       sale_number,
       customer_id,
-      payments:sale_payments ( id, method, amount )
+      created_at,
+      payments:sale_payments ( id, method, amount ),
+      lines:sale_lines ( id, quantity, unit_price )
     `
     )
     .eq('organization_id', access.organization.id)
@@ -511,6 +550,11 @@ export async function updateSaleAction (
     return { error: 'Solo se pueden editar ventas completadas.', ok: false }
   }
 
+  const parsedSaleDate = parseSaleDateInput(saleDateRaw, sale.created_at)
+  if (typeof parsedSaleDate === 'object') {
+    return { error: parsedSaleDate.error, ok: false }
+  }
+
   if (customerId) {
     const { data: customer, error: customerError } = await supabase
       .from('customers')
@@ -524,6 +568,13 @@ export async function updateSaleAction (
     }
   }
 
+  const subtotal = roundMoney(Number(sale.subtotal) || 0)
+  const { discountAmount, total } = calculateSaleTotals(subtotal, discountPercent)
+
+  if (total <= 0) {
+    return { error: 'El total de la venta debe ser mayor a cero.', ok: false }
+  }
+
   const wasCredit =
     (sale.payments ?? []).some((payment) => payment.method === 'credit') ||
     (sale.payments ?? []).every((payment) => Number(payment.amount) <= 0)
@@ -531,7 +582,14 @@ export async function updateSaleAction (
 
   const { error: updateSaleError } = await supabase
     .from('sales')
-    .update({ customer_id: customerId })
+    .update({
+      customer_id: customerId,
+      created_at: parsedSaleDate,
+      discount_percent: discountPercent,
+      discount_total: discountAmount,
+      total,
+      updated_at: new Date().toISOString(),
+    })
     .eq('id', sale.id)
     .eq('organization_id', access.organization.id)
 
@@ -540,8 +598,29 @@ export async function updateSaleAction (
     return { error: 'No se pudo actualizar la venta.', ok: false }
   }
 
+  for (const line of sale.lines ?? []) {
+    const lineSubtotal = roundMoney(Number(line.unit_price) * Number(line.quantity))
+    const lineDiscountShare =
+      subtotal > 0 ? roundMoney((lineSubtotal / subtotal) * discountAmount) : 0
+    const lineTotal = roundMoney(Math.max(0, lineSubtotal - lineDiscountShare))
+
+    const { error: lineError } = await supabase
+      .from('sale_lines')
+      .update({
+        line_discount: lineDiscountShare,
+        line_total: lineTotal,
+      })
+      .eq('id', line.id)
+      .eq('sale_id', sale.id)
+
+    if (lineError) {
+      console.error('updateSaleAction:line', lineError)
+      return { error: 'No se pudo actualizar el descuento de los productos.', ok: false }
+    }
+  }
+
   const primaryPayment = sale.payments?.[0] ?? null
-  const paymentAmount = willBeCredit ? 0 : Number(sale.total)
+  const paymentAmount = willBeCredit ? 0 : total
 
   if (primaryPayment?.id) {
     const { error: paymentError } = await supabase
@@ -584,8 +663,8 @@ export async function updateSaleAction (
         customer_id: customerId,
         sale_id: sale.id,
         document_number: sale.sale_number,
-        total: sale.total,
-        balance_due: sale.total,
+        total,
+        balance_due: total,
         status: 'open',
       })
 
@@ -599,8 +678,8 @@ export async function updateSaleAction (
         .update({
           customer_id: customerId,
           status: 'open',
-          balance_due: sale.total,
-          total: sale.total,
+          balance_due: total,
+          total,
         })
         .eq('id', existingReceivable.id)
     }
@@ -612,6 +691,7 @@ export async function updateSaleAction (
       .update({
         status: 'paid',
         balance_due: 0,
+        total,
       })
       .eq('organization_id', access.organization.id)
       .eq('sale_id', sale.id)
@@ -622,13 +702,31 @@ export async function updateSaleAction (
     }
   }
 
-  if (wasCredit && willBeCredit && customerId) {
-    await supabase
+  if (wasCredit && willBeCredit) {
+    const { data: receivable } = await supabase
       .from('receivables')
-      .update({ customer_id: customerId })
+      .select('id, total, balance_due, status')
       .eq('organization_id', access.organization.id)
       .eq('sale_id', sale.id)
       .in('status', ['open', 'partial'])
+      .maybeSingle()
+
+    if (receivable) {
+      const paidSoFar = roundMoney(Number(receivable.total) - Number(receivable.balance_due))
+      const nextBalanceDue = roundMoney(Math.max(0, total - paidSoFar))
+      const nextStatus =
+        nextBalanceDue <= 0 ? 'paid' : paidSoFar > 0 ? 'partial' : 'open'
+
+      await supabase
+        .from('receivables')
+        .update({
+          customer_id: customerId,
+          total,
+          balance_due: nextBalanceDue,
+          status: nextStatus,
+        })
+        .eq('id', receivable.id)
+    }
   }
 
   revalidateSalePaths(orgSlug)

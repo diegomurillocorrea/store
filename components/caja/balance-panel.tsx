@@ -11,7 +11,7 @@ import {
 import { ChevronDownIcon } from '@heroicons/react/20/solid'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
-import { CashSessionDialog } from '@/components/caja/cash-session-dialog'
+import { CashSessionSidebar } from '@/components/caja/cash-session-sidebar'
 import { CreateMovementDialog } from '@/components/caja/create-movement-dialog'
 import { EditSaleDialog } from '@/components/caja/edit-sale-dialog'
 import { SaleDetailSidebar } from '@/components/caja/sale-detail-sidebar'
@@ -24,6 +24,7 @@ import type {
   BalanceTransactionRow,
   BalanceTransactionTab,
   CashClosingRow,
+  CashOperatorOption,
   CashSessionSummary,
   PayableBalanceRow,
   ReceivableBalanceRow,
@@ -55,6 +56,8 @@ interface BalancePanelProps {
   orgSlug: string
   organizationName: string
   customers: CustomerRow[]
+  cashOperators: CashOperatorOption[]
+  currentMemberId: string
   selectedDate: string
   selectedEndDate: string
   startDate: string
@@ -119,10 +122,6 @@ function TransactionRow({
   onSaleClick?: (saleId: string) => void
 }) {
   const isSale = row.source === 'sale'
-  const Icon = isSale ? BanknotesIcon : WalletIcon
-  const iconClass = isSale
-    ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
-    : 'bg-zinc-500/10 text-zinc-500 dark:text-zinc-400'
   const isClickable = isSale && Boolean(row.referenceId && onSaleClick)
 
   const handleClick = () => {
@@ -130,7 +129,7 @@ function TransactionRow({
     onSaleClick(row.referenceId)
   }
 
-  const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLTableRowElement>) => {
     if (!isClickable) return
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault()
@@ -139,46 +138,52 @@ function TransactionRow({
   }
 
   return (
-    <div
+    <tr
       role={isClickable ? 'button' : undefined}
       tabIndex={isClickable ? 0 : undefined}
       onClick={handleClick}
       onKeyDown={handleKeyDown}
-      className={`flex items-center gap-4 bg-white px-4 py-4 dark:bg-zinc-900 ${
+      className={
         isClickable
           ? 'cursor-pointer transition hover:bg-zinc-50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-emerald-500 dark:hover:bg-zinc-800'
-          : ''
-      }`}
+          : undefined
+      }
     >
-      <div
-        className={`flex size-10 shrink-0 items-center justify-center rounded-full ${iconClass}`}
-      >
-        <Icon className="size-5" aria-hidden="true" />
-      </div>
-
-      <div className="min-w-0 flex-1">
-        <p className="font-medium text-zinc-900 dark:text-zinc-100">{row.concept}</p>
+      <td className="w-14 px-4 py-4">
+        <div
+          className={`flex size-10 items-center justify-center rounded-full ${
+            isSale
+              ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+              : 'bg-zinc-500/10 text-zinc-500 dark:text-zinc-400'
+          }`}
+        >
+          {isSale ? (
+            <BanknotesIcon className="size-5" aria-hidden="true" />
+          ) : (
+            <WalletIcon className="size-5" aria-hidden="true" />
+          )}
+        </div>
+      </td>
+      <td className="px-4 py-4">
+        <div className="font-medium text-zinc-900 dark:text-zinc-100">{row.concept}</div>
         {!isSale && row.counterpartyName ? (
-          <p className="mt-0.5 truncate text-sm text-zinc-500 dark:text-zinc-400">
+          <div className="mt-0.5 truncate text-sm text-zinc-500 dark:text-zinc-400">
             {row.counterpartyName}
-          </p>
+          </div>
         ) : null}
-      </div>
-
-      <div className="flex shrink-0 flex-col items-end gap-1 text-sm sm:flex-row sm:items-center sm:gap-4">
-        <span className="font-semibold text-zinc-900 dark:text-zinc-100">
-          {formatCurrency(row.amount)}
-        </span>
-        <span className="text-zinc-500 dark:text-zinc-400">
-          {row.paymentMethod
-            ? PAYMENT_METHOD_LABELS[row.paymentMethod] ?? row.paymentMethod
-            : '—'}
-        </span>
-        <span className="whitespace-nowrap text-zinc-500 dark:text-zinc-400">
-          {formatDateTime(row.occurredAt, timeZone)}
-        </span>
-      </div>
-    </div>
+      </td>
+      <td className="px-4 py-4 text-center font-semibold text-zinc-900 dark:text-zinc-100">
+        {formatCurrency(row.amount)}
+      </td>
+      <td className="px-4 py-4 text-center text-sm text-zinc-500 dark:text-zinc-400">
+        {row.paymentMethod
+          ? PAYMENT_METHOD_LABELS[row.paymentMethod] ?? row.paymentMethod
+          : '—'}
+      </td>
+      <td className="px-4 py-4 whitespace-nowrap text-center text-sm text-zinc-500 dark:text-zinc-400">
+        {formatDateTime(row.occurredAt, timeZone)}
+      </td>
+    </tr>
   )
 }
 
@@ -252,6 +257,8 @@ export function BalancePanel({
   orgSlug,
   organizationName,
   customers,
+  cashOperators,
+  currentMemberId,
   selectedDate,
   selectedEndDate,
   startDate,
@@ -464,11 +471,35 @@ export function BalancePanel({
 
     return (
       <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="divide-y divide-zinc-200 dark:divide-zinc-800">
-          {rows.map((row) => (
-            <TransactionRow key={row.id} row={row} timeZone={timeZone} onSaleClick={handleSaleClick} />
-          ))}
-        </div>
+        <table className="min-w-full divide-y divide-zinc-200 dark:divide-zinc-800">
+          <thead className="bg-zinc-50 dark:bg-zinc-800/80">
+            <tr>
+              <th className="w-14 px-4 py-3" aria-hidden="true" />
+              <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-zinc-500 uppercase">
+                Venta
+              </th>
+              <th className="px-4 py-3 text-center text-xs font-semibold tracking-wide text-zinc-500 uppercase">
+                Precio
+              </th>
+              <th className="px-4 py-3 text-center text-xs font-semibold tracking-wide text-zinc-500 uppercase whitespace-nowrap">
+                Método de pago
+              </th>
+              <th className="px-4 py-3 text-center text-xs font-semibold tracking-wide text-zinc-500 uppercase">
+                Fecha y hora
+              </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-zinc-200 bg-white dark:divide-zinc-800 dark:bg-zinc-900">
+            {rows.map((row) => (
+              <TransactionRow
+                key={row.id}
+                row={row}
+                timeZone={timeZone}
+                onSaleClick={handleSaleClick}
+              />
+            ))}
+          </tbody>
+        </table>
       </div>
     )
   }
@@ -664,20 +695,10 @@ export function BalancePanel({
               Cerrar caja
             </Button>
           ) : null}
-
-          {actions.canCreate ? (
-            <Button
-              type="button"
-              color="dark/zinc"
-              onClick={() => handleOpenMovementDialog('income')}
-            >
-              Crear movimiento
-            </Button>
-          ) : null}
         </div>
       </div>
 
-      <div className="mt-8 inline-flex rounded-xl border border-zinc-200 bg-zinc-100 p-1 dark:border-zinc-700 dark:bg-zinc-800">
+      <div className="mt-8 flex w-full rounded-xl border border-zinc-200 bg-zinc-100 p-1 dark:border-zinc-700 dark:bg-zinc-800">
         {mainTabs.map((tab) => {
           const isActive = mainTab === tab.id
           return (
@@ -685,7 +706,7 @@ export function BalancePanel({
               key={tab.id}
               type="button"
               onClick={() => setMainTab(tab.id)}
-              className={`rounded-lg px-4 py-2 text-sm font-medium transition ${
+              className={`flex-1 rounded-lg px-4 py-2 text-center text-sm font-medium transition ${
                 isActive
                   ? 'bg-zinc-900 text-white shadow-sm dark:bg-white dark:text-zinc-900'
                   : 'text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100'
@@ -699,68 +720,66 @@ export function BalancePanel({
 
       {mainTab === 'transacciones' ? (
         <>
-          <div className="mt-6 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex flex-wrap items-center gap-2">
-              <Dropdown>
-                <DropdownButton
-                  outline
-                  className={`rounded-xl! ${balanceSurfaceClass}`}
-                  aria-label="Periodo"
-                >
-                  <CalendarDaysIcon data-slot="icon" aria-hidden="true" />
-                  {periodLabel}
-                  <ChevronDownIcon data-slot="icon" aria-hidden="true" />
-                </DropdownButton>
-                <DropdownMenu anchor="bottom start">
-                  {BALANCE_PERIOD_OPTIONS.map((option) => (
-                    <DropdownItem
-                      key={option.id}
-                      onClick={() => handlePeriodChange(option.id)}
-                    >
-                      {option.label}
-                    </DropdownItem>
-                  ))}
-                </DropdownMenu>
-              </Dropdown>
+          <div className="mt-6 flex w-full flex-nowrap items-center gap-2">
+            <Dropdown>
+              <DropdownButton
+                outline
+                className={`shrink-0 rounded-xl! ${balanceSurfaceClass}`}
+                aria-label="Periodo"
+              >
+                <CalendarDaysIcon data-slot="icon" aria-hidden="true" />
+                {periodLabel}
+                <ChevronDownIcon data-slot="icon" aria-hidden="true" />
+              </DropdownButton>
+              <DropdownMenu anchor="bottom start">
+                {BALANCE_PERIOD_OPTIONS.map((option) => (
+                  <DropdownItem
+                    key={option.id}
+                    onClick={() => handlePeriodChange(option.id)}
+                  >
+                    {option.label}
+                  </DropdownItem>
+                ))}
+              </DropdownMenu>
+            </Dropdown>
 
-              {isCustomPeriod ? (
-                <>
-                  <Input
-                    type="date"
-                    value={selectedDate}
-                    onChange={(event) => handleDateChange(event.target.value)}
-                    aria-label="Fecha desde"
-                    className={`w-auto ${balanceInputClass}`}
-                  />
-                  <span className="text-sm text-zinc-500 dark:text-zinc-400">a</span>
-                  <Input
-                    type="date"
-                    value={selectedEndDate}
-                    onChange={(event) => handleEndDateChange(event.target.value)}
-                    aria-label="Fecha hasta"
-                    className={`w-auto ${balanceInputClass}`}
-                  />
-                </>
-              ) : (
+            {isCustomPeriod ? (
+              <>
                 <Input
                   type="date"
                   value={selectedDate}
                   onChange={(event) => handleDateChange(event.target.value)}
-                  aria-label="Fecha"
-                  className={`w-auto ${balanceInputClass}`}
+                  aria-label="Fecha desde"
+                  className={`w-auto! shrink-0 ${balanceInputClass}`}
                 />
-              )}
+                <span className="shrink-0 text-sm text-zinc-500 dark:text-zinc-400">a</span>
+                <Input
+                  type="date"
+                  value={selectedEndDate}
+                  onChange={(event) => handleEndDateChange(event.target.value)}
+                  aria-label="Fecha hasta"
+                  className={`w-auto! shrink-0 ${balanceInputClass}`}
+                />
+              </>
+            ) : (
+              <Input
+                type="date"
+                value={selectedDate}
+                onChange={(event) => handleDateChange(event.target.value)}
+                aria-label="Fecha"
+                className={`w-auto! shrink-0 ${balanceInputClass}`}
+              />
+            )}
 
-              <span
-                className={`inline-flex rounded-xl px-3 py-2 text-sm ${balanceSurfaceClass}`}
-              >
-                <span className="text-zinc-600 dark:text-zinc-300">
-                  {formatDisplayDateRange(startDate, endDate, timeZone)}
-                </span>
+            <span
+              className={`inline-flex shrink-0 rounded-xl px-3 py-2 text-sm ${balanceSurfaceClass}`}
+            >
+              <span className="whitespace-nowrap text-zinc-600 dark:text-zinc-300">
+                {formatDisplayDateRange(startDate, endDate, timeZone)}
               </span>
-            </div>
+            </span>
 
-            <div className={`w-full max-w-md rounded-xl ${balanceSurfaceClass}`}>
+            <div className={`ml-auto min-w-0 flex-1 rounded-xl ${balanceSurfaceClass}`}>
               <InputGroup className="[&_input]:border-0! [&_input]:bg-transparent! [&_input]:shadow-none! dark:[&_input]:bg-transparent!">
                 <MagnifyingGlassIcon data-slot="icon" aria-hidden="true" />
                 <Input
@@ -796,9 +815,9 @@ export function BalancePanel({
             />
           </div>
 
-          <div className="mt-8 overflow-x-auto">
-            <span
-              className="isolate inline-flex rounded-md shadow-xs"
+          <div className="mt-8 w-full overflow-x-auto">
+            <div
+              className="isolate flex w-full rounded-md shadow-xs"
               role="tablist"
               aria-label="Tipo de transacción"
             >
@@ -813,7 +832,7 @@ export function BalancePanel({
                     role="tab"
                     aria-selected={isActive}
                     onClick={() => setTransactionTab(tab.id)}
-                    className={`relative inline-flex items-center whitespace-nowrap px-3 py-2 text-sm font-semibold inset-ring-1 inset-ring-zinc-300 focus:z-10 dark:inset-ring-zinc-600 ${
+                    className={`relative inline-flex flex-1 items-center justify-center whitespace-nowrap px-3 py-2 text-sm font-semibold inset-ring-1 inset-ring-zinc-300 focus:z-10 dark:inset-ring-zinc-600 ${
                       !isFirst ? '-ml-px' : ''
                     } ${isFirst ? 'rounded-l-md' : ''} ${isLast ? 'rounded-r-md' : ''} ${
                       isActive
@@ -825,7 +844,7 @@ export function BalancePanel({
                   </button>
                 )
               })}
-            </span>
+            </div>
           </div>
 
           <div className="mt-6">
@@ -839,11 +858,13 @@ export function BalancePanel({
         <div className="mt-6">{renderCashClosings()}</div>
       )}
 
-      <CashSessionDialog
+      <CashSessionSidebar
         orgSlug={orgSlug}
         open={cashDialogMode != null}
         mode={cashDialogMode ?? 'open'}
         session={openSession}
+        operators={cashOperators}
+        currentMemberId={currentMemberId}
         onClose={() => setCashDialogMode(null)}
       />
 

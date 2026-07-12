@@ -3,6 +3,7 @@ import { requireViewAccess } from '@/lib/auth/access'
 import {
   getBalanceSummary,
   getCashClosings,
+  getCashOperators,
   getExpenseTransactions,
   getIncomeTransactions,
   getOpenCashSession,
@@ -54,6 +55,7 @@ export default async function CajaPage({ params, searchParams }: CajaPageProps) 
     payables,
     cashClosings,
     customers,
+    cashOperators,
   ] = await Promise.all([
     getBalanceSummary(organizationId, startDate, endDate, timeZone),
     getOpenCashSession(organizationId),
@@ -63,6 +65,7 @@ export default async function CajaPage({ params, searchParams }: CajaPageProps) 
     getOpenPayables(organizationId),
     getCashClosings(organizationId),
     getCustomersByOrganizationId(organizationId),
+    getCashOperators(organizationId),
   ])
 
   return (
@@ -71,6 +74,8 @@ export default async function CajaPage({ params, searchParams }: CajaPageProps) 
         orgSlug={orgSlug}
         organizationName={access.organization.name}
         customers={customers}
+        cashOperators={cashOperators}
+        currentMemberId={access.memberId}
         selectedDate={selectedDate}
         selectedEndDate={selectedEndDate}
         startDate={startDate}

@@ -73,6 +73,11 @@ export interface CashClosingRow {
   registerName: string | null
 }
 
+export interface CashOperatorOption {
+  id: string
+  name: string
+}
+
 export const PAYMENT_METHOD_LABELS: Record<string, string> = {
   cash: 'Efectivo',
   card: 'Tarjeta',

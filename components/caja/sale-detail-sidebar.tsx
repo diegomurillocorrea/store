@@ -6,6 +6,7 @@ import {
   DocumentTextIcon,
   PencilSquareIcon,
   PrinterIcon,
+  ReceiptPercentIcon,
   ShoppingBagIcon,
   TrashIcon,
   UserGroupIcon,
@@ -70,6 +71,11 @@ function formatQuantityLabel (quantity: number): string {
   const label = Number.isInteger(quantity) ? String(quantity) : quantity.toFixed(2)
   const unit = quantity === 1 ? 'Unidad' : 'Unidades'
   return `${label} ${unit}`
+}
+
+function formatDiscountPercent (value: number): string {
+  if (Number.isInteger(value)) return String(value)
+  return String(Math.round(value * 100) / 100)
 }
 
 function DetailRow ({
@@ -290,6 +296,17 @@ export function SaleDetailSidebar ({
                     label="Empleado"
                     value={sale.employeeName ?? '—'}
                   />
+                  {sale.discountTotal > 0 ? (
+                    <DetailRow
+                      icon={ReceiptPercentIcon}
+                      label={
+                        sale.discountPercent != null && sale.discountPercent > 0
+                          ? `Descuento (${formatDiscountPercent(sale.discountPercent)}%)`
+                          : 'Descuento'
+                      }
+                      value={`−${formatCurrency(sale.discountTotal)}`}
+                    />
+                  ) : null}
                   <DetailRow
                     icon={ArrowTrendingUpIcon}
                     label="Ganancia"

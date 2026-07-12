@@ -24,6 +24,7 @@ interface CustomerOptionComboboxProps {
   onChange: (customerId: string | null) => void
   disabled?: boolean
   label?: string
+  placeholder?: string
 }
 
 function toCustomerOption(customer: CustomerRow): CustomerOption {
@@ -49,6 +50,7 @@ export function CustomerOptionCombobox({
   onChange,
   disabled = false,
   label = 'Cliente',
+  placeholder = 'Buscar cliente...',
 }: CustomerOptionComboboxProps) {
   const options = customers.map(toCustomerOption)
   const [query, setQuery] = useState('')
@@ -87,7 +89,7 @@ export function CustomerOptionCombobox({
             onChange={(event) => setQuery(event.target.value)}
             onBlur={() => setQuery('')}
             displayValue={(option: CustomerOption | null) => option?.name ?? ''}
-            placeholder="Buscar cliente..."
+            placeholder={placeholder}
             autoComplete="off"
           />
           <ComboboxButton className="absolute inset-y-0 right-0 flex items-center rounded-r-lg px-2.5">
