@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react'
 import { CreateSubCategoryDialog } from '@/components/categorias/create-subcategory-dialog'
 import { DeleteSubCategoryDialog } from '@/components/categorias/delete-subcategory-dialog'
 import { EditSubCategoryDialog } from '@/components/categorias/edit-subcategory-dialog'
+import { CatalogDotBadge } from '@/components/catalog-dot-badge'
 import type { CategoryRow } from '@/lib/data/categories'
 import type { SubCategoryRow } from '@/lib/data/subcategories'
 import type { ViewActionFlags } from '@/lib/permissions/views'
@@ -146,8 +147,12 @@ export function SubCategoriesPanel({
                     <td className="py-4 pr-3 pl-4 text-sm font-medium whitespace-nowrap text-foreground! sm:pl-6">
                       {subCategory.name}
                     </td>
-                    <td className="px-3 py-4 text-sm whitespace-nowrap text-muted-foreground">
-                      {subCategory.categoryName}
+                    <td className="px-3 py-4 text-sm whitespace-nowrap">
+                      {subCategory.categoryName ? (
+                        <CatalogDotBadge>{subCategory.categoryName}</CatalogDotBadge>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
                     </td>
                     <td className="py-4 pr-4 pl-3 text-right text-sm font-medium whitespace-nowrap sm:pr-6">
                       {actions.canEdit || actions.canDelete ? (

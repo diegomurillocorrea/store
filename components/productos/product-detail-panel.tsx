@@ -67,8 +67,7 @@ export function ProductDetailPanel({
   ].join(':')
 
   const handleDeleteSuccess = () => {
-    router.push(`/${orgSlug}/productos`)
-    router.refresh()
+    router.replace(`/${orgSlug}/productos`)
   }
 
   return (

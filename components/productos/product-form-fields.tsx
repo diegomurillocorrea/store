@@ -4,8 +4,10 @@ import { CategorySubCategoryFields } from '@/components/productos/category-subca
 import { ProductImageField } from '@/components/productos/product-image-field'
 import { ProductOptionCombobox } from '@/components/productos/product-option-combobox'
 import type { ProductOption, SubCategoryProductOption } from '@/lib/data/product-types'
+import { formatUnitPriceInput, sanitizeDecimalInput } from '@/lib/utils/money'
 import { Field, Label } from '@/styles/catalyst-ui-kit/fieldset'
 import { Input } from '@/styles/catalyst-ui-kit/input'
+import { useEffect, useState } from 'react'
 
 export interface ProductFormDefaults {
   barcode?: string
@@ -35,10 +37,29 @@ interface CurrencyInputProps {
   required?: boolean
   placeholder?: string
   defaultValue?: string
+  resetKey?: boolean | string | number
 }
 
-function CurrencyInput({ id, name, required, placeholder, defaultValue }: CurrencyInputProps) {
+function toCurrencyDraft(defaultValue?: string): string {
+  if (defaultValue == null || defaultValue === '') return ''
+  const parsed = Number.parseFloat(defaultValue)
+  return Number.isFinite(parsed) ? formatUnitPriceInput(parsed) : defaultValue
+}
+
+function CurrencyInput({
+  id,
+  name,
+  required,
+  placeholder,
+  defaultValue,
+  resetKey,
+}: CurrencyInputProps) {
   const currencyId = `${id}-currency`
+  const [value, setValue] = useState(() => toCurrencyDraft(defaultValue))
+
+  useEffect(() => {
+    setValue(toCurrencyDraft(defaultValue))
+  }, [defaultValue, resetKey])
 
   return (
     <div data-slot="control">
@@ -49,10 +70,11 @@ function CurrencyInput({ id, name, required, placeholder, defaultValue }: Curren
           name={name}
           type="text"
           inputMode="decimal"
-          placeholder={placeholder ?? '0.00'}
+          placeholder={placeholder ?? '0.0000'}
           aria-describedby={currencyId}
           required={required}
-          defaultValue={defaultValue}
+          value={value}
+          onChange={(event) => setValue(sanitizeDecimalInput(event.target.value))}
           className="block min-w-0 grow bg-transparent py-1.5 pr-3 pl-1 text-base text-foreground placeholder:text-foreground/45 focus:outline-none sm:py-2 sm:text-sm/6"
         />
         <div id={currencyId} className="shrink-0 text-base text-muted-foreground select-none sm:text-sm/6">
@@ -128,7 +150,8 @@ export function ProductFormFields({
             id={`${idPrefix}-sale-price`}
             name="salePrice"
             required
-            placeholder="0.00"
+            placeholder="0.0000"
+            resetKey={resetKey}
             defaultValue={
               defaults?.salePrice != null ? String(defaults.salePrice) : undefined
             }
@@ -139,7 +162,8 @@ export function ProductFormFields({
           <CurrencyInput
             id={`${idPrefix}-cost-price`}
             name="costPrice"
-            placeholder="0.00"
+            placeholder="0.0000"
+            resetKey={resetKey}
             defaultValue={
               defaults?.costPrice != null ? String(defaults.costPrice) : ''
             }

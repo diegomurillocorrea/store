@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react'
 import { CreateCategoryDialog } from '@/components/categorias/create-category-dialog'
 import { DeleteCategoryDialog } from '@/components/categorias/delete-category-dialog'
 import { EditCategoryDialog } from '@/components/categorias/edit-category-dialog'
+import { CatalogDotBadge } from '@/components/catalog-dot-badge'
 import type { CategoryRow } from '@/lib/data/categories'
 import type { ViewActionFlags } from '@/lib/permissions/views'
 import { Button } from '@/styles/catalyst-ui-kit/button'
@@ -101,8 +102,8 @@ export function CategoriesPanel({ orgSlug, categories, actions }: CategoriesPane
               <tbody className="divide-y divide-border">
                 {filteredCategories.map((category) => (
                   <tr key={category.id}>
-                    <td className="py-4 pr-3 pl-4 text-sm font-medium whitespace-nowrap text-foreground! sm:pl-6">
-                      {category.name}
+                    <td className="py-4 pr-3 pl-4 text-sm font-medium whitespace-nowrap sm:pl-6">
+                      <CatalogDotBadge>{category.name}</CatalogDotBadge>
                     </td>
                     <td className="py-4 pr-4 pl-3 text-right text-sm font-medium whitespace-nowrap sm:pr-6">
                       {actions.canEdit || actions.canDelete ? (

@@ -90,7 +90,7 @@ export function SidebarLayout({
           </div>
         </Dialog>
 
-        <div className="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-72 lg:flex-col lg:py-2 lg:pl-2">
+        <div className="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-80 lg:flex-col lg:py-2 lg:pl-2">
           {sidebar}
         </div>
 
@@ -109,7 +109,7 @@ export function SidebarLayout({
           {mobileActions ? <div className="relative shrink-0">{mobileActions}</div> : null}
         </div>
 
-        <main className="flex flex-1 flex-col pb-2 lg:min-w-0 lg:pt-2 lg:pr-2 lg:pl-72">
+        <main className="flex flex-1 flex-col pb-2 lg:min-w-0 lg:pt-2 lg:pr-2 lg:pl-80">
           <div
             className={clsx(
               'relative mx-2 mb-3 flex min-h-0 grow flex-col overflow-hidden rounded-2xl transition-[margin-right] duration-300 ease-in-out sm:mx-3 lg:mx-0 lg:mb-0',

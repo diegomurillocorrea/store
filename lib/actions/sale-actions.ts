@@ -58,7 +58,12 @@ function parseSaleInput(input: CompletePosSaleInput): { error: string } | Comple
     return { error: 'El porcentaje de descuento debe estar entre 0 y 100.' }
   }
 
-  return { ...input, customerId }
+  const saleDate = String(input.saleDate ?? '').trim()
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(saleDate)) {
+    return { error: 'Fecha de la venta inválida.' }
+  }
+
+  return { ...input, customerId, saleDate }
 }
 
 async function generateSaleNumber(
@@ -165,6 +170,11 @@ export async function completePosSaleAction(
   const saleNumber = await generateSaleNumber(access.organization.id)
   const locationId = await getOrCreateDefaultLocationId(access.organization.id)
 
+  const parsedSaleDate = parseSaleDateInput(parsed.saleDate, new Date().toISOString())
+  if (typeof parsedSaleDate === 'object') {
+    return { error: parsedSaleDate.error, ok: false }
+  }
+
   const { data: sale, error: saleError } = await supabase
     .from('sales')
     .insert({
@@ -178,6 +188,7 @@ export async function completePosSaleAction(
       discount_percent: parsed.discountPercent,
       total,
       created_by: memberId,
+      created_at: parsedSaleDate,
     })
     .select('id')
     .single()
@@ -249,6 +260,7 @@ export async function completePosSaleAction(
       customer_id: parsed.customerId ?? null,
       sale_id: sale.id,
       document_number: saleNumber,
+      issued_at: parsed.saleDate,
       total,
       balance_due: total,
       status: 'open',
@@ -297,6 +309,7 @@ export async function completePosSaleAction(
   }
 
   revalidatePath(`/${orgSlug}/pos`)
+  revalidatePath(`/${orgSlug}/caja`)
   revalidatePath(`/${orgSlug}/productos`)
   revalidatePath(`/${orgSlug}/inventario`)
 

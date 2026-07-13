@@ -15,6 +15,8 @@ export interface CompletePosSaleInput {
   paymentMethod: PosPaymentMethod
   discountPercent: number
   amountTendered: number | null
+  /** Fecha de la venta en formato YYYY-MM-DD */
+  saleDate: string
 }
 
 export interface SaleActionState {

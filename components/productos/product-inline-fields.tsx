@@ -7,6 +7,7 @@ import {
 } from '@/lib/actions/product-actions'
 import type { ProductRow } from '@/lib/data/product-types'
 import { useFormActionSuccess } from '@/lib/hooks/use-form-action-success'
+import { formatUnitPriceInput, sanitizeDecimalInput } from '@/lib/utils/money'
 
 const initialState: ProductFormState = { error: null, ok: false }
 
@@ -18,7 +19,7 @@ interface ProductInlineFieldsProps {
 
 function toInputValue(value: number | null): string {
   if (value == null) return ''
-  return String(value)
+  return formatUnitPriceInput(value)
 }
 
 export function ProductInlineFields({
@@ -81,10 +82,10 @@ export function ProductInlineFields({
     return (
       <>
         <td className="px-3 py-4 text-center text-sm whitespace-nowrap text-foreground!">
-          {product.salePrice.toFixed(2)}
+          {formatUnitPriceInput(product.salePrice)}
         </td>
         <td className="px-3 py-4 text-center text-sm whitespace-nowrap text-foreground!">
-          {product.costPrice != null ? product.costPrice.toFixed(2) : '—'}
+          {product.costPrice != null ? formatUnitPriceInput(product.costPrice) : '—'}
         </td>
         <td className="px-3 py-4 text-center text-sm whitespace-nowrap text-foreground!">
           {product.availableQuantity}
@@ -102,7 +103,7 @@ export function ProductInlineFields({
           aria-label={`Precio de ${product.name}`}
           value={salePrice}
           disabled={pending}
-          onChange={(event) => setSalePrice(event.target.value)}
+          onChange={(event) => setSalePrice(sanitizeDecimalInput(event.target.value))}
           onBlur={submitValues}
           onClick={stopRowNavigation}
           onKeyDown={handleKeyDown}
@@ -116,7 +117,7 @@ export function ProductInlineFields({
           aria-label={`Costo de ${product.name}`}
           value={costPrice}
           disabled={pending}
-          onChange={(event) => setCostPrice(event.target.value)}
+          onChange={(event) => setCostPrice(sanitizeDecimalInput(event.target.value))}
           onBlur={submitValues}
           onClick={stopRowNavigation}
           onKeyDown={handleKeyDown}

@@ -19,7 +19,9 @@ import {
   parseImageUrlFromForm,
   shouldRemoveProductImage,
 } from '@/lib/utils/product-image'
+import { parseUnitPriceInput } from '@/lib/utils/money'
 import { revalidatePath } from 'next/cache'
+import { redirect } from 'next/navigation'
 
 export interface ProductFormState {
   error: string | null
@@ -50,9 +52,33 @@ function parseNonNegativeNumber(
     return { error: `${label} es obligatorio.` }
   }
 
+  if (raw.includes(',')) {
+    return { error: `${label} debe usar punto (.) como separador decimal.` }
+  }
+
   const parsed = Number.parseFloat(raw)
   if (!Number.isFinite(parsed) || parsed < 0) {
     return { error: `${label} debe ser un número mayor o igual a 0.` }
+  }
+
+  return parsed
+}
+
+function parseUnitPriceField(
+  raw: string,
+  label: string
+): { error: string } | number {
+  if (raw.length === 0) {
+    return { error: `${label} es obligatorio.` }
+  }
+
+  if (raw.includes(',')) {
+    return { error: `${label} debe usar punto (.) como separador decimal.` }
+  }
+
+  const parsed = parseUnitPriceInput(raw)
+  if (parsed == null) {
+    return { error: `${label} debe ser un número mayor o igual a 0 (máx. 4 decimales).` }
   }
 
   return parsed
@@ -87,12 +113,12 @@ function parseProductForm(formData: FormData): { error: string } | ParsedProduct
   const availableQuantity = parseNonNegativeNumber(availableQuantityRaw, 'La cantidad disponible')
   if (typeof availableQuantity !== 'number') return availableQuantity
 
-  const salePrice = parseNonNegativeNumber(salePriceRaw, 'El precio de venta')
+  const salePrice = parseUnitPriceField(salePriceRaw, 'El precio de venta')
   if (typeof salePrice !== 'number') return salePrice
 
   let costPrice: number | null = null
   if (costPriceRaw.length > 0) {
-    const parsedCost = parseNonNegativeNumber(costPriceRaw, 'El costo de compra')
+    const parsedCost = parseUnitPriceField(costPriceRaw, 'El costo de compra')
     if (typeof parsedCost !== 'number') return parsedCost
     costPrice = parsedCost
   }
@@ -398,7 +424,7 @@ export async function updateProductQuickFieldsAction(
   const costPriceRaw = String(formData.get('costPrice') ?? '').trim()
   const availableQuantityRaw = String(formData.get('availableQuantity') ?? '').trim()
 
-  const salePrice = parseNonNegativeNumber(salePriceRaw, 'El precio de venta')
+  const salePrice = parseUnitPriceField(salePriceRaw, 'El precio de venta')
   if (typeof salePrice !== 'number') return { error: salePrice.error, ok: false }
 
   const availableQuantity = parseNonNegativeNumber(
@@ -411,7 +437,7 @@ export async function updateProductQuickFieldsAction(
 
   let costPrice: number | null = null
   if (costPriceRaw.length > 0) {
-    const parsedCost = parseNonNegativeNumber(costPriceRaw, 'El costo de compra')
+    const parsedCost = parseUnitPriceField(costPriceRaw, 'El costo de compra')
     if (typeof parsedCost !== 'number') return { error: parsedCost.error, ok: false }
     costPrice = parsedCost
   }
@@ -485,5 +511,5 @@ export async function deleteProductAction(
   await deleteProductImageByUrl(supabase, existingProduct?.image_url)
 
   revalidatePath(`/${orgSlug}/productos`)
-  return { error: null, ok: true }
+  redirect(`/${orgSlug}/productos`)
 }

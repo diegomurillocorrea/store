@@ -207,36 +207,36 @@ function OrgDashboardShellInner({
   ]
 
   const sidebar = (
-    <div className="glass-surface flex h-full flex-col pt-5 pr-2 pb-4 pl-6 lg:mr-2 lg:rounded-r-2xl">
+    <div className="glass-surface flex h-full flex-col pt-4 pr-3 pb-4 pl-5 lg:mr-2 lg:rounded-r-2xl">
       <Sidebar className="flex h-full min-h-0 flex-col">
         <div
-          className="flex flex-col border-b pb-4"
+          className="flex flex-col border-b pb-3"
           style={{
             borderBottomColor: 'color-mix(in srgb, var(--org-brand-accent) 45%, transparent)',
           }}
         >
-          <div className="flex h-16 shrink-0 items-center justify-between gap-3">
+          <div className="flex h-14 shrink-0 items-center justify-between gap-3">
             <div className="min-w-0 flex-1">
               {branding.logoUrl ? (
                 <OrgBrandLogo logoUrl={branding.logoUrl} orgName={orgName} />
               ) : (
-                <span className="text-base/6 font-semibold text-zinc-900 dark:text-zinc-100">{orgName}</span>
+                <span className="text-sm/6 font-semibold text-zinc-900 dark:text-zinc-100">{orgName}</span>
               )}
             </div>
             <ThemeToggle />
           </div>
-          <div className="mt-2 flex flex-col gap-0.5 px-0.5">
-            <span className="org-brand-muted-text text-xs/6 font-semibold tracking-wide uppercase">
+          <div className="mt-1.5 flex flex-col gap-0.5 px-0.5">
+            <span className="org-brand-muted-text text-[11px]/5 font-semibold tracking-wide uppercase">
               Sucursal
             </span>
-            <span className="truncate text-sm/6 font-semibold text-zinc-900 dark:text-zinc-100">
+            <span className="truncate text-sm/5 font-semibold text-zinc-900 dark:text-zinc-100">
               {orgName}
             </span>
             <span className="truncate text-xs text-zinc-500 dark:text-zinc-400">/{orgSlug}</span>
           </div>
         </div>
 
-        <SidebarBody className="flex-1 overflow-y-auto px-0 py-4">
+        <SidebarBody className="flex-1 overflow-y-auto px-0 py-3">
         {canAccessView('dashboard') ? (
           <SidebarSection>
             <NavLink href={`${base}/dashboard`} label="Inicio" icon={HomeIcon} />

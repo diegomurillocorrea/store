@@ -1,9 +1,9 @@
 'use client'
 
 import { MagnifyingGlassIcon, PlusIcon } from '@heroicons/react/24/outline'
-import clsx from 'clsx'
 import { useRouter } from 'next/navigation'
 import { useMemo, useState } from 'react'
+import { CatalogDotBadge } from '@/components/catalog-dot-badge'
 import { CreateProductDialog } from '@/components/productos/create-product-dialog'
 import { ColumnFilterHeader } from '@/components/productos/column-filter-header'
 import { OptimizedImage } from '@/components/optimized-image'
@@ -46,45 +46,6 @@ const percentFormatter = new Intl.NumberFormat('es-MX', {
   minimumFractionDigits: 0,
   maximumFractionDigits: 1,
 })
-
-const DOT_BADGE_TONES = {
-  blue: {
-    badge: 'bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-400',
-    dot: 'fill-blue-500',
-  },
-  purple: {
-    badge: 'bg-purple-100 text-purple-700 dark:bg-purple-500/15 dark:text-purple-400',
-    dot: 'fill-purple-500',
-  },
-} as const
-
-function DotBadge({
-  children,
-  tone,
-}: {
-  children: string
-  tone: keyof typeof DOT_BADGE_TONES
-}) {
-  const styles = DOT_BADGE_TONES[tone]
-
-  return (
-    <span
-      className={clsx(
-        'inline-flex max-w-full items-center gap-x-1.5 truncate rounded-md px-2 py-1 text-xs font-medium',
-        styles.badge
-      )}
-    >
-      <svg
-        viewBox="0 0 6 6"
-        aria-hidden="true"
-        className={clsx('size-1.5 shrink-0', styles.dot)}
-      >
-        <circle r={3} cx={3} cy={3} />
-      </svg>
-      <span className="truncate">{children}</span>
-    </span>
-  )
-}
 
 function getProductProfit(
   salePrice: number,
@@ -464,7 +425,7 @@ export function ProductsPanel({
                         <td className="px-3 py-4 text-center">
                           {product.categoryName ? (
                             <div className="flex justify-center">
-                              <DotBadge tone="blue">{product.categoryName}</DotBadge>
+                              <CatalogDotBadge>{product.categoryName}</CatalogDotBadge>
                             </div>
                           ) : (
                             <span className="text-sm text-muted-foreground">—</span>
@@ -473,7 +434,7 @@ export function ProductsPanel({
                         <td className="px-3 py-4 text-center">
                           {product.subCategoryName ? (
                             <div className="flex justify-center">
-                              <DotBadge tone="purple">{product.subCategoryName}</DotBadge>
+                              <CatalogDotBadge>{product.subCategoryName}</CatalogDotBadge>
                             </div>
                           ) : (
                             <span className="text-sm text-muted-foreground">—</span>

@@ -23,19 +23,19 @@ interface OrgsShellProps {
 
 export function OrgsShell({ userEmail, children }: OrgsShellProps) {
   const sidebar = (
-    <div className="glass-surface flex h-full flex-col pt-5 pr-2 pb-4 pl-6 lg:mr-2 lg:rounded-r-2xl">
+    <div className="glass-surface flex h-full flex-col pt-4 pr-3 pb-4 pl-5 lg:mr-2 lg:rounded-r-2xl">
       <Sidebar className="flex h-full min-h-0 flex-col">
-      <SidebarHeader className="border-b border-zinc-200 px-0 pb-4 dark:border-zinc-800">
-        <div className="flex h-16 shrink-0 items-center justify-between gap-3">
+      <SidebarHeader className="border-b border-zinc-200 px-0 pb-3 dark:border-zinc-800">
+        <div className="flex h-14 shrink-0 items-center justify-between gap-3">
           <span className="inline-flex items-center gap-2">
-            <DaiegoLogo size={32} />
-            <span className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+            <DaiegoLogo size={28} />
+            <span className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
               DAIEGO Store
             </span>
           </span>
           <ThemeToggle />
         </div>
-        <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
+        <p className="mt-1.5 text-sm text-zinc-500 dark:text-zinc-400">
           Elige un negocio o crea uno nuevo.
         </p>
       </SidebarHeader>
@@ -57,7 +57,7 @@ export function OrgsShell({ userEmail, children }: OrgsShellProps) {
         <SidebarSection>
           <SignOutButton variant="sidebar" />
         </SidebarSection>
-        <div className="-mx-6 mt-2 hidden border-t border-zinc-200 px-6 py-3 lg:block dark:border-zinc-800">
+        <div className="-mx-5 mt-2 hidden border-t border-zinc-200 px-5 py-3 lg:block dark:border-zinc-800">
           <SidebarUserProfile email={userEmail} />
         </div>
       </SidebarFooter>

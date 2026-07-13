@@ -10,6 +10,7 @@ import {
 } from '@heroicons/react/24/outline'
 import clsx from 'clsx'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { CatalogDotBadge } from '@/components/catalog-dot-badge'
 import { useLayoutSecondaryAside } from '@/components/pos/pos-secondary-column'
 import { PosCheckoutPanel } from '@/components/pos/pos-checkout-panel'
 import { OptimizedImage } from '@/components/optimized-image'
@@ -24,7 +25,11 @@ import {
   productToCartLine,
   type PosCartLine,
 } from '@/lib/pos/cart-types'
-import { roundMoney } from '@/lib/utils/money'
+import {
+  formatUnitPriceInput,
+  parseUnitPriceInput,
+  sanitizeDecimalInput,
+} from '@/lib/utils/money'
 import { IMAGE_SIZES } from '@/lib/utils/image-src'
 import { Button } from '@/styles/catalyst-ui-kit/button'
 import { Heading, Subheading } from '@/styles/catalyst-ui-kit/heading'
@@ -58,11 +63,30 @@ function isActionDisabled(condition: boolean): boolean | undefined {
   return condition ? true : undefined
 }
 
-function filterProducts(products: ProductRow[], query: string): ProductRow[] {
+function filterProducts(
+  products: ProductRow[],
+  query: string,
+  selectedCategories: Set<string>,
+  selectedSubCategories: Set<string>
+): ProductRow[] {
   const normalizedQuery = query.trim().toLowerCase()
-  if (!normalizedQuery) return products
+  const hasCategoryFilter = selectedCategories.size > 0
+  const hasSubCategoryFilter = selectedSubCategories.size > 0
 
   return products.filter((product) => {
+    if (hasCategoryFilter && (!product.categoryName || !selectedCategories.has(product.categoryName))) {
+      return false
+    }
+
+    if (
+      hasSubCategoryFilter &&
+      (!product.subCategoryName || !selectedSubCategories.has(product.subCategoryName))
+    ) {
+      return false
+    }
+
+    if (!normalizedQuery) return true
+
     const haystack = [
       product.name,
       product.barcode ?? '',
@@ -77,43 +101,20 @@ function filterProducts(products: ProductRow[], query: string): ProductRow[] {
   })
 }
 
-const DOT_BADGE_TONES = {
-  blue: {
-    badge: 'bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-400',
-    dot: 'fill-blue-500',
-  },
-  purple: {
-    badge: 'bg-purple-100 text-purple-700 dark:bg-purple-500/15 dark:text-purple-400',
-    dot: 'fill-purple-500',
-  },
-} as const
+function uniqueSortedNames(values: Array<string | null | undefined>): string[] {
+  return Array.from(
+    new Set(values.filter((value): value is string => Boolean(value && value.trim())))
+  ).sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }))
+}
 
-function DotBadge({
-  children,
-  tone,
-}: {
-  children: string
-  tone: keyof typeof DOT_BADGE_TONES
-}) {
-  const styles = DOT_BADGE_TONES[tone]
-
-  return (
-    <span
-      className={clsx(
-        'inline-flex max-w-full items-center gap-x-1.5 truncate rounded-md px-2 py-1 text-xs font-medium',
-        styles.badge
-      )}
-    >
-      <svg
-        viewBox="0 0 6 6"
-        aria-hidden="true"
-        className={clsx('size-1.5 shrink-0', styles.dot)}
-      >
-        <circle r={3} cx={3} cy={3} />
-      </svg>
-      <span className="truncate">{children}</span>
-    </span>
-  )
+function toggleSelection(current: Set<string>, value: string): Set<string> {
+  const next = new Set(current)
+  if (next.has(value)) {
+    next.delete(value)
+  } else {
+    next.add(value)
+  }
+  return next
 }
 
 function ProductCard({
@@ -226,10 +227,10 @@ function ProductCard({
           {product.categoryName || product.subCategoryName ? (
             <div className="flex min-h-5 flex-wrap items-center gap-1.5">
               {product.categoryName ? (
-                <DotBadge tone="blue">{product.categoryName}</DotBadge>
+                <CatalogDotBadge>{product.categoryName}</CatalogDotBadge>
               ) : null}
               {product.subCategoryName ? (
-                <DotBadge tone="purple">{product.subCategoryName}</DotBadge>
+                <CatalogDotBadge>{product.subCategoryName}</CatalogDotBadge>
               ) : null}
             </div>
           ) : (
@@ -303,10 +304,6 @@ function ProductCard({
   )
 }
 
-function formatUnitPriceDraft(value: number): string {
-  return roundMoney(value).toFixed(2)
-}
-
 function CartLineRow({
   line,
   onIncrement,
@@ -321,21 +318,20 @@ function CartLineRow({
   onUpdatePrice: (productId: string, unitPrice: number) => void
 }) {
   const atMaxStock = line.quantity >= line.availableQuantity
-  const [priceDraft, setPriceDraft] = useState(() => formatUnitPriceDraft(line.unitPrice))
+  const [priceDraft, setPriceDraft] = useState(() => formatUnitPriceInput(line.unitPrice))
 
   useEffect(() => {
-    setPriceDraft(formatUnitPriceDraft(line.unitPrice))
+    setPriceDraft(formatUnitPriceInput(line.unitPrice))
   }, [line.unitPrice])
 
   function commitPrice() {
-    const parsed = Number.parseFloat(priceDraft.replace(',', '.'))
-    if (!Number.isFinite(parsed) || parsed < 0) {
-      setPriceDraft(formatUnitPriceDraft(line.unitPrice))
+    const nextPrice = parseUnitPriceInput(priceDraft)
+    if (nextPrice == null) {
+      setPriceDraft(formatUnitPriceInput(line.unitPrice))
       return
     }
 
-    const nextPrice = roundMoney(parsed)
-    setPriceDraft(formatUnitPriceDraft(nextPrice))
+    setPriceDraft(formatUnitPriceInput(nextPrice))
     if (nextPrice !== line.unitPrice) {
       onUpdatePrice(line.productId, nextPrice)
     }
@@ -379,12 +375,10 @@ function CartLineRow({
             $
           </span>
           <input
-            type="number"
+            type="text"
             inputMode="decimal"
-            min={0}
-            step="0.01"
             value={priceDraft}
-            onChange={(event) => setPriceDraft(event.target.value)}
+            onChange={(event) => setPriceDraft(sanitizeDecimalInput(event.target.value))}
             onBlur={commitPrice}
             onKeyDown={(event) => {
               if (event.key === 'Enter') {
@@ -392,7 +386,7 @@ function CartLineRow({
               }
             }}
             aria-label={`Precio unitario de ${line.name}`}
-            className="w-20 rounded-md border border-zinc-200 bg-white px-2 py-1 text-xs tabular-nums text-zinc-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:focus:border-emerald-400"
+            className="w-24 rounded-md border border-zinc-200 bg-white px-2 py-1 text-xs tabular-nums text-zinc-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:focus:border-emerald-400"
           />
           <span className="text-xs text-zinc-500 dark:text-zinc-400">c/u</span>
         </div>
@@ -554,14 +548,28 @@ function PosCartSidebar({
 
 export function PosPanel({ orgSlug, products, customers }: PosPanelProps) {
   const [query, setQuery] = useState('')
+  const [selectedCategories, setSelectedCategories] = useState<Set<string>>(() => new Set())
+  const [selectedSubCategories, setSelectedSubCategories] = useState<Set<string>>(
+    () => new Set()
+  )
   const [cartLines, setCartLines] = usePersistedPosCart(orgSlug, products)
   const posLayout = usePosLayout()
   const mobileCartRef = useRef<HTMLDivElement>(null)
   const previousItemCountRef = useRef(0)
 
+  const categoryNames = useMemo(
+    () => uniqueSortedNames(products.map((product) => product.categoryName)),
+    [products]
+  )
+
+  const subCategoryNames = useMemo(
+    () => uniqueSortedNames(products.map((product) => product.subCategoryName)),
+    [products]
+  )
+
   const filteredProducts = useMemo(
-    () => filterProducts(products, query),
-    [products, query]
+    () => filterProducts(products, query, selectedCategories, selectedSubCategories),
+    [products, query, selectedCategories, selectedSubCategories]
   )
 
   const subtotal = useMemo(() => getCartSubtotal(cartLines), [cartLines])
@@ -666,6 +674,8 @@ export function PosPanel({ orgSlug, products, customers }: PosPanelProps) {
 
   const handleSaleComplete = useCallback(() => {
     setCartLines([])
+    setSelectedCategories(new Set())
+    setSelectedSubCategories(new Set())
   }, [])
 
   const cartProps = {
@@ -705,7 +715,7 @@ export function PosPanel({ orgSlug, products, customers }: PosPanelProps) {
             </Text>
           </div>
 
-          <div className="mt-6 max-w-xl shrink-0">
+          <div className="mt-6 w-full shrink-0 space-y-3">
             <InputGroup>
               <MagnifyingGlassIcon data-slot="icon" aria-hidden="true" />
               <Input
@@ -718,6 +728,58 @@ export function PosPanel({ orgSlug, products, customers }: PosPanelProps) {
                 autoComplete="off"
               />
             </InputGroup>
+
+            {categoryNames.length > 0 ? (
+              <div className="-mx-1 overflow-x-auto px-1">
+                <div
+                  role="group"
+                  aria-label="Filtrar por categoría"
+                  className="flex w-max min-w-full flex-nowrap items-center gap-1.5"
+                >
+                  {categoryNames.map((name) => {
+                    const isSelected = selectedCategories.has(name)
+                    return (
+                      <CatalogDotBadge
+                        key={name}
+                        selected={isSelected}
+                        dimmed={selectedCategories.size > 0 && !isSelected}
+                        onClick={() => {
+                          setSelectedCategories((current) => toggleSelection(current, name))
+                        }}
+                      >
+                        {name}
+                      </CatalogDotBadge>
+                    )
+                  })}
+                </div>
+              </div>
+            ) : null}
+
+            {subCategoryNames.length > 0 ? (
+              <div className="-mx-1 overflow-x-auto px-1">
+                <div
+                  role="group"
+                  aria-label="Filtrar por subcategoría"
+                  className="flex w-max min-w-full flex-nowrap items-center gap-1.5"
+                >
+                  {subCategoryNames.map((name) => {
+                    const isSelected = selectedSubCategories.has(name)
+                    return (
+                      <CatalogDotBadge
+                        key={name}
+                        selected={isSelected}
+                        dimmed={selectedSubCategories.size > 0 && !isSelected}
+                        onClick={() => {
+                          setSelectedSubCategories((current) => toggleSelection(current, name))
+                        }}
+                      >
+                        {name}
+                      </CatalogDotBadge>
+                    )
+                  })}
+                </div>
+              </div>
+            ) : null}
           </div>
 
           {filteredProducts.length === 0 ? (
