@@ -267,8 +267,8 @@ export function PosCheckoutPanel ({
     }
 
     setConfirmOpen(false)
-    router.refresh()
     onSaleComplete()
+    router.push(`/${orgSlug}/caja`)
   }
 
   return (
