@@ -14,7 +14,7 @@ import { IMAGE_SIZES } from '@/lib/utils/image-src'
 
 export const LAYOUT_SECONDARY_ASIDE_ID = 'layout-secondary-aside'
 
-const SECONDARY_COLUMN_TRANSITION_MS = 300
+const SECONDARY_COLUMN_TRANSITION_MS = 200
 
 export interface SidebarLayoutProps {
   sidebar: React.ReactNode
@@ -62,16 +62,16 @@ export function SidebarLayout({
         >
           <DialogBackdrop
             transition
-            className="fixed inset-0 bg-zinc-900/80 backdrop-blur-sm transition-opacity duration-300 ease-linear data-closed:opacity-0 dark:bg-black/70"
+            className="fixed inset-0 bg-zinc-900/80 transition-opacity duration-200 ease-linear data-closed:opacity-0 dark:bg-black/70"
           />
 
           <div className="fixed inset-0 flex">
             <DialogPanel
               transition
-              className="relative mr-16 flex w-full max-w-xs flex-1 transform transition duration-300 ease-in-out data-closed:-translate-x-full"
+              className="relative mr-16 flex w-full max-w-xs flex-1 transform transition duration-200 ease-in-out data-closed:-translate-x-full"
             >
               <TransitionChild>
-                <div className="absolute top-0 left-full flex w-16 justify-center pt-5 duration-300 ease-in-out data-closed:opacity-0">
+                <div className="absolute top-0 left-full flex w-16 justify-center pt-5 duration-200 ease-in-out data-closed:opacity-0">
                   <button
                     type="button"
                     onClick={() => setSidebarOpen(false)}
@@ -94,7 +94,7 @@ export function SidebarLayout({
           {sidebar}
         </div>
 
-        <div className="glass-shell sticky top-0 z-40 flex items-center gap-x-6 border-b border-white/15 px-4 py-4 backdrop-blur-xl sm:px-6 lg:hidden dark:border-white/10">
+        <div className="glass-shell sticky top-0 z-40 flex items-center gap-x-6 border-b border-white/15 px-4 py-4 sm:px-6 lg:hidden dark:border-white/10">
           <button
             type="button"
             onClick={() => setSidebarOpen(true)}
@@ -112,13 +112,13 @@ export function SidebarLayout({
         <main className="flex flex-1 flex-col pb-2 lg:min-w-0 lg:pt-2 lg:pr-2 lg:pl-80">
           <div
             className={clsx(
-              'relative mx-2 mb-3 flex min-h-0 grow flex-col overflow-hidden rounded-2xl transition-[margin-right] duration-300 ease-in-out sm:mx-3 lg:mx-0 lg:mb-0',
+              'relative mx-2 mb-3 flex min-h-0 grow flex-col overflow-hidden rounded-2xl transition-[margin-right] duration-200 ease-in-out sm:mx-3 lg:mx-0 lg:mb-0',
               reserveSecondaryColumn && isSecondaryColumnOpen && 'lg:mr-2'
             )}
           >
             <div
               className={clsx(
-                'transition-[padding-right] duration-300 ease-in-out',
+                'transition-[padding-right] duration-200 ease-in-out',
                 reserveSecondaryColumn && isSecondaryColumnOpen && 'lg:pr-96'
               )}
             >
@@ -126,14 +126,13 @@ export function SidebarLayout({
                 {hasWallpaper ? (
                   <div
                     aria-hidden
-                    className="pointer-events-none absolute inset-0 z-0 overflow-hidden [transform:scale(1.08)]"
+                    className="pointer-events-none absolute inset-0 z-0 overflow-hidden"
                   >
                     <OptimizedImage
                       src={panelWallpaperUrl!.trim()}
                       alt=""
                       fill
                       sizes={IMAGE_SIZES.wallpaper}
-                      priority
                       className="object-cover"
                     />
                   </div>
@@ -168,10 +167,10 @@ export function SidebarLayout({
           aria-hidden={!isSecondaryColumnOpen}
           style={{ transitionDuration: `${SECONDARY_COLUMN_TRANSITION_MS}ms` }}
           className={clsx(
-            'glass-surface fixed inset-y-0 right-0 z-40 hidden w-96 flex-col overflow-hidden border-l border-white/15 will-change-transform lg:flex dark:border-white/10',
+            'glass-surface fixed inset-y-0 right-0 z-40 hidden w-96 flex-col overflow-hidden border-l border-white/15 lg:flex dark:border-white/10',
             'transition-[transform,opacity] ease-in-out',
             isSecondaryColumnOpen
-              ? 'translate-x-0 opacity-100'
+              ? 'translate-x-0 opacity-100 will-change-transform'
               : 'pointer-events-none translate-x-full opacity-0'
           )}
         />

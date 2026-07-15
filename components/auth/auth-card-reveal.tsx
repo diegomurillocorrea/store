@@ -21,31 +21,30 @@ export function AuthCardReveal ({ children, animated = false, className }: AuthC
     if (!targets.length) return undefined
 
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      utils.set(targets, { opacity: 1, translateY: '0px', filter: 'blur(0px)' })
+      utils.set(targets, { opacity: 1, translateY: '0px' })
       return undefined
     }
 
     const revealTargets = targets
     const animation = animate(revealTargets, {
       opacity: { from: 0, to: 1 },
-      translateY: { from: 22, to: 0 },
-      filter: { from: 'blur(6px)', to: 'blur(0px)' },
-      duration: 800,
-      delay: stagger(130, { start: 100 }),
+      translateY: { from: 16, to: 0 },
+      duration: 520,
+      delay: stagger(90, { start: 60 }),
       ease: 'outExpo',
       onComplete: () => {
-        utils.set(revealTargets, { opacity: 1, translateY: '0px', filter: 'blur(0px)' })
+        utils.set(revealTargets, { opacity: 1, translateY: '0px' })
       },
     })
 
     const failsafeId = window.setTimeout(() => {
-      utils.set(revealTargets, { opacity: 1, translateY: '0px', filter: 'blur(0px)' })
-    }, 1600)
+      utils.set(revealTargets, { opacity: 1, translateY: '0px' })
+    }, 1200)
 
     return () => {
       window.clearTimeout(failsafeId)
       animation.cancel()
-      utils.set(revealTargets, { opacity: 1, translateY: '0px', filter: 'blur(0px)' })
+      utils.set(revealTargets, { opacity: 1, translateY: '0px' })
     }
   }, [animated])
 

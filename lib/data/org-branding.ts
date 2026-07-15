@@ -1,10 +1,11 @@
+import { cache } from 'react'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import {
   DEFAULT_BRANDING,
   type OrganizationBranding,
 } from '@/lib/theme/branding'
 
-export async function getOrganizationBranding(
+export const getOrganizationBranding = cache(async function getOrganizationBranding (
   organizationId: string
 ): Promise<OrganizationBranding> {
   const supabase = await createSupabaseServerClient()
@@ -79,4 +80,4 @@ export async function getOrganizationBranding(
     shellSurfaceLight: ssl,
     shellSurfaceDark: ssd,
   }
-}
+})

@@ -183,7 +183,7 @@ function ProductCard({
               alt={product.name}
               fill
               sizes={IMAGE_SIZES.productCard}
-              className="transition duration-300 group-hover:scale-[1.03] group-aria-disabled:scale-100"
+              className="transition duration-200 group-hover:scale-[1.02] group-aria-disabled:scale-100"
             />
           ) : (
             <div

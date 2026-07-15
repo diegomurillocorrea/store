@@ -4,8 +4,8 @@ import { useEffect, useRef } from 'react'
 import { animate, utils } from 'animejs'
 
 const GLOWS = [
-  { className: 'h-[34rem] w-[34rem] bg-emerald-400/25 dark:bg-emerald-500/15', position: '-left-40 -top-40', parallax: 14 },
-  { className: 'h-[26rem] w-[26rem] bg-teal-300/20 dark:bg-teal-500/10', position: '-bottom-32 -right-32', parallax: -12 },
+  { className: 'h-[34rem] w-[34rem] bg-emerald-400/25 dark:bg-emerald-500/15', position: '-left-40 -top-40', parallax: 10 },
+  { className: 'h-[26rem] w-[26rem] bg-teal-300/20 dark:bg-teal-500/10', position: '-bottom-32 -right-32', parallax: -8 },
 ]
 
 export function LoginAnimatedBackground () {
@@ -29,16 +29,16 @@ export function LoginAnimatedBackground () {
     const glowAnimations = Array.from(glowCores).map((glow, index) =>
       animate(glow, {
         translateX: [
-          { to: `${utils.random(-40, 40)}px`, duration: utils.random(9000, 13000) },
-          { to: `${utils.random(-40, 40)}px`, duration: utils.random(9000, 13000) },
+          { to: `${utils.random(-28, 28)}px`, duration: utils.random(11000, 15000) },
+          { to: `${utils.random(-28, 28)}px`, duration: utils.random(11000, 15000) },
         ],
         translateY: [
-          { to: `${utils.random(-36, 36)}px`, duration: utils.random(9000, 13000) },
-          { to: `${utils.random(-36, 36)}px`, duration: utils.random(9000, 13000) },
+          { to: `${utils.random(-24, 24)}px`, duration: utils.random(11000, 15000) },
+          { to: `${utils.random(-24, 24)}px`, duration: utils.random(11000, 15000) },
         ],
         scale: [
-          { to: utils.random(1, 1.15, 2), duration: utils.random(8000, 11000) },
-          { to: utils.random(0.92, 1.05, 2), duration: utils.random(8000, 11000) },
+          { to: utils.random(1, 1.1, 2), duration: utils.random(10000, 13000) },
+          { to: utils.random(0.95, 1.04, 2), duration: utils.random(10000, 13000) },
         ],
         loop: true,
         alternate: true,
@@ -51,12 +51,12 @@ export function LoginAnimatedBackground () {
     if (spotlight) {
       spotlightAnimation = animate(spotlight, {
         opacity: [
-          { to: 0.85, duration: 3200 },
-          { to: 0.5, duration: 3200 },
+          { to: 0.8, duration: 4000 },
+          { to: 0.55, duration: 4000 },
         ],
         scale: [
-          { to: 1.06, duration: 3200 },
-          { to: 0.97, duration: 3200 },
+          { to: 1.04, duration: 4000 },
+          { to: 0.98, duration: 4000 },
         ],
         loop: true,
         alternate: true,
@@ -67,6 +67,7 @@ export function LoginAnimatedBackground () {
     let rafId = 0
     let pointerX = 0
     let pointerY = 0
+    let isTabVisible = document.visibilityState === 'visible'
     const currentOffsets = Array.from(glowWraps, () => ({ x: 0, y: 0 }))
 
     const handlePointerMove = (event: PointerEvent) => {
@@ -74,9 +75,21 @@ export function LoginAnimatedBackground () {
       pointerY = (event.clientY / window.innerHeight - 0.5) * 2
     }
 
+    const handleVisibility = () => {
+      isTabVisible = document.visibilityState === 'visible'
+      if (isTabVisible && !rafId) {
+        rafId = window.requestAnimationFrame(tick)
+      }
+    }
+
     const tick = () => {
+      if (!isTabVisible) {
+        rafId = 0
+        return
+      }
+
       glowWraps.forEach((wrap, index) => {
-        const strength = GLOWS[index % GLOWS.length]?.parallax ?? 12
+        const strength = GLOWS[index % GLOWS.length]?.parallax ?? 10
         const offset = currentOffsets[index]
         offset.x = utils.lerp(offset.x, pointerX * strength, 0.04)
         offset.y = utils.lerp(offset.y, pointerY * strength, 0.04)
@@ -85,12 +98,15 @@ export function LoginAnimatedBackground () {
       rafId = window.requestAnimationFrame(tick)
     }
 
-    window.addEventListener('pointermove', handlePointerMove)
+    window.addEventListener('pointermove', handlePointerMove, { passive: true })
+    document.addEventListener('visibilitychange', handleVisibility)
     rafId = window.requestAnimationFrame(tick)
 
     return () => {
       window.cancelAnimationFrame(rafId)
+      rafId = 0
       window.removeEventListener('pointermove', handlePointerMove)
+      document.removeEventListener('visibilitychange', handleVisibility)
       glowAnimations.forEach((instance) => instance.revert())
       spotlightAnimation?.revert()
     }
@@ -100,13 +116,13 @@ export function LoginAnimatedBackground () {
     <div ref={rootRef} className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
       {GLOWS.map((glow, index) => (
         <div key={index} data-glow-wrap className={`absolute ${glow.position}`}>
-          <div data-glow-core className={`rounded-full blur-[110px] ${glow.className}`} />
+          <div data-glow-core className={`rounded-full blur-[80px] ${glow.className}`} />
         </div>
       ))}
 
       <div
         data-spotlight
-        className="absolute left-1/2 top-1/2 h-120 w-120 -translate-x-1/2 -translate-y-1/2 rounded-full bg-emerald-400/15 opacity-70 blur-[100px] dark:bg-emerald-500/10"
+        className="absolute left-1/2 top-1/2 h-120 w-120 -translate-x-1/2 -translate-y-1/2 rounded-full bg-emerald-400/15 opacity-70 blur-[72px] dark:bg-emerald-500/10"
       />
     </div>
   )

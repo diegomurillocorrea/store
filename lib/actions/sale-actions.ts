@@ -13,6 +13,11 @@ import {
   type SaleActionState,
 } from '@/lib/pos/sale-types'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
+import {
+  combineDateWithTimeInTimeZone,
+  DEFAULT_TIME_ZONE,
+  isValidDateString,
+} from '@/lib/utils/local-date'
 
 function parseSaleInput(input: CompletePosSaleInput): { error: string } | CompletePosSaleInput {
   const customerId = input.customerId?.trim() || null
@@ -170,7 +175,11 @@ export async function completePosSaleAction(
   const saleNumber = await generateSaleNumber(access.organization.id)
   const locationId = await getOrCreateDefaultLocationId(access.organization.id)
 
-  const parsedSaleDate = parseSaleDateInput(parsed.saleDate, new Date().toISOString())
+  const parsedSaleDate = parseSaleDateInput(
+    parsed.saleDate,
+    new Date().toISOString(),
+    DEFAULT_TIME_ZONE
+  )
   if (typeof parsedSaleDate === 'object') {
     return { error: parsedSaleDate.error, ok: false }
   }
@@ -464,34 +473,22 @@ export async function voidSaleAction (
   return { error: null, ok: true, saleId: sale.id }
 }
 
-function parseSaleDateInput (value: string, originalIso: string): string | { error: string } {
+function parseSaleDateInput (
+  value: string,
+  originalIso: string,
+  timeZone: string
+): string | { error: string } {
   const trimmed = value.trim()
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+  if (!isValidDateString(trimmed)) {
     return { error: 'Fecha de la venta inválida.' }
   }
 
-  const [year, month, day] = trimmed.split('-').map((part) => Number(part))
-  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) {
+  const combined = combineDateWithTimeInTimeZone(trimmed, originalIso, timeZone)
+  if (!combined) {
     return { error: 'Fecha de la venta inválida.' }
   }
 
-  const original = new Date(originalIso)
-  if (Number.isNaN(original.getTime())) {
-    return { error: 'Fecha de la venta inválida.' }
-  }
-
-  const next = new Date(original)
-  next.setFullYear(year, month - 1, day)
-
-  if (
-    next.getFullYear() !== year ||
-    next.getMonth() !== month - 1 ||
-    next.getDate() !== day
-  ) {
-    return { error: 'Fecha de la venta inválida.' }
-  }
-
-  return next.toISOString()
+  return combined
 }
 
 export async function updateSaleAction (
@@ -563,7 +560,11 @@ export async function updateSaleAction (
     return { error: 'Solo se pueden editar ventas completadas.', ok: false }
   }
 
-  const parsedSaleDate = parseSaleDateInput(saleDateRaw, sale.created_at)
+  const parsedSaleDate = parseSaleDateInput(
+    saleDateRaw,
+    sale.created_at,
+    DEFAULT_TIME_ZONE
+  )
   if (typeof parsedSaleDate === 'object') {
     return { error: parsedSaleDate.error, ok: false }
   }

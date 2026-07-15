@@ -1,3 +1,4 @@
+import { cache } from 'react'
 import {
   buildPermissionCode,
   getAllViewPermissionCodes,
@@ -26,7 +27,7 @@ export interface RolesPermissionsSnapshot {
   allPermissionCodes: string[]
 }
 
-export async function getMemberPermissionCodes(
+export const getMemberPermissionCodes = cache(async function getMemberPermissionCodes (
   memberId: string
 ): Promise<Set<string>> {
   const supabase = await createSupabaseServerClient()
@@ -57,7 +58,7 @@ export async function getMemberPermissionCodes(
   }
 
   return new Set((rolePermissions ?? []).map((row) => row.permission_code))
-}
+})
 
 export async function memberHasRoleSlug(
   memberId: string,

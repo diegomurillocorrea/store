@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useMemo, useState } from 'react'
 
-export const POS_CART_TRANSITION_MS = 300
+export const POS_CART_TRANSITION_MS = 200
 
 interface PosLayoutContextValue {
   cartItemCount: number

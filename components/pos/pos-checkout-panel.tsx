@@ -30,6 +30,7 @@ import {
 } from '@/lib/pos/sale-types'
 import { Text } from '@/styles/catalyst-ui-kit/text'
 import { Textarea } from '@/styles/catalyst-ui-kit/textarea'
+import { getTodayDateString } from '@/lib/utils/local-date'
 
 const PAID_PAYMENT_METHODS = ['cash', 'card', 'transfer', 'other'] as const
 
@@ -59,13 +60,6 @@ interface PosCheckoutPanelProps {
   onSaleComplete: () => void
   formatCurrency: (value: number) => string
   className?: string
-}
-
-function toDateInputValue (date = new Date()): string {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
 }
 
 function formatSaleDateLabel (value: string): string {
@@ -160,7 +154,7 @@ export function PosCheckoutPanel ({
   const [paymentCount, setPaymentCount] = useState<number>(1)
   const [customPaymentCountRaw, setCustomPaymentCountRaw] = useState('')
   const [isCustomPaymentCount, setIsCustomPaymentCount] = useState(false)
-  const [saleDate, setSaleDate] = useState(() => toDateInputValue())
+  const [saleDate, setSaleDate] = useState(() => getTodayDateString())
   const [discountPercent, setDiscountPercent] = useState(0)
   const [discountPercentInput, setDiscountPercentInput] = useState('0')
   const [discountAmountInput, setDiscountAmountInput] = useState('0')

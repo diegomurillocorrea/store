@@ -13,6 +13,7 @@ import {
 import { getCustomersByOrganizationId } from '@/lib/data/customers'
 import { getViewActionFlags } from '@/lib/permissions/views'
 import {
+  DEFAULT_TIME_ZONE,
   getTodayDateString,
   isValidBalancePeriod,
   isValidDateString,
@@ -33,7 +34,7 @@ export default async function CajaPage({ params, searchParams }: CajaPageProps) 
   const { fecha, fechaHasta, periodo } = await searchParams
   const access = await requireViewAccess(orgSlug, 'caja')
   const organizationId = access.organization.id
-  const timeZone = access.organization.timezone || 'America/Mexico_City'
+  const timeZone = DEFAULT_TIME_ZONE
   const actions = getViewActionFlags(access.permissions, 'caja')
   const saleActions = getViewActionFlags(access.permissions, 'pos')
   const hasExplicitDate = isValidDateString(fecha)

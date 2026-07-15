@@ -4,11 +4,11 @@ import { useLayoutEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { LAYOUT_SECONDARY_ASIDE_ID } from '@/styles/catalyst-ui-kit/sidebar-layout'
 
-function findSecondaryAsideRoot(): HTMLElement | null {
+function findSecondaryAsideRoot (): HTMLElement | null {
   return document.getElementById(LAYOUT_SECONDARY_ASIDE_ID)
 }
 
-export function useLayoutSecondaryAside(content: React.ReactNode, enabled = true) {
+export function useLayoutSecondaryAside (content: React.ReactNode, enabled = true) {
   const [asideRoot, setAsideRoot] = useState<HTMLElement | null>(null)
 
   useLayoutEffect(() => {
@@ -17,17 +17,9 @@ export function useLayoutSecondaryAside(content: React.ReactNode, enabled = true
       return
     }
 
-    function syncAsideRoot() {
-      const nextRoot = findSecondaryAsideRoot()
-      setAsideRoot((current) => (current === nextRoot ? current : nextRoot))
-    }
-
-    syncAsideRoot()
-
-    const observer = new MutationObserver(syncAsideRoot)
-    observer.observe(document.body, { childList: true, subtree: true })
-
-    return () => observer.disconnect()
+    // En POS el aside ya está montado (reserveSecondaryColumn); no hace falta
+    // MutationObserver en document.body (disparaba en casi cualquier mutación del DOM).
+    setAsideRoot(findSecondaryAsideRoot())
   }, [enabled])
 
   const portal = useMemo(() => {

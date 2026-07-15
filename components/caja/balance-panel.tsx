@@ -908,6 +908,7 @@ export function BalancePanel({
         open={editSaleOpen}
         onClose={() => setEditSaleOpen(false)}
         onSuccess={handleEditSaleSuccess}
+        timeZone={timeZone}
       />
 
       <VoidSaleDialog

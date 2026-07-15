@@ -1,3 +1,5 @@
+import { cache } from 'react'
+import { getCurrentUser } from '@/lib/auth/current-user'
 import { getMemberPermissionCodes } from '@/lib/data/member-permissions'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 
@@ -21,13 +23,12 @@ export interface MembershipWithOrg {
 }
 
 export async function getMyOrganizations(): Promise<MembershipWithOrg[]> {
-  const supabase = await createSupabaseServerClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getCurrentUser()
   if (!user) {
     return []
   }
+
+  const supabase = await createSupabaseServerClient()
 
   const { data, error } = await supabase
     .from('organization_members')
@@ -74,13 +75,12 @@ export async function getMyOrganizations(): Promise<MembershipWithOrg[]> {
 export async function getOrgAccessBySlug(slug: string): Promise<{
   organization: OrganizationRow
 } | null> {
-  const supabase = await createSupabaseServerClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getCurrentUser()
   if (!user) {
     return null
   }
+
+  const supabase = await createSupabaseServerClient()
 
   const { data: org, error: orgError } = await supabase
     .from('organizations')
@@ -107,14 +107,16 @@ export async function getOrgAccessBySlug(slug: string): Promise<{
   return { organization: org as OrganizationRow }
 }
 
-export async function getOrgMemberAccess(slug: string): Promise<OrgMemberAccess | null> {
-  const supabase = await createSupabaseServerClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+/** Deduplica layout + requireViewAccess en el mismo request RSC. */
+export const getOrgMemberAccess = cache(async function getOrgMemberAccess (
+  slug: string
+): Promise<OrgMemberAccess | null> {
+  const user = await getCurrentUser()
   if (!user) {
     return null
   }
+
+  const supabase = await createSupabaseServerClient()
 
   const { data: org, error: orgError } = await supabase
     .from('organizations')
@@ -145,4 +147,4 @@ export async function getOrgMemberAccess(slug: string): Promise<OrgMemberAccess 
     memberId: member.id,
     permissions,
   }
-}
+})

@@ -1,4 +1,4 @@
-const DEFAULT_TIME_ZONE = 'America/Mexico_City'
+export const DEFAULT_TIME_ZONE = 'America/El_Salvador'
 
 export function getBrowserLocalDateString(date = new Date()): string {
   const year = date.getFullYear()
@@ -54,6 +54,30 @@ export function getDateRangeBoundsInTimeZone(
     start: getDayBoundsInTimeZone(startDate, timeZone).start,
     end: getDayBoundsInTimeZone(endDate, timeZone).end,
   }
+}
+
+/**
+ * Combines a YYYY-MM-DD calendar date with the time-of-day from `timeSourceIso`,
+ * both interpreted in `timeZone`, so the result stays inside that local day.
+ */
+export function combineDateWithTimeInTimeZone(
+  date: string,
+  timeSourceIso: string,
+  timeZone = DEFAULT_TIME_ZONE
+): string | null {
+  if (!isValidDateString(date)) return null
+
+  const source = new Date(timeSourceIso)
+  if (Number.isNaN(source.getTime())) return null
+
+  const sourceDate = getDateStringInTimeZone(source, timeZone)
+  const sourceBounds = getDayBoundsInTimeZone(sourceDate, timeZone)
+  const msIntoDay = source.getTime() - new Date(sourceBounds.start).getTime()
+  const dayMs = 24 * 60 * 60 * 1000
+  const clamped = Math.min(Math.max(msIntoDay, 0), dayMs - 1)
+
+  const targetBounds = getDayBoundsInTimeZone(date, timeZone)
+  return new Date(new Date(targetBounds.start).getTime() + clamped).toISOString()
 }
 
 export function isValidDateString(value: string | undefined): value is string {

@@ -27,6 +27,7 @@ import {
   type SaleActionState,
 } from '@/lib/pos/sale-types'
 import { IMAGE_SIZES } from '@/lib/utils/image-src'
+import { getDateStringInTimeZone, DEFAULT_TIME_ZONE } from '@/lib/utils/local-date'
 import { formatCurrency } from '@/lib/utils/money'
 import { Text } from '@/styles/catalyst-ui-kit/text'
 import { Textarea } from '@/styles/catalyst-ui-kit/textarea'
@@ -57,6 +58,7 @@ interface EditSaleDialogProps {
   open: boolean
   onClose: () => void
   onSuccess?: () => void
+  timeZone?: string
 }
 
 function resolveInitialPaymentMethod (sale: SaleDetail): PosPaymentMethod {
@@ -84,14 +86,10 @@ function formatSaleDate (value: string): string {
   }).format(new Date(value))
 }
 
-function toDateInputValue (iso: string): string {
+function toDateInputValue (iso: string, timeZone = DEFAULT_TIME_ZONE): string {
   const date = new Date(iso)
   if (Number.isNaN(date.getTime())) return ''
-
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
+  return getDateStringInTimeZone(date, timeZone)
 }
 
 function parseDiscountNumber (raw: string): number {
@@ -206,6 +204,7 @@ export function EditSaleDialog ({
   open,
   onClose,
   onSuccess,
+  timeZone = DEFAULT_TIME_ZONE,
 }: EditSaleDialogProps) {
   const boundAction = sale ? updateSaleAction.bind(null, orgSlug, sale.id) : null
   const [state, formAction, pending] = useActionState(
@@ -226,7 +225,7 @@ export function EditSaleDialog ({
     if (!open || !sale) return
     setCustomerId(sale.customerId)
     setPaymentMethod(resolveInitialPaymentMethod(sale))
-    setSaleDate(toDateInputValue(sale.createdAt))
+    setSaleDate(toDateInputValue(sale.createdAt, timeZone))
     const initialPercent = sale.discountPercent ?? 0
     const totals = calculateSaleTotals(sale.subtotal, initialPercent)
     setDiscountPercent(initialPercent)
@@ -235,7 +234,7 @@ export function EditSaleDialog ({
     setSaleName(sale.concept)
     setReceiptNote('')
     setShowProducts(false)
-  }, [open, sale])
+  }, [open, sale, timeZone])
 
   useFormActionSuccess(
     state.ok,
