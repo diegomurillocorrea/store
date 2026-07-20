@@ -59,6 +59,24 @@ function formatQuantity(value: number): string {
   return quantityFormatter.format(value)
 }
 
+function sanitizeQuantityInput(raw: string): string {
+  return raw.replace(/\D/g, '')
+}
+
+function formatQuantityInput(value: number): string {
+  return String(Math.max(0, Math.floor(value)))
+}
+
+function parseQuantityInput(raw: string): number | null {
+  const trimmed = raw.trim()
+  if (trimmed.length === 0) return null
+
+  const parsed = Number.parseInt(trimmed, 10)
+  if (!Number.isFinite(parsed) || parsed < 0) return null
+
+  return parsed
+}
+
 function isActionDisabled(condition: boolean): boolean | undefined {
   return condition ? true : undefined
 }
@@ -310,19 +328,26 @@ function CartLineRow({
   onDecrement,
   onRemove,
   onUpdatePrice,
+  onUpdateQuantity,
 }: {
   line: PosCartLine
   onIncrement: (productId: string) => void
   onDecrement: (productId: string) => void
   onRemove: (productId: string) => void
   onUpdatePrice: (productId: string, unitPrice: number) => void
+  onUpdateQuantity: (productId: string, quantity: number) => void
 }) {
   const atMaxStock = line.quantity >= line.availableQuantity
   const [priceDraft, setPriceDraft] = useState(() => formatUnitPriceInput(line.unitPrice))
+  const [quantityDraft, setQuantityDraft] = useState(() => formatQuantityInput(line.quantity))
 
   useEffect(() => {
     setPriceDraft(formatUnitPriceInput(line.unitPrice))
   }, [line.unitPrice])
+
+  useEffect(() => {
+    setQuantityDraft(formatQuantityInput(line.quantity))
+  }, [line.quantity])
 
   function commitPrice() {
     const nextPrice = parseUnitPriceInput(priceDraft)
@@ -334,6 +359,27 @@ function CartLineRow({
     setPriceDraft(formatUnitPriceInput(nextPrice))
     if (nextPrice !== line.unitPrice) {
       onUpdatePrice(line.productId, nextPrice)
+    }
+  }
+
+  function commitQuantity() {
+    const parsed = parseQuantityInput(quantityDraft)
+    if (parsed == null) {
+      setQuantityDraft(formatQuantityInput(line.quantity))
+      return
+    }
+
+    const maxQuantity = Math.max(0, Math.floor(line.availableQuantity))
+    const nextQuantity = Math.min(parsed, maxQuantity)
+
+    if (nextQuantity <= 0) {
+      onRemove(line.productId)
+      return
+    }
+
+    setQuantityDraft(formatQuantityInput(nextQuantity))
+    if (nextQuantity !== line.quantity) {
+      onUpdateQuantity(line.productId, nextQuantity)
     }
   }
 
@@ -400,9 +446,21 @@ function CartLineRow({
             >
               <MinusIcon className="size-4" aria-hidden="true" />
             </button>
-            <span className="min-w-8 px-1 text-center text-sm font-medium tabular-nums text-zinc-900 dark:text-zinc-100">
-              {formatQuantity(line.quantity)}
-            </span>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={quantityDraft}
+              onChange={(event) => setQuantityDraft(sanitizeQuantityInput(event.target.value))}
+              onBlur={commitQuantity}
+              onFocus={(event) => event.currentTarget.select()}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.currentTarget.blur()
+                }
+              }}
+              aria-label={`Cantidad de ${line.name}`}
+              className="w-12 min-w-8 border-x border-zinc-200 bg-transparent px-1 py-1 text-center text-sm font-medium tabular-nums text-zinc-900 outline-none focus:bg-white focus:ring-2 focus:ring-inset focus:ring-emerald-500/30 dark:border-zinc-700 dark:text-zinc-100 dark:focus:bg-zinc-900"
+            />
             <button
               type="button"
               onClick={() => {
@@ -438,6 +496,7 @@ interface PosCartSidebarProps {
   onDecrement: (productId: string) => void
   onRemove: (productId: string) => void
   onUpdatePrice: (productId: string, unitPrice: number) => void
+  onUpdateQuantity: (productId: string, quantity: number) => void
   onClear: () => void
   onSaleComplete: () => void
   className?: string
@@ -453,6 +512,7 @@ function PosCartSidebar({
   onDecrement,
   onRemove,
   onUpdatePrice,
+  onUpdateQuantity,
   onClear,
   onSaleComplete,
   className = '',
@@ -520,6 +580,7 @@ function PosCartSidebar({
                 onDecrement={onDecrement}
                 onRemove={onRemove}
                 onUpdatePrice={onUpdatePrice}
+                onUpdateQuantity={onUpdateQuantity}
               />
             ))}
           </ul>
@@ -668,6 +729,21 @@ export function PosPanel({ orgSlug, products, customers }: PosPanelProps) {
     )
   }, [])
 
+  const updateLineQuantity = useCallback((productId: string, quantity: number) => {
+    setCartLines((current) =>
+      current
+        .map((line) => {
+          if (line.productId !== productId) return line
+
+          const maxQuantity = Math.max(0, Math.floor(line.availableQuantity))
+          const nextQuantity = Math.min(Math.max(0, Math.floor(quantity)), maxQuantity)
+
+          return { ...line, quantity: nextQuantity }
+        })
+        .filter((line) => line.quantity > 0)
+    )
+  }, [])
+
   const clearCart = useCallback(() => {
     setCartLines([])
   }, [])
@@ -688,6 +764,7 @@ export function PosPanel({ orgSlug, products, customers }: PosPanelProps) {
     onDecrement: decrementLine,
     onRemove: removeLine,
     onUpdatePrice: updateLinePrice,
+    onUpdateQuantity: updateLineQuantity,
     onClear: clearCart,
     onSaleComplete: handleSaleComplete,
   }
@@ -699,7 +776,7 @@ export function PosPanel({ orgSlug, products, customers }: PosPanelProps) {
         className="flex h-full min-h-0 flex-col"
       />
     ),
-    [cartLines, itemCount, subtotal, orgSlug, customers, incrementLine, decrementLine, removeLine, updateLinePrice, clearCart, handleSaleComplete]
+    [cartLines, itemCount, subtotal, orgSlug, customers, incrementLine, decrementLine, removeLine, updateLinePrice, updateLineQuantity, clearCart, handleSaleComplete]
   )
 
   const secondaryAsidePortal = useLayoutSecondaryAside(desktopCart, cartColumnVisible)
