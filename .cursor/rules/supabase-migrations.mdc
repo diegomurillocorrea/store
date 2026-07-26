@@ -6,7 +6,7 @@ alwaysApply: false
 
 # Supabase — migraciones y SQL remoto
 
-Proyecto vinculado: `wghbzpdtywcjahjfvshe` (store).
+Proyecto remoto: el de `SUPABASE_PROJECT_REF` en `.env` / `supabase/.temp/project-ref` (tras `supabase link`). No hardcodear refs en configs compartidas.
 
 ## Método obligatorio para DDL / migraciones
 
@@ -33,7 +33,7 @@ Incluir `NOTIFY pgrst, 'reload schema';` al final de migraciones con DDL nuevo.
 | Método | Motivo |
 |--------|--------|
 | `supabase db push` / `SUPABASE_DB_PASSWORD` | Falla auth directa a Postgres en este entorno |
-| MCP `apply_migration` / `execute_sql` | Sin permisos OAuth en Cursor |
+| MCP `apply_migration` / `execute_sql` | Preferir CLI vinculada; si usas MCP, el `project_id` debe salir de `SUPABASE_PROJECT_REF` |
 | Conexión directa `db.xxx.supabase.co:5432` | Requiere IPv6; no disponible aquí |
 
 ## Consultas ad hoc (verificar esquema, datos de prueba)

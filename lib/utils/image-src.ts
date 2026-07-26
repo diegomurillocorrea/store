@@ -18,12 +18,37 @@ export function isAnimatedImageSrc(src: string): boolean {
   return lower.endsWith('.gif')
 }
 
+/**
+ * Reescribe URLs públicas de Storage al host de NEXT_PUBLIC_SUPABASE_URL.
+ * Útil tras migrar de proyecto: next/image solo permite el hostname configurado.
+ */
+export function rewriteSupabaseStorageSrc(url: string): string {
+  if (!isSupabaseStoragePublicUrl(url)) return url
+
+  const base = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim()
+  if (!base) return url
+
+  try {
+    const current = new URL(url)
+    const target = new URL(base)
+    if (!current.hostname.endsWith('.supabase.co')) return url
+    if (current.hostname === target.hostname) return url
+
+    current.protocol = target.protocol
+    current.hostname = target.hostname
+    current.port = target.port
+    return current.toString()
+  } catch {
+    return url
+  }
+}
+
 export function resolveImageSrc(url: string): string {
   const trimmed = url.trim()
   if (!trimmed) return ''
   if (isNativeImageSrc(trimmed)) return trimmed
   if (trimmed.startsWith('/api/brand-logo')) return trimmed
-  return getProxiedLogoSrc(trimmed)
+  return getProxiedLogoSrc(rewriteSupabaseStorageSrc(trimmed))
 }
 
 export function canOptimizeWithNextImage(src: string): boolean {
