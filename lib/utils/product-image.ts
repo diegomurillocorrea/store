@@ -11,7 +11,7 @@ const ALLOWED_IMAGE_TYPES = new Set([
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024
 
-function getExtensionFromMime(mimeType: string): string {
+export function getExtensionFromMime(mimeType: string): string {
   switch (mimeType) {
     case 'image/jpeg':
       return 'jpg'
@@ -32,15 +32,19 @@ export function parseProductImageFile(formData: FormData): { error: string } | F
     return null
   }
 
-  if (!ALLOWED_IMAGE_TYPES.has(image.type)) {
+  return validateProductImageUpload(image)
+}
+
+export function validateProductImageUpload(file: File): { error: string } | File {
+  if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
     return { error: 'La imagen debe ser JPG, PNG, WebP o GIF.' }
   }
 
-  if (image.size > MAX_IMAGE_BYTES) {
+  if (file.size > MAX_IMAGE_BYTES) {
     return { error: 'La imagen no puede superar 5 MB.' }
   }
 
-  return image
+  return file
 }
 
 export function shouldRemoveProductImage(formData: FormData): boolean {

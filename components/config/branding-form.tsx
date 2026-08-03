@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { useActionState, useEffect, useState } from 'react'
+import { BrandLogoField } from '@/components/config/brand-logo-field'
 import { BrandUrlField } from '@/components/config/brand-url-field'
 import {
   updateOrganizationBrandingAction,
@@ -19,6 +20,7 @@ const initialState: BrandingFormState = { error: null, ok: false }
 
 interface BrandingFormProps {
   orgSlug: string
+  organizationId: string
   initial: OrganizationBranding
   canEdit?: boolean
 }
@@ -66,12 +68,11 @@ function ColorField({
   )
 }
 
-export function BrandingForm({ orgSlug, initial, canEdit = true }: BrandingFormProps) {
+export function BrandingForm({ orgSlug, organizationId, initial, canEdit = true }: BrandingFormProps) {
   const router = useRouter()
   const boundAction = updateOrganizationBrandingAction.bind(null, orgSlug)
   const [state, formAction, pending] = useActionState(boundAction, initialState)
 
-  const [logoUrl, setLogoUrl] = useState(initial.logoUrl ?? '')
   const [panelWallpaperUrl, setPanelWallpaperUrl] = useState(initial.panelWallpaperUrl ?? '')
   const [pl, setPl] = useState(initial.primaryColorLight)
   const [pd, setPd] = useState(initial.primaryColorDark)
@@ -83,6 +84,7 @@ export function BrandingForm({ orgSlug, initial, canEdit = true }: BrandingFormP
   const [sbd, setSbd] = useState(initial.shellBackgroundDark)
   const [ssl, setSsl] = useState(initial.shellSurfaceLight)
   const [ssd, setSsd] = useState(initial.shellSurfaceDark)
+  const [isLogoUploading, setIsLogoUploading] = useState(false)
 
   useActionStateNotification(state.ok, pending, 'Cambios guardados correctamente.')
 
@@ -93,9 +95,8 @@ export function BrandingForm({ orgSlug, initial, canEdit = true }: BrandingFormP
   }, [state.ok, router])
 
   useEffect(() => {
-    setLogoUrl(initial.logoUrl ?? '')
     setPanelWallpaperUrl(initial.panelWallpaperUrl ?? '')
-  }, [initial.logoUrl, initial.panelWallpaperUrl])
+  }, [initial.panelWallpaperUrl])
 
   return (
     <form action={formAction} className="grid max-w-3xl grid-cols-1 gap-12">
@@ -104,14 +105,12 @@ export function BrandingForm({ orgSlug, initial, canEdit = true }: BrandingFormP
           Logo
         </Subheading>
         <FieldGroup>
-          <BrandUrlField
-            inputId="brand-logo-url"
-            name="logo_url"
-            label="URL del logo"
-            hint="Pega el enlace https de la imagen en internet. Instagram y Facebook pueden caducar; enlaces de Pinterest, Imgur o tu sitio suelen ser más estables."
-            value={logoUrl}
-            onChange={setLogoUrl}
-            previewAlt="Vista previa del logo"
+          <BrandLogoField
+            inputId="brand-logo-file"
+            organizationId={organizationId}
+            currentLogoUrl={initial.logoUrl}
+            disabled={!canEdit}
+            onUploadingChange={setIsLogoUploading}
           />
           <BrandUrlField
             inputId="brand-wallpaper-url"
@@ -289,8 +288,8 @@ export function BrandingForm({ orgSlug, initial, canEdit = true }: BrandingFormP
           {state.error}
         </Text>
       ) : null}
-      <Button type="submit" color="dark/zinc" disabled={pending || !canEdit}>
-        {pending ? 'Guardando…' : 'Guardar marca'}
+      <Button type="submit" color="dark/zinc" disabled={pending || !canEdit || isLogoUploading}>
+        {pending ? 'Guardando…' : isLogoUploading ? 'Subiendo logo…' : 'Guardar marca'}
       </Button>
     </form>
   )

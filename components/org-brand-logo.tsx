@@ -16,7 +16,7 @@ export function OrgBrandLogo({ logoUrl, orgName }: OrgBrandLogoProps) {
   if (failed) {
     return (
       <Text className="text-xs text-amber-700 dark:text-amber-300" role="alert">
-        No se pudo cargar el logo. Revisa la URL en Marca y colores o usa un enlace público estable.
+        No se pudo cargar el logo. Sube de nuevo el archivo en Marca y colores.
       </Text>
     )
   }

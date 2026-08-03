@@ -1,15 +1,15 @@
 'use client'
 
 import { MagnifyingGlassIcon, PlusIcon } from '@heroicons/react/24/outline'
-import { useRouter } from 'next/navigation'
-import { useMemo, useState } from 'react'
-import { CatalogDotBadge } from '@/components/catalog-dot-badge'
+import { usePathname, useRouter } from 'next/navigation'
+import { useCallback, useDeferredValue, useMemo, useState } from 'react'
 import { CreateProductDialog } from '@/components/productos/create-product-dialog'
 import { ColumnFilterHeader } from '@/components/productos/column-filter-header'
-import { OptimizedImage } from '@/components/optimized-image'
-import { ProductInlineFields } from '@/components/productos/product-inline-fields'
+import { ProductsTableRow } from '@/components/productos/products-table-row'
 import type { ProductOption, ProductRow, SubCategoryProductOption } from '@/lib/data/product-types'
+import { useProductFiltersUrl } from '@/lib/hooks/use-product-filters-url'
 import type { ViewActionFlags } from '@/lib/permissions/views'
+import type { ProductColumnFilters, ProductColumnKey } from '@/lib/utils/product-filters-url'
 import { Button } from '@/styles/catalyst-ui-kit/button'
 import { Input, InputGroup } from '@/styles/catalyst-ui-kit/input'
 import { Subheading } from '@/styles/catalyst-ui-kit/heading'
@@ -23,19 +23,9 @@ interface ProductsPanelProps {
   subCategories: SubCategoryProductOption[]
   suppliers: ProductOption[]
   actions: Pick<ViewActionFlags, 'canCreate' | 'canEdit' | 'canDelete'>
+  initialQuery: string
+  initialColumnFilters: ProductColumnFilters
 }
-
-type ColumnKey =
-  | 'name'
-  | 'category'
-  | 'subCategory'
-  | 'salePrice'
-  | 'costPrice'
-  | 'stock'
-  | 'profit'
-  | 'profitPercent'
-
-type ColumnFilters = Partial<Record<ColumnKey, string[]>>
 
 const currencyFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -46,6 +36,16 @@ const percentFormatter = new Intl.NumberFormat('es-MX', {
   minimumFractionDigits: 0,
   maximumFractionDigits: 1,
 })
+
+interface ProductFilterIndexEntry {
+  product: ProductRow
+  columnValues: Record<ProductColumnKey, string>
+  searchHaystack: string
+  profitLabel: string
+  profitPercentLabel: string
+  profitToneClass: string
+  profitPercentToneClass: string
+}
 
 function getProductProfit(
   salePrice: number,
@@ -84,31 +84,58 @@ function profitToneClass(value: number | null): string {
   return 'text-muted-foreground'
 }
 
-function getColumnValue(product: ProductRow, key: ColumnKey): string {
-  switch (key) {
-    case 'name':
-      return product.name
-    case 'category':
-      return product.categoryName ?? 'Sin categoría'
-    case 'subCategory':
-      return product.subCategoryName ?? 'Sin subcategoría'
-    case 'salePrice':
-      return formatCurrency(product.salePrice)
-    case 'costPrice':
-      return formatCurrency(product.costPrice)
-    case 'stock':
-      return String(product.availableQuantity)
-    case 'profit':
-      return formatCurrency(getProductProfit(product.salePrice, product.costPrice))
-    case 'profitPercent':
-      return formatProfitPercent(
-        getProductProfitPercent(product.salePrice, product.costPrice)
-      )
-  }
-}
-
 function uniqueSortedValues(values: string[]): string[] {
   return [...new Set(values)].sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }))
+}
+
+function buildProductFilterIndex(products: ProductRow[]): ProductFilterIndexEntry[] {
+  return products.map((product) => {
+    const profit = getProductProfit(product.salePrice, product.costPrice)
+    const profitPercent = getProductProfitPercent(product.salePrice, product.costPrice)
+
+    return {
+      product,
+      columnValues: {
+        name: product.name,
+        category: product.categoryName ?? 'Sin categoría',
+        subCategory: product.subCategoryName ?? 'Sin subcategoría',
+        salePrice: formatCurrency(product.salePrice),
+        costPrice: formatCurrency(product.costPrice),
+        stock: String(product.availableQuantity),
+        profit: formatCurrency(profit),
+        profitPercent: formatProfitPercent(profitPercent),
+      },
+      searchHaystack: [
+        product.name,
+        product.barcode ?? '',
+        product.sku,
+        product.categoryName ?? '',
+        product.subCategoryName ?? '',
+        product.supplierName ?? '',
+        product.createdByName ?? '',
+      ]
+        .join(' ')
+        .toLowerCase(),
+      profitLabel: formatCurrency(profit),
+      profitPercentLabel: formatProfitPercent(profitPercent),
+      profitToneClass: profitToneClass(profit),
+      profitPercentToneClass: profitToneClass(profitPercent),
+    }
+  })
+}
+
+function buildActiveColumnFilterSets(
+  columnFilters: ProductColumnFilters
+): Partial<Record<ProductColumnKey, Set<string>>> {
+  const activeFilters: Partial<Record<ProductColumnKey, Set<string>>> = {}
+
+  for (const key of Object.keys(columnFilters) as ProductColumnKey[]) {
+    const values = columnFilters[key]
+    if (!values || values.length === 0) continue
+    activeFilters[key] = new Set(values)
+  }
+
+  return activeFilters
 }
 
 export function ProductsPanel({
@@ -119,17 +146,27 @@ export function ProductsPanel({
   subCategories,
   suppliers,
   actions,
+  initialQuery,
+  initialColumnFilters,
 }: ProductsPanelProps) {
   const router = useRouter()
-  const [query, setQuery] = useState('')
-  const [columnFilters, setColumnFilters] = useState<ColumnFilters>({})
+  const pathname = usePathname()
+  const { query, setQuery, columnFilters, handleColumnFilterChange } = useProductFiltersUrl(
+    pathname,
+    { query: initialQuery, columnFilters: initialColumnFilters }
+  )
+  const deferredQuery = useDeferredValue(query)
   const [isCreateOpen, setIsCreateOpen] = useState(false)
+
+  const productIndex = useMemo(() => buildProductFilterIndex(products), [products])
 
   const columnOptions = useMemo(() => {
     const selectedCategoryNames = columnFilters.category ?? []
+    const selectedCategorySet =
+      selectedCategoryNames.length > 0 ? new Set(selectedCategoryNames) : null
     const categoryNameById = new Map(categories.map((category) => [category.id, category.name]))
 
-    const productValues: Record<ColumnKey, string[]> = {
+    const productValues: Record<ProductColumnKey, string[]> = {
       name: [],
       category: [],
       subCategory: [],
@@ -140,26 +177,26 @@ export function ProductsPanel({
       profitPercent: [],
     }
 
-    for (const product of products) {
-      for (const key of Object.keys(productValues) as ColumnKey[]) {
-        productValues[key].push(getColumnValue(product, key))
+    for (const entry of productIndex) {
+      for (const key of Object.keys(productValues) as ProductColumnKey[]) {
+        productValues[key].push(entry.columnValues[key])
       }
     }
 
     const catalogSubCategoryNames = subCategories
       .filter((subCategory) => {
-        if (selectedCategoryNames.length === 0) return true
+        if (!selectedCategorySet) return true
         const categoryName = categoryNameById.get(subCategory.categoryId)
-        return categoryName != null && selectedCategoryNames.includes(categoryName)
+        return categoryName != null && selectedCategorySet.has(categoryName)
       })
       .map((subCategory) => subCategory.name)
 
-    const productSubCategoryNames = products
-      .filter((product) => {
-        if (selectedCategoryNames.length === 0) return true
-        return selectedCategoryNames.includes(product.categoryName ?? 'Sin categoría')
+    const productSubCategoryNames = productIndex
+      .filter((entry) => {
+        if (!selectedCategorySet) return true
+        return selectedCategorySet.has(entry.columnValues.category)
       })
-      .map((product) => product.subCategoryName ?? 'Sin subcategoría')
+      .map((entry) => entry.columnValues.subCategory)
 
     return {
       name: uniqueSortedValues(productValues.name),
@@ -177,56 +214,35 @@ export function ProductsPanel({
       profit: uniqueSortedValues(productValues.profit),
       profitPercent: uniqueSortedValues(productValues.profitPercent),
     }
-  }, [products, categories, subCategories, columnFilters.category])
+  }, [productIndex, categories, subCategories, columnFilters.category])
 
   const filteredProducts = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase()
+    const normalizedQuery = deferredQuery.trim().toLowerCase()
+    const activeFilters = buildActiveColumnFilterSets(columnFilters)
+    const activeFilterEntries = Object.entries(activeFilters) as [
+      ProductColumnKey,
+      Set<string>,
+    ][]
 
-    return products.filter((product) => {
-      for (const key of Object.keys(columnFilters) as ColumnKey[]) {
-        const selected = columnFilters[key]
-        if (!selected || selected.length === 0) continue
-        if (!selected.includes(getColumnValue(product, key))) return false
+    return productIndex.filter((entry) => {
+      for (const [key, selectedValues] of activeFilterEntries) {
+        if (!selectedValues.has(entry.columnValues[key])) return false
       }
 
-      if (!normalizedQuery) return true
+      if (normalizedQuery && !entry.searchHaystack.includes(normalizedQuery)) {
+        return false
+      }
 
-      const haystack = [
-        product.name,
-        product.barcode ?? '',
-        product.sku,
-        product.categoryName ?? '',
-        product.subCategoryName ?? '',
-        product.supplierName ?? '',
-        product.createdByName ?? '',
-      ]
-        .join(' ')
-        .toLowerCase()
-
-      return haystack.includes(normalizedQuery)
+      return true
     })
-  }, [products, query, columnFilters])
-
-  const handleColumnFilterChange = (key: ColumnKey, selected: string[]) => {
-    setColumnFilters((previous) => ({
-      ...previous,
-      [key]: selected,
-    }))
-  }
+  }, [productIndex, deferredQuery, columnFilters])
 
   const handleOpenCreate = () => setIsCreateOpen(true)
   const handleCloseCreate = () => setIsCreateOpen(false)
 
-  const handleRowClick = (productId: string) => {
+  const handleRowOpen = useCallback((productId: string) => {
     router.push(`/${orgSlug}/productos/${productId}`)
-  }
-
-  const handleRowKeyDown = (event: React.KeyboardEvent<HTMLTableRowElement>, productId: string) => {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault()
-      handleRowClick(productId)
-    }
-  }
+  }, [orgSlug, router])
 
   return (
     <>
@@ -381,83 +397,19 @@ export function ProductsPanel({
                     </td>
                   </tr>
                 ) : (
-                  filteredProducts.map((product) => {
-                    const profit = getProductProfit(product.salePrice, product.costPrice)
-                    const profitPercent = getProductProfitPercent(
-                      product.salePrice,
-                      product.costPrice
-                    )
-
-                    return (
-                      <tr
-                        key={product.id}
-                        tabIndex={0}
-                        role="link"
-                        aria-label={`Ver detalle de ${product.name}`}
-                        onClick={() => handleRowClick(product.id)}
-                        onKeyDown={(event) => handleRowKeyDown(event, product.id)}
-                        className="cursor-pointer transition hover:bg-muted/40 focus-visible:bg-muted/40 focus-visible:outline-none"
-                      >
-                        <td className="px-3 py-4 text-center">
-                          <div className="flex justify-center">
-                            {product.imageUrl ? (
-                              <OptimizedImage
-                                src={product.imageUrl}
-                                alt=""
-                                width={64}
-                                height={64}
-                                sizes="64px"
-                                className="size-16 rounded-lg border border-border object-cover"
-                              />
-                            ) : (
-                              <div
-                                aria-hidden="true"
-                                className="flex size-16 items-center justify-center rounded-lg border border-dashed border-border bg-muted/40 text-xs text-muted-foreground"
-                              >
-                                —
-                              </div>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-3 py-4 text-center text-sm font-medium text-foreground!">
-                          <span className="line-clamp-2 break-words">{product.name}</span>
-                        </td>
-                        <td className="px-3 py-4 text-center">
-                          {product.categoryName ? (
-                            <div className="flex justify-center">
-                              <CatalogDotBadge>{product.categoryName}</CatalogDotBadge>
-                            </div>
-                          ) : (
-                            <span className="text-sm text-muted-foreground">—</span>
-                          )}
-                        </td>
-                        <td className="px-3 py-4 text-center">
-                          {product.subCategoryName ? (
-                            <div className="flex justify-center">
-                              <CatalogDotBadge>{product.subCategoryName}</CatalogDotBadge>
-                            </div>
-                          ) : (
-                            <span className="text-sm text-muted-foreground">—</span>
-                          )}
-                        </td>
-                        <ProductInlineFields
-                          orgSlug={orgSlug}
-                          product={product}
-                          canEdit={actions.canEdit}
-                        />
-                        <td
-                          className={`px-3 py-4 text-center text-sm whitespace-nowrap ${profitToneClass(profit)}`}
-                        >
-                          {formatCurrency(profit)}
-                        </td>
-                        <td
-                          className={`px-3 py-4 text-center text-sm whitespace-nowrap ${profitToneClass(profitPercent)}`}
-                        >
-                          {formatProfitPercent(profitPercent)}
-                        </td>
-                      </tr>
-                    )
-                  })
+                  filteredProducts.map((entry) => (
+                    <ProductsTableRow
+                      key={entry.product.id}
+                      orgSlug={orgSlug}
+                      product={entry.product}
+                      canEdit={actions.canEdit}
+                      profitLabel={entry.profitLabel}
+                      profitPercentLabel={entry.profitPercentLabel}
+                      profitToneClass={entry.profitToneClass}
+                      profitPercentToneClass={entry.profitPercentToneClass}
+                      onOpen={handleRowOpen}
+                    />
+                  ))
                 )}
               </tbody>
             </table>

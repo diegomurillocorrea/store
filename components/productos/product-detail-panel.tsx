@@ -3,7 +3,7 @@
 import { ArrowLeftIcon } from '@heroicons/react/24/outline'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useActionState, useEffect, useState } from 'react'
+import { useActionState, useState } from 'react'
 import { DeleteProductDialog } from '@/components/productos/delete-product-dialog'
 import { ProductFormFields } from '@/components/productos/product-form-fields'
 import {
@@ -49,14 +49,9 @@ export function ProductDetailPanel({
     initialState
   )
 
-  useFormActionSuccess(updateState.ok, () => {}, updatePending, 'Cambios guardados correctamente.')
-
-  useEffect(() => {
-    if (updateState.ok && !updatePending) {
-      setFormResetKey((current) => current + 1)
-      router.refresh()
-    }
-  }, [updateState.ok, updatePending, router])
+  useFormActionSuccess(updateState.ok, () => {
+    setFormResetKey((current) => current + 1)
+  }, updatePending, 'Cambios guardados correctamente.')
 
   const formDefaultsKey = [
     product.id,
@@ -99,6 +94,7 @@ export function ProductDetailPanel({
           <Fieldset>
             <ProductFormFields
               idPrefix="detail-product"
+              orgSlug={orgSlug}
               organizationId={organizationId}
               categories={categories}
               subCategories={subCategories}
@@ -138,6 +134,7 @@ export function ProductDetailPanel({
         <fieldset disabled className="glass-surface mt-8 rounded-xl p-6 sm:rounded-2xl">
           <ProductFormFields
             idPrefix="detail-product-readonly"
+            orgSlug={orgSlug}
             organizationId={organizationId}
             categories={categories}
             subCategories={subCategories}

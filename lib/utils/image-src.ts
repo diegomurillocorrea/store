@@ -56,3 +56,48 @@ export function canOptimizeWithNextImage(src: string): boolean {
   if (src.startsWith('/')) return true
   return isSupabaseStoragePublicUrl(src)
 }
+
+export interface SupabaseImageTransformOptions {
+  width: number
+  height?: number
+  quality?: number
+  resize?: 'cover' | 'contain' | 'fill'
+}
+
+export function getSupabaseStorageTransformUrl(
+  url: string,
+  options: SupabaseImageTransformOptions
+): string {
+  const rewritten = rewriteSupabaseStorageSrc(url.trim())
+  if (!rewritten || !isSupabaseStoragePublicUrl(rewritten) || isAnimatedImageSrc(rewritten)) {
+    return rewritten
+  }
+
+  const transformUrl = rewritten.replace(
+    '/storage/v1/object/public/',
+    '/storage/v1/render/image/public/'
+  )
+
+  const params = new URLSearchParams()
+  params.set('width', String(Math.max(1, Math.round(options.width))))
+  if (options.height != null) {
+    params.set('height', String(Math.max(1, Math.round(options.height))))
+  }
+  params.set('quality', String(options.quality ?? 75))
+  params.set('resize', options.resize ?? 'cover')
+
+  return `${transformUrl}?${params.toString()}`
+}
+
+export function getPosImageCandidates(
+  url: string,
+  options: SupabaseImageTransformOptions
+): string[] {
+  const resolved = resolveImageSrc(url)
+  if (!resolved) return []
+
+  const transformed = getSupabaseStorageTransformUrl(resolved, options)
+  if (transformed === resolved) return [resolved]
+
+  return [transformed, resolved]
+}

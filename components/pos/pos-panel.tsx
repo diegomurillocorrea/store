@@ -9,11 +9,11 @@ import {
   TrashIcon,
 } from '@heroicons/react/24/outline'
 import clsx from 'clsx'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { CatalogDotBadge } from '@/components/catalog-dot-badge'
 import { useLayoutSecondaryAside } from '@/components/pos/pos-secondary-column'
 import { PosCheckoutPanel } from '@/components/pos/pos-checkout-panel'
-import { OptimizedImage } from '@/components/optimized-image'
+import { PosProductImage } from '@/components/pos/pos-product-image'
 import type { CustomerRow } from '@/lib/data/customer-types'
 import { usePersistedPosCart } from '@/lib/hooks/use-persisted-pos-cart'
 import { usePosLayout, POS_CART_TRANSITION_MS } from '@/lib/pos/pos-layout-context'
@@ -30,7 +30,9 @@ import {
   parseUnitPriceInput,
   sanitizeDecimalInput,
 } from '@/lib/utils/money'
-import { IMAGE_SIZES } from '@/lib/utils/image-src'
+
+const POS_PRODUCT_IMAGE_WIDTH = 320
+const POS_CART_IMAGE_WIDTH = 96
 import { Button } from '@/styles/catalyst-ui-kit/button'
 import { Heading, Subheading } from '@/styles/catalyst-ui-kit/heading'
 import { Input, InputGroup } from '@/styles/catalyst-ui-kit/input'
@@ -141,12 +143,14 @@ function ProductCard({
   onAdd,
   onIncrement,
   onDecrement,
+  imagePriority = false,
 }: {
   product: ProductRow
   selectedQuantity: number
   onAdd: (product: ProductRow) => void
   onIncrement: (productId: string) => void
   onDecrement: (productId: string) => void
+  imagePriority?: boolean
 }) {
   const remainingQuantity = Math.max(0, product.availableQuantity - selectedQuantity)
   const isOutOfStock = product.availableQuantity <= 0
@@ -196,11 +200,13 @@ function ProductCard({
       >
         <div className="relative aspect-5/4 w-full bg-zinc-100 dark:bg-zinc-800/60">
           {product.imageUrl ? (
-            <OptimizedImage
+            <PosProductImage
               src={product.imageUrl}
               alt={product.name}
+              width={POS_PRODUCT_IMAGE_WIDTH}
+              height={256}
               fill
-              sizes={IMAGE_SIZES.productCard}
+              priority={imagePriority}
               className="transition duration-200 group-hover:scale-[1.02] group-aria-disabled:scale-100"
             />
           ) : (
@@ -322,6 +328,8 @@ function ProductCard({
   )
 }
 
+const MemoProductCard = memo(ProductCard)
+
 function CartLineRow({
   line,
   onIncrement,
@@ -387,12 +395,11 @@ function CartLineRow({
     <li className="flex gap-3 border-b border-zinc-200 py-3 last:border-b-0 dark:border-zinc-800">
       <div className="shrink-0">
         {line.imageUrl ? (
-          <OptimizedImage
+          <PosProductImage
             src={line.imageUrl}
             alt={line.name}
-            width={48}
-            height={48}
-            sizes={IMAGE_SIZES.thumbnail}
+            width={POS_CART_IMAGE_WIDTH}
+            height={POS_CART_IMAGE_WIDTH}
             className="size-12 rounded-lg border border-zinc-200 dark:border-zinc-700"
           />
         ) : (
@@ -875,14 +882,18 @@ export function PosPanel({ orgSlug, products, customers }: PosPanelProps) {
           ) : (
             <div className="mt-4 min-h-0 flex-1 overflow-y-auto overscroll-contain pb-2">
               <ul className="grid auto-rows-fr grid-cols-2 items-stretch gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-                {filteredProducts.map((product) => (
-                  <li key={product.id} className="h-full min-h-0">
-                    <ProductCard
+                {filteredProducts.map((product, index) => (
+                  <li
+                    key={product.id}
+                    className="h-full min-h-0 [content-visibility:auto] [contain-intrinsic-size:280px_320px]"
+                  >
+                    <MemoProductCard
                       product={product}
                       selectedQuantity={cartQuantityByProductId.get(product.id) ?? 0}
                       onAdd={addProduct}
                       onIncrement={incrementLine}
                       onDecrement={decrementLine}
+                      imagePriority={index < 8}
                     />
                   </li>
                 ))}

@@ -19,11 +19,16 @@ export default async function MarcaPage({ params }: MarcaPageProps) {
     <div>
       <Heading>Marca y colores</Heading>
       <Text className="mt-2 max-w-2xl">
-        Personaliza el logo, un fondo de imagen tipo WhatsApp para el panel de contenido, colores del lienzo y la
+        Personaliza el logo (archivo de imagen), un fondo de imagen tipo WhatsApp para el panel de contenido, colores del lienzo y la
         paleta de marca. Los cambios se aplican para todos los usuarios de esta organización.
       </Text>
       <div className="mt-10">
-        <BrandingForm orgSlug={orgSlug} initial={branding} canEdit={canEdit} />
+        <BrandingForm
+          orgSlug={orgSlug}
+          organizationId={access.organization.id}
+          initial={branding}
+          canEdit={canEdit}
+        />
       </div>
     </div>
   )

@@ -7,6 +7,7 @@ import {
   BuildingLibraryIcon,
   BuildingOffice2Icon,
   BuildingStorefrontIcon,
+  ChartBarIcon,
   ComputerDesktopIcon,
   CubeIcon,
   CurrencyDollarIcon,
@@ -66,6 +67,7 @@ function getMobilePageTitle(pathname: string, base: string, orgName: string): st
     [base]: 'Inicio',
     [`${base}/pos`]: 'Punto de venta',
     [`${base}/caja`]: 'Balance',
+    [`${base}/estadisticas`]: 'Estadísticas',
     [`${base}/productos`]: 'Productos',
     [`${base}/categorias`]: 'Categorías',
     [`${base}/categorias/sub-categorias`]: 'Subcategorías',
@@ -130,6 +132,8 @@ function OrgDashboardShellInner({
   const isPosRoute = pathname === `${base}/pos` || pathname.startsWith(`${base}/pos/`)
   const isProductosListRoute = pathname === `${base}/productos`
   const isCajaRoute = pathname === `${base}/caja` || pathname.startsWith(`${base}/caja/`)
+  const isEstadisticasRoute =
+    pathname === `${base}/estadisticas` || pathname.startsWith(`${base}/estadisticas/`)
   const showPosCartColumn = posLayout?.cartColumnVisible ?? false
   const permissionSet = new Set(permissions)
   const mobileTitle = getMobilePageTitle(pathname, base, orgName)
@@ -157,6 +161,12 @@ function OrgDashboardShellInner({
   const operationLinks: NavItemDefinition[] = [
     { href: `${base}/pos`, label: 'Punto de venta', icon: ComputerDesktopIcon, viewId: 'pos' },
     { href: `${base}/caja`, label: 'Caja', icon: BanknotesIcon, viewId: 'caja' },
+    {
+      href: `${base}/estadisticas`,
+      label: 'Estadísticas',
+      icon: ChartBarIcon,
+      viewId: 'estadisticas',
+    },
   ]
 
   const catalogLinks: NavItemDefinition[] = [
@@ -316,7 +326,7 @@ function OrgDashboardShellInner({
       panelWallpaperUrl={branding.panelWallpaperUrl}
       reserveSecondaryColumn={isPosRoute}
       secondaryColumnOpen={showPosCartColumn}
-      contentWidth={isPosRoute || isProductosListRoute || isCajaRoute ? 'full' : 'constrained'}
+      contentWidth={isPosRoute || isProductosListRoute || isCajaRoute || isEstadisticasRoute ? 'full' : 'constrained'}
       contentPadding={isPosRoute ? 'none' : 'default'}
     >
       {children}

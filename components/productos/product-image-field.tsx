@@ -14,8 +14,7 @@ import {
   deleteProductImageClient,
   uploadProductImageClient,
 } from '@/lib/utils/upload-product-image-client'
-import { IMAGE_SIZES } from '@/lib/utils/image-src'
-import { OptimizedImage } from '@/components/optimized-image'
+import { optimizeProductImageFile } from '@/lib/utils/optimize-product-image-client'
 import { Field, Label } from '@/styles/catalyst-ui-kit/fieldset'
 import { Text } from '@/styles/catalyst-ui-kit/text'
 
@@ -46,7 +45,7 @@ export function ProductImageField({
   const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null)
   const [removeImage, setRemoveImage] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
-  const [isUploading, setIsUploading] = useState(false)
+  const [uploadPhase, setUploadPhase] = useState<'idle' | 'optimizing' | 'uploading'>('idle')
   const [localPreview, setLocalPreview] = useState<string | null>(null)
   const [fileError, setFileError] = useState<string | null>(null)
 
@@ -56,7 +55,7 @@ export function ProductImageField({
     setRemoveImage(false)
     setLocalPreview(null)
     setFileError(null)
-    setIsUploading(false)
+    setUploadPhase('idle')
     if (inputRef.current) {
       inputRef.current.value = ''
     }
@@ -92,10 +91,13 @@ export function ProductImageField({
     setPreviewUrl(objectUrl)
     setRemoveImage(false)
     setFileError(null)
-    setIsUploading(true)
+    setUploadPhase('optimizing')
 
-    const result = await uploadProductImageClient(organizationId, file)
-    setIsUploading(false)
+    const previousUploadedImageUrl = uploadedImageUrl
+    const optimizedFile = await optimizeProductImageFile(file)
+    setUploadPhase('uploading')
+    const result = await uploadProductImageClient(organizationId, optimizedFile)
+    setUploadPhase('idle')
 
     if (result.error || !result.url) {
       setFileError(result.error ?? 'No se pudo subir la imagen.')
@@ -109,8 +111,8 @@ export function ProductImageField({
       return
     }
 
-    if (uploadedImageUrl && uploadedImageUrl !== currentImageUrl) {
-      await deleteProductImageClient(uploadedImageUrl)
+    if (previousUploadedImageUrl && previousUploadedImageUrl !== currentImageUrl) {
+      void deleteProductImageClient(previousUploadedImageUrl)
     }
 
     setUploadedImageUrl(result.url)
@@ -164,6 +166,10 @@ export function ProductImageField({
     setFileError(null)
   }
 
+  const isUploading = uploadPhase !== 'idle'
+  const uploadStatusLabel =
+    uploadPhase === 'optimizing' ? 'Optimizando imagen…' : 'Subiendo imagen…'
+
   const openFilePicker = () => {
     if (!isUploading) {
       inputRef.current?.click()
@@ -207,14 +213,20 @@ export function ProductImageField({
         {hasPreview ? (
           <div className={clsx('relative flex flex-col items-center justify-center p-4', compact ? 'min-h-40' : 'min-h-52 p-6')}>
             <div className="relative overflow-hidden rounded-lg border border-border bg-white/70 shadow-sm dark:bg-zinc-950/50">
-              <OptimizedImage
+              {/* Vista previa del formulario: img nativo evita /_next/image y el crash de Turbopack con URLs rotas. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
                 src={previewUrl!}
                 alt="Vista previa del producto"
                 width={400}
                 height={224}
-                sizes={IMAGE_SIZES.preview}
-                objectFit="contain"
-                className={clsx('max-w-full', compact ? 'max-h-36' : 'max-h-56')}
+                loading="lazy"
+                decoding="async"
+                referrerPolicy="no-referrer"
+                className={clsx(
+                  'max-w-full object-contain',
+                  compact ? 'max-h-36' : 'max-h-56'
+                )}
               />
               <button
                 type="button"
@@ -238,7 +250,7 @@ export function ProductImageField({
                 className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-white/80 px-3 py-1.5 text-sm font-medium text-foreground shadow-sm transition hover:border-emerald-400/50 hover:bg-emerald-50/60 disabled:opacity-60 dark:bg-zinc-900/70 dark:hover:bg-emerald-950/40"
               >
                 <ArrowUpTrayIcon className="size-4 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
-                {isUploading ? 'Subiendo…' : 'Cambiar imagen'}
+                {isUploading ? uploadStatusLabel : 'Cambiar imagen'}
               </button>
               <button
                 type="button"
@@ -279,7 +291,7 @@ export function ProductImageField({
             </div>
 
             <p className={clsx('mt-3 font-medium text-foreground', compact ? 'text-xs' : 'text-sm')}>
-              {isUploading ? 'Subiendo imagen…' : isDragging ? 'Suelta aquí' : 'Arrastra o selecciona'}
+              {isUploading ? uploadStatusLabel : isDragging ? 'Suelta aquí' : 'Arrastra o selecciona'}
             </p>
 
             {!compact ? (

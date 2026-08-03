@@ -2,24 +2,25 @@
 
 import { createSupabaseBrowserClient } from '@/lib/supabase/client'
 import {
-  getExtensionFromMime,
-  PRODUCT_IMAGE_BUCKET,
-  validateProductImageUpload,
-} from '@/lib/utils/product-image'
+  BRAND_LOGO_STORAGE_PREFIX,
+  getExtensionFromLogoMime,
+  validateBrandLogoUpload,
+} from '@/lib/utils/brand-logo'
+import { getProductImageStoragePath, PRODUCT_IMAGE_BUCKET } from '@/lib/utils/product-image'
 
-export async function uploadProductImageClient(
+export async function uploadBrandLogoClient(
   organizationId: string,
   file: File
 ): Promise<{ url: string | null; error: string | null }> {
-  const validated = validateProductImageUpload(file)
+  const validated = validateBrandLogoUpload(file)
 
   if ('error' in validated) {
     return { url: null, error: validated.error }
   }
 
   const supabase = createSupabaseBrowserClient()
-  const extension = getExtensionFromMime(validated.type)
-  const objectPath = `${organizationId}/uploads/${crypto.randomUUID()}.${extension}`
+  const extension = getExtensionFromLogoMime(validated.type)
+  const objectPath = `${organizationId}/${BRAND_LOGO_STORAGE_PREFIX}/${crypto.randomUUID()}.${extension}`
 
   const { error: uploadError } = await supabase.storage
     .from(PRODUCT_IMAGE_BUCKET)
@@ -30,27 +31,28 @@ export async function uploadProductImageClient(
     })
 
   if (uploadError) {
-    return { url: null, error: uploadError.message || 'No se pudo subir la imagen.' }
+    return { url: null, error: uploadError.message || 'No se pudo subir el logo.' }
   }
 
   const { data } = supabase.storage.from(PRODUCT_IMAGE_BUCKET).getPublicUrl(objectPath)
   return { url: data.publicUrl, error: null }
 }
 
-export async function deleteProductImageClient(
-  publicUrl: string | null | undefined
+export async function deleteBrandLogoClient(
+  publicUrl: string | null | undefined,
+  organizationId: string
 ): Promise<void> {
   if (!publicUrl) return
 
-  const marker = `/storage/v1/object/public/${PRODUCT_IMAGE_BUCKET}/`
-  const idx = publicUrl.indexOf(marker)
-  if (idx === -1) return
+  const objectPath = getProductImageStoragePath(publicUrl)
+  if (!objectPath || !objectPath.startsWith(`${organizationId}/${BRAND_LOGO_STORAGE_PREFIX}/`)) {
+    return
+  }
 
-  const objectPath = decodeURIComponent(publicUrl.slice(idx + marker.length))
   const supabase = createSupabaseBrowserClient()
   const { error } = await supabase.storage.from(PRODUCT_IMAGE_BUCKET).remove([objectPath])
 
   if (error) {
-    console.error('deleteProductImageClient', error)
+    console.error('deleteBrandLogoClient', error)
   }
 }

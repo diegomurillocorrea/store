@@ -21,6 +21,12 @@ function getSupabaseImagePattern() {
 const supabasePattern = getSupabaseImagePattern()
 
 const nextConfig: NextConfig = {
+  experimental: {
+    serverActions: {
+      // Product images allow up to 5 MB; multipart adds overhead.
+      bodySizeLimit: '6mb',
+    },
+  },
   images: {
     formats: ['image/avif', 'image/webp'],
     localPatterns: [

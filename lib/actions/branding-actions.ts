@@ -2,12 +2,53 @@
 
 import { revalidatePath } from 'next/cache'
 import { getActionAccess, permissionDeniedState } from '@/lib/auth/access'
+import { getOrganizationBranding } from '@/lib/data/org-branding'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { isValidLogoUrl, normalizeHex } from '@/lib/theme/branding'
+import {
+  deleteBrandLogoByUrl,
+  isAcceptableBrandLogoUrl,
+  parseBrandLogoUrlFromForm,
+  shouldRemoveBrandLogo,
+} from '@/lib/utils/brand-logo'
 
 export interface BrandingFormState {
   error: string | null
   ok: boolean
+}
+
+async function resolveBrandLogoUrl(
+  formData: FormData,
+  organizationId: string,
+  currentLogoUrl: string | null
+): Promise<{ logoUrl: string | null; error: string | null }> {
+  const supabase = await createSupabaseServerClient()
+
+  if (shouldRemoveBrandLogo(formData)) {
+    if (currentLogoUrl) {
+      await deleteBrandLogoByUrl(supabase, currentLogoUrl, organizationId)
+    }
+    return { logoUrl: null, error: null }
+  }
+
+  const submittedUrl = parseBrandLogoUrlFromForm(formData)
+
+  if (submittedUrl) {
+    if (!isAcceptableBrandLogoUrl(submittedUrl, organizationId, currentLogoUrl)) {
+      return {
+        logoUrl: null,
+        error: 'El logo debe subirse como archivo desde este formulario.',
+      }
+    }
+
+    if (submittedUrl !== currentLogoUrl && currentLogoUrl) {
+      await deleteBrandLogoByUrl(supabase, currentLogoUrl, organizationId)
+    }
+
+    return { logoUrl: submittedUrl, error: null }
+  }
+
+  return { logoUrl: currentLogoUrl, error: null }
 }
 
 export async function updateOrganizationBrandingAction(
@@ -20,7 +61,8 @@ export async function updateOrganizationBrandingAction(
     return permissionDeniedState()
   }
 
-  const logoRaw = String(formData.get('logo_url') ?? '').trim()
+  const organizationId = access.organization.id
+  const currentBranding = await getOrganizationBranding(organizationId)
   const wallpaperRaw = String(formData.get('panel_wallpaper_url') ?? '').trim()
 
   const pl = normalizeHex(String(formData.get('primary_color_light') ?? ''))
@@ -34,8 +76,14 @@ export async function updateOrganizationBrandingAction(
   const ssl = normalizeHex(String(formData.get('shell_surface_light') ?? ''))
   const ssd = normalizeHex(String(formData.get('shell_surface_dark') ?? ''))
 
-  if (!isValidLogoUrl(logoRaw)) {
-    return { error: 'La URL del logo debe ser http(s) y tener como máximo 2048 caracteres.', ok: false }
+  const logoResult = await resolveBrandLogoUrl(
+    formData,
+    organizationId,
+    currentBranding.logoUrl
+  )
+
+  if (logoResult.error) {
+    return { error: logoResult.error, ok: false }
   }
 
   if (!isValidLogoUrl(wallpaperRaw)) {
@@ -53,7 +101,7 @@ export async function updateOrganizationBrandingAction(
   const { error } = await supabase
     .from('organization_settings')
     .update({
-      logo_url: logoRaw.length > 0 ? logoRaw : null,
+      logo_url: logoResult.logoUrl,
       panel_wallpaper_url: wallpaperRaw.length > 0 ? wallpaperRaw : null,
       primary_color_light: pl,
       primary_color_dark: pd,
@@ -69,7 +117,7 @@ export async function updateOrganizationBrandingAction(
       accent_color: al,
       updated_at: new Date().toISOString(),
     })
-    .eq('organization_id', access.organization.id)
+    .eq('organization_id', organizationId)
 
   if (error) {
     return { error: error.message || 'No se pudo guardar.', ok: false }

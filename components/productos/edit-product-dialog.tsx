@@ -66,6 +66,7 @@ export function EditProductDialog({
           <Fieldset>
             <ProductFormFields
               idPrefix="edit-product"
+              orgSlug={orgSlug}
               organizationId={organizationId}
               categories={categories}
               subCategories={subCategories}

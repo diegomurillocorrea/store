@@ -23,6 +23,7 @@ export interface ProductFormDefaults {
 
 interface ProductFormFieldsProps {
   idPrefix: string
+  orgSlug: string
   organizationId: string
   categories: ProductOption[]
   subCategories: SubCategoryProductOption[]
@@ -87,6 +88,7 @@ function CurrencyInput({
 
 export function ProductFormFields({
   idPrefix,
+  orgSlug,
   organizationId,
   categories,
   subCategories,

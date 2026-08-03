@@ -5,14 +5,19 @@ import { getProductsByOrganizationId } from '@/lib/data/products'
 import { getSubCategoryOptionsByOrganizationId } from '@/lib/data/subcategories'
 import { getSuppliersByOrganizationId } from '@/lib/data/suppliers'
 import { getViewActionFlags } from '@/lib/permissions/views'
+import { parseProductFiltersFromPageSearchParams } from '@/lib/utils/product-filters-url'
 import { Heading } from '@/styles/catalyst-ui-kit/heading'
 
 interface ProductosPageProps {
   params: Promise<{ orgSlug: string }>
+  searchParams: Promise<Record<string, string | string[] | undefined>>
 }
 
-export default async function ProductosPage({ params }: ProductosPageProps) {
+export default async function ProductosPage({ params, searchParams }: ProductosPageProps) {
   const { orgSlug } = await params
+  const resolvedSearchParams = await searchParams
+  const { query: initialQuery, columnFilters: initialColumnFilters } =
+    parseProductFiltersFromPageSearchParams(resolvedSearchParams)
   const access = await requireViewAccess(orgSlug, 'productos')
   const organizationId = access.organization.id
   const actions = getViewActionFlags(access.permissions, 'productos')
@@ -45,6 +50,8 @@ export default async function ProductosPage({ params }: ProductosPageProps) {
         subCategories={subCategories}
         suppliers={supplierOptions}
         actions={actions}
+        initialQuery={initialQuery}
+        initialColumnFilters={initialColumnFilters}
       />
     </div>
   )

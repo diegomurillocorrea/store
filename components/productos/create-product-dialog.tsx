@@ -57,6 +57,7 @@ export function CreateProductDialog({
           <Fieldset>
             <ProductFormFields
               idPrefix="product"
+              orgSlug={orgSlug}
               organizationId={organizationId}
               categories={categories}
               subCategories={subCategories}

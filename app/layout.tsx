@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist_Mono, Poppins } from "next/font/google";
 import { NotificationProvider } from "@/components/notifications/notification-provider";
 import { ThemeInitScript } from "@/components/theme-init-script";
+import { getSupabaseUrl } from "@/lib/supabase/env";
 import "./globals.css";
 
 const poppins = Poppins({
@@ -26,12 +27,18 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const supabaseOrigin = getSupabaseUrl()
+
   return (
     <html
       lang="es"
       suppressHydrationWarning
       className={`${poppins.variable} ${geistMono.variable} h-full antialiased`}
     >
+      <head>
+        <link rel="preconnect" href={supabaseOrigin} />
+        <link rel="dns-prefetch" href={supabaseOrigin} />
+      </head>
       <body className="liquid-app relative h-full min-h-dvh font-sans antialiased">
         <ThemeInitScript />
         <NotificationProvider>{children}</NotificationProvider>
