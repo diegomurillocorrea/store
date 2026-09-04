@@ -47,17 +47,30 @@ export const getMemberPermissionCodes = cache(async function getMemberPermission
     return new Set()
   }
 
-  const { data: rolePermissions, error: permError } = await supabase
-    .from('role_permissions')
-    .select('permission_code')
-    .in('role_id', roleIds)
+  const [{ data: roles, error: slugError }, { data: rolePermissions, error: permError }] =
+    await Promise.all([
+      supabase.from('roles').select('id, slug').in('id', roleIds),
+      supabase.from('role_permissions').select('permission_code').in('role_id', roleIds),
+    ])
+
+  if (slugError) {
+    console.error('getMemberPermissionCodes.roles', slugError)
+  }
 
   if (permError) {
     console.error('getMemberPermissionCodes.role_permissions', permError)
     return new Set()
   }
 
-  return new Set((rolePermissions ?? []).map((row) => row.permission_code))
+  const codes = new Set((rolePermissions ?? []).map((row) => row.permission_code))
+
+  if ((roles ?? []).some((role) => role.slug === ROLE_SLUGS.propietario)) {
+    for (const code of getAllViewPermissionCodes()) {
+      codes.add(code)
+    }
+  }
+
+  return codes
 })
 
 export async function memberHasRoleSlug(
