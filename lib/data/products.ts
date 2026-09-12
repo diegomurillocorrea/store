@@ -1,262 +1,121 @@
-import { createSupabaseServerClient } from '@/lib/supabase/server'
+import { and, asc, eq } from 'drizzle-orm'
+import { alias } from 'drizzle-orm/pg-core'
+import { db } from '@/lib/db'
+import { toNumber, toNumberOrZero } from '@/lib/db/numeric'
+import {
+  categories,
+  organizationMembers,
+  products,
+  subcategories,
+  suppliers,
+} from '@/lib/db/schema'
 import type { ProductRow } from '@/lib/data/product-types'
 
 export type { ProductRow, ProductOption } from '@/lib/data/product-types'
 
-interface RawProductRow {
+function mapJoinedProduct (row: {
   id: string
   name: string
   sku: string
   barcode: string | null
-  available_quantity: number | string
-  sale_price: number | string
-  cost_price: number | string | null
-  category_id: string | null
-  sub_category_id: string | null
-  supplier_id: string | null
-  image_url: string | null
-  created_at: string
-  created_by: string | null
-  category: { id: string; name: string } | { id: string; name: string }[] | null
-  sub_category: { id: string; name: string } | { id: string; name: string }[] | null
-  supplier: { id: string; name: string } | { id: string; name: string }[] | null
-  creator: { display_name: string | null } | { display_name: string | null }[] | null
-}
-
-function toNumber(value: number | string | null | undefined): number | null {
-  if (value === null || value === undefined || value === '') return null
-  const parsed = typeof value === 'number' ? value : Number.parseFloat(String(value))
-  return Number.isFinite(parsed) ? parsed : null
-}
-
-function mapProductRow(row: RawProductRow): ProductRow {
-  const category = Array.isArray(row.category) ? row.category[0] : row.category
-  const subCategory = Array.isArray(row.sub_category) ? row.sub_category[0] : row.sub_category
-  const supplier = Array.isArray(row.supplier) ? row.supplier[0] : row.supplier
-  const creator = Array.isArray(row.creator) ? row.creator[0] : row.creator
-
+  availableQuantity: string
+  salePrice: string
+  costPrice: string | null
+  categoryId: string | null
+  subCategoryId: string | null
+  supplierId: string | null
+  imageUrl: string | null
+  createdAt: string
+  createdBy: string | null
+  categoryName: string | null
+  subCategoryName: string | null
+  supplierName: string | null
+  createdByName: string | null
+}): ProductRow {
   return {
     id: row.id,
     name: row.name,
     sku: row.sku,
     barcode: row.barcode,
-    availableQuantity: toNumber(row.available_quantity) ?? 0,
-    salePrice: toNumber(row.sale_price) ?? 0,
-    costPrice: toNumber(row.cost_price),
-    categoryId: row.category_id,
-    categoryName: category?.name ?? null,
-    subCategoryId: row.sub_category_id,
-    subCategoryName: subCategory?.name ?? null,
-    supplierId: row.supplier_id,
-    supplierName: supplier?.name ?? null,
-    imageUrl: row.image_url,
-    createdAt: row.created_at,
-    createdBy: row.created_by,
-    createdByName: creator?.display_name?.trim() || null,
+    availableQuantity: toNumberOrZero(row.availableQuantity),
+    salePrice: toNumberOrZero(row.salePrice),
+    costPrice: toNumber(row.costPrice),
+    categoryId: row.categoryId,
+    categoryName: row.categoryName,
+    subCategoryId: row.subCategoryId,
+    subCategoryName: row.subCategoryName,
+    supplierId: row.supplierId,
+    supplierName: row.supplierName,
+    imageUrl: row.imageUrl,
+    createdAt: row.createdAt,
+    createdBy: row.createdBy,
+    createdByName: row.createdByName?.trim() || null,
   }
 }
 
-export async function getProductsByOrganizationId(
+async function selectProductsJoined (organizationId: string, productId?: string) {
+  const creator = alias(organizationMembers, 'product_creator')
+
+  const conditions = [
+    eq(products.organizationId, organizationId),
+    eq(products.isActive, true),
+  ]
+  if (productId) {
+    conditions.push(eq(products.id, productId))
+  }
+
+  return db
+    .select({
+      id: products.id,
+      name: products.name,
+      sku: products.sku,
+      barcode: products.barcode,
+      availableQuantity: products.availableQuantity,
+      salePrice: products.salePrice,
+      costPrice: products.costPrice,
+      categoryId: products.categoryId,
+      subCategoryId: products.subCategoryId,
+      supplierId: products.supplierId,
+      imageUrl: products.imageUrl,
+      createdAt: products.createdAt,
+      createdBy: products.createdBy,
+      categoryName: categories.name,
+      subCategoryName: subcategories.name,
+      supplierName: suppliers.name,
+      createdByName: creator.displayName,
+    })
+    .from(products)
+    .leftJoin(categories, eq(products.categoryId, categories.id))
+    .leftJoin(subcategories, eq(products.subCategoryId, subcategories.id))
+    .leftJoin(suppliers, eq(products.supplierId, suppliers.id))
+    .leftJoin(creator, eq(products.createdBy, creator.id))
+    .where(and(...conditions))
+    .orderBy(asc(products.name))
+}
+
+export async function getProductsByOrganizationId (
   organizationId: string
 ): Promise<ProductRow[]> {
-  const supabase = await createSupabaseServerClient()
-
-  const { data, error } = await supabase
-    .from('products')
-    .select(
-      `
-      id,
-      name,
-      sku,
-      barcode,
-      available_quantity,
-      sale_price,
-      cost_price,
-      category_id,
-      sub_category_id,
-      supplier_id,
-      image_url,
-      created_at,
-      created_by,
-      category:categories ( id, name ),
-      sub_category:subcategories ( id, name ),
-      supplier:suppliers ( id, name ),
-      creator:organization_members!products_created_by_fkey ( display_name )
-    `
-    )
-    .eq('organization_id', organizationId)
-    .eq('is_active', true)
-    .order('name', { ascending: true })
-
-  if (error) {
-    const isMissingExtendedColumns =
-      error.code === '42703' ||
-      error.code === 'PGRST200' ||
-      error.code === 'PGRST204' ||
-      Boolean(error.message?.includes('available_quantity')) ||
-      Boolean(error.message?.includes('supplier_id')) ||
-      Boolean(error.message?.includes('sub_category_id')) ||
-      Boolean(error.message?.includes('created_by')) ||
-      Boolean(error.message?.includes('schema cache'))
-
-    if (isMissingExtendedColumns) {
-      const { data: fallbackData, error: fallbackError } = await supabase
-        .from('products')
-        .select(
-          `
-          id,
-          name,
-          sku,
-          barcode,
-          sale_price,
-          cost_price,
-          category_id,
-          created_at,
-          category:categories ( id, name )
-        `
-        )
-        .eq('organization_id', organizationId)
-        .eq('is_active', true)
-        .order('name', { ascending: true })
-
-      if (fallbackError) {
-        console.error('getProductsByOrganizationId:fallback', fallbackError)
-        return []
-      }
-
-      return (fallbackData ?? []).map((row) => {
-        const category = Array.isArray(row.category) ? row.category[0] : row.category
-
-        return {
-          id: row.id,
-          name: row.name,
-          sku: row.sku,
-          barcode: row.barcode,
-          availableQuantity: 0,
-          salePrice: toNumber(row.sale_price) ?? 0,
-          costPrice: toNumber(row.cost_price),
-          categoryId: row.category_id,
-          categoryName: category?.name ?? null,
-          subCategoryId: null,
-          subCategoryName: null,
-          supplierId: null,
-          supplierName: null,
-          imageUrl: null,
-          createdAt: row.created_at,
-          createdBy: null,
-          createdByName: null,
-        }
-      })
-    }
-
+  try {
+    const rows = await selectProductsJoined(organizationId)
+    return rows.map(mapJoinedProduct)
+  } catch (error) {
     console.error('getProductsByOrganizationId', error)
     return []
   }
-
-  return (data ?? []).map((row) => mapProductRow(row as unknown as RawProductRow))
 }
 
-const productSelectQuery = `
-  id,
-  name,
-  sku,
-  barcode,
-  available_quantity,
-  sale_price,
-  cost_price,
-  category_id,
-  sub_category_id,
-  supplier_id,
-  image_url,
-  created_at,
-  created_by,
-  category:categories ( id, name ),
-  sub_category:subcategories ( id, name ),
-  supplier:suppliers ( id, name ),
-  creator:organization_members!products_created_by_fkey ( display_name )
-`
-
-export async function getProductById(
+export async function getProductById (
   organizationId: string,
   productId: string
 ): Promise<ProductRow | null> {
-  const supabase = await createSupabaseServerClient()
-
-  const { data, error } = await supabase
-    .from('products')
-    .select(productSelectQuery)
-    .eq('organization_id', organizationId)
-    .eq('id', productId)
-    .eq('is_active', true)
-    .maybeSingle()
-
-  if (error) {
-    const isMissingExtendedColumns =
-      error.code === '42703' ||
-      error.code === 'PGRST200' ||
-      error.code === 'PGRST204' ||
-      Boolean(error.message?.includes('available_quantity')) ||
-      Boolean(error.message?.includes('supplier_id')) ||
-      Boolean(error.message?.includes('sub_category_id')) ||
-      Boolean(error.message?.includes('created_by')) ||
-      Boolean(error.message?.includes('schema cache'))
-
-    if (isMissingExtendedColumns) {
-      const { data: fallbackData, error: fallbackError } = await supabase
-        .from('products')
-        .select(
-          `
-          id,
-          name,
-          sku,
-          barcode,
-          sale_price,
-          cost_price,
-          category_id,
-          created_at,
-          category:categories ( id, name )
-        `
-        )
-        .eq('organization_id', organizationId)
-        .eq('id', productId)
-        .eq('is_active', true)
-        .maybeSingle()
-
-      if (fallbackError || !fallbackData) {
-        console.error('getProductById:fallback', fallbackError)
-        return null
-      }
-
-      const category = Array.isArray(fallbackData.category)
-        ? fallbackData.category[0]
-        : fallbackData.category
-
-      return {
-        id: fallbackData.id,
-        name: fallbackData.name,
-        sku: fallbackData.sku,
-        barcode: fallbackData.barcode,
-        availableQuantity: 0,
-        salePrice: toNumber(fallbackData.sale_price) ?? 0,
-        costPrice: toNumber(fallbackData.cost_price),
-        categoryId: fallbackData.category_id,
-        categoryName: category?.name ?? null,
-        subCategoryId: null,
-        subCategoryName: null,
-        supplierId: null,
-        supplierName: null,
-        imageUrl: null,
-        createdAt: fallbackData.created_at,
-        createdBy: null,
-        createdByName: null,
-      }
-    }
-
+  try {
+    const rows = await selectProductsJoined(organizationId, productId)
+    const row = rows[0]
+    if (!row) return null
+    return mapJoinedProduct(row)
+  } catch (error) {
     console.error('getProductById', error)
     return null
   }
-
-  if (!data) return null
-
-  return mapProductRow(data as unknown as RawProductRow)
 }

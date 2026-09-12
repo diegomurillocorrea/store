@@ -1,3 +1,6 @@
+import { eq } from 'drizzle-orm'
+import { db } from '@/lib/db'
+import { organizations, organizationSettings } from '@/lib/db/schema'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import {
   createDefaultBusinessHours,
@@ -9,54 +12,47 @@ import {
 export async function getOrganizationProfile(
   organizationId: string
 ): Promise<OrganizationProfile | null> {
-  const supabase = await createSupabaseServerClient()
+  try {
+    const [[org], [settings]] = await Promise.all([
+      db
+        .select({ id: organizations.id, name: organizations.name, slug: organizations.slug })
+        .from(organizations)
+        .where(eq(organizations.id, organizationId))
+        .limit(1),
+      db
+        .select({
+          description: organizationSettings.description,
+          locationAddress: organizationSettings.locationAddress,
+          locationLat: organizationSettings.locationLat,
+          locationLng: organizationSettings.locationLng,
+          businessHours: organizationSettings.businessHours,
+          socialLinks: organizationSettings.socialLinks,
+        })
+        .from(organizationSettings)
+        .where(eq(organizationSettings.organizationId, organizationId))
+        .limit(1),
+    ])
 
-  const { data: org, error: orgError } = await supabase
-    .from('organizations')
-    .select('id, name, slug')
-    .eq('id', organizationId)
-    .maybeSingle()
+    if (!org) return null
 
-  if (orgError || !org) {
-    console.error('getOrganizationProfile org', orgError)
+    return {
+      organizationId: org.id,
+      name: org.name,
+      slug: org.slug,
+      description: settings?.description?.trim() ?? '',
+      locationAddress: settings?.locationAddress?.trim() ?? '',
+      locationLat: settings?.locationLat ?? null,
+      locationLng: settings?.locationLng ?? null,
+      businessHours: parseBusinessHours(settings?.businessHours ?? createDefaultBusinessHours()),
+      socialLinks: parseSocialLinks(settings?.socialLinks),
+    }
+  } catch (err) {
+    console.error('getOrganizationProfile', err)
     return null
-  }
-
-  const { data: settings, error: settingsError } = await supabase
-    .from('organization_settings')
-    .select(
-      'description, location_address, location_lat, location_lng, business_hours, social_links'
-    )
-    .eq('organization_id', organizationId)
-    .maybeSingle()
-
-  if (settingsError) {
-    console.error('getOrganizationProfile settings', settingsError)
-    return null
-  }
-
-  const row = settings as {
-    description: string | null
-    location_address: string | null
-    location_lat: number | null
-    location_lng: number | null
-    business_hours: unknown
-    social_links: unknown
-  } | null
-
-  return {
-    organizationId: org.id,
-    name: org.name,
-    slug: org.slug,
-    description: row?.description?.trim() ?? '',
-    locationAddress: row?.location_address?.trim() ?? '',
-    locationLat: row?.location_lat ?? null,
-    locationLng: row?.location_lng ?? null,
-    businessHours: parseBusinessHours(row?.business_hours ?? createDefaultBusinessHours()),
-    socialLinks: parseSocialLinks(row?.social_links),
   }
 }
 
+// Stays on Supabase: uses auth.uid()-scoped RPC is_organization_slug_available
 export async function isOrganizationSlugAvailable(
   slug: string,
   excludeOrganizationId?: string

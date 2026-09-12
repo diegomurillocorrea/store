@@ -1,5 +1,6 @@
 'use server'
 
+import { and, eq } from 'drizzle-orm'
 import { validateProductSubCategory } from '@/lib/actions/subcategory-actions'
 import { getActionAccess, permissionDeniedState } from '@/lib/auth/access'
 import {
@@ -12,6 +13,8 @@ import {
   resolveSupplierIdInOrg,
   revalidateCatalogPaths,
 } from '@/lib/data/owner-shared-entities'
+import { db } from '@/lib/db'
+import { products } from '@/lib/db/schema'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import {
   deleteProductImageByUrl,
@@ -39,12 +42,12 @@ interface ParsedProductForm {
   supplierId: string | null
 }
 
-function parseOptionalUuid(value: FormDataEntryValue | null): string | null {
+function parseOptionalUuid (value: FormDataEntryValue | null): string | null {
   const raw = String(value ?? '').trim()
   return raw.length > 0 ? raw : null
 }
 
-function parseNonNegativeNumber(
+function parseNonNegativeNumber (
   raw: string,
   label: string
 ): { error: string } | number {
@@ -64,7 +67,7 @@ function parseNonNegativeNumber(
   return parsed
 }
 
-function parseUnitPriceField(
+function parseUnitPriceField (
   raw: string,
   label: string
 ): { error: string } | number {
@@ -84,7 +87,7 @@ function parseUnitPriceField(
   return parsed
 }
 
-function buildProductSku(name: string, barcode: string | null): string {
+function buildProductSku (name: string, barcode: string | null): string {
   if (barcode) return barcode
 
   const slug = name
@@ -99,7 +102,7 @@ function buildProductSku(name: string, barcode: string | null): string {
   return `${slug || 'prod'}-${Date.now().toString(36)}`
 }
 
-function parseProductForm(formData: FormData): { error: string } | ParsedProductForm {
+function parseProductForm (formData: FormData): { error: string } | ParsedProductForm {
   const name = String(formData.get('name') ?? '').trim()
   const barcodeRaw = String(formData.get('barcode') ?? '').trim()
   const availableQuantityRaw = String(formData.get('availableQuantity') ?? '').trim()
@@ -137,24 +140,28 @@ function parseProductForm(formData: FormData): { error: string } | ParsedProduct
   }
 }
 
-function mapProductError(error: { code?: string; message?: string }): string {
-  if (error.code === '23505') {
-    if (error.message?.includes('products_org_barcode_unique')) {
+function mapProductError (error: unknown): string {
+  const err = error as { code?: string; message?: string; cause?: { code?: string; message?: string } }
+  const code = err.code ?? err.cause?.code
+  const message = err.message ?? err.cause?.message ?? ''
+
+  if (code === '23505') {
+    if (message.includes('products_org_barcode_unique')) {
       return 'Ya existe un producto con ese código de barras en esta organización.'
     }
-    if (error.message?.includes('organization_id') && error.message?.includes('sku')) {
+    if (message.includes('organization_id') && message.includes('sku')) {
       return 'Ya existe un producto con ese SKU en esta organización.'
     }
   }
 
-  if (error.code === '23503') {
+  if (code === '23503') {
     return 'La categoría, subcategoría o el proveedor seleccionado no es válido.'
   }
 
-  return error.message || 'No se pudo guardar el producto.'
+  return message || 'No se pudo guardar el producto.'
 }
 
-async function resolveProductImageUrl(
+async function resolveProductImageUrl (
   formData: FormData,
   organizationId: string,
   currentImageUrl: string | null = null
@@ -185,7 +192,7 @@ async function resolveProductImageUrl(
   return { imageUrl: currentImageUrl, error: null }
 }
 
-export async function createProductAction(
+export async function createProductAction (
   orgSlug: string,
   _prevState: ProductFormState,
   formData: FormData
@@ -214,8 +221,6 @@ export async function createProductAction(
     return { error: 'No se pudo resolver la sucursal actual.', ok: false }
   }
 
-  const supabase = await createSupabaseServerClient()
-
   const imageResult = await resolveProductImageUrl(formData, access.organization.id, null)
   if (imageResult.error) {
     return { error: imageResult.error, ok: false }
@@ -239,73 +244,48 @@ export async function createProductAction(
   const sharedKey = newOwnerSharedKey()
   const sku = buildProductSku(parsed.name, parsed.barcode)
 
-  for (const target of targets) {
-    const isCurrent = target.organizationId === access.organization.id
-    const categoryId = isCurrent
-      ? parsed.categoryId
-      : await resolveCategoryIdInOrg(target.organizationId, categoryRef)
-    const supplierId = isCurrent
-      ? parsed.supplierId
-      : await resolveSupplierIdInOrg(target.organizationId, supplierRef)
-    const subCategoryId = isCurrent
-      ? subCategoryResult.subCategoryId
-      : await resolveSubCategoryIdInOrg(target.organizationId, subCategoryRef, categoryId)
+  try {
+    for (const target of targets) {
+      const isCurrent = target.organizationId === access.organization.id
+      const categoryId = isCurrent
+        ? parsed.categoryId
+        : await resolveCategoryIdInOrg(target.organizationId, categoryRef)
+      const supplierId = isCurrent
+        ? parsed.supplierId
+        : await resolveSupplierIdInOrg(target.organizationId, supplierRef)
+      const subCategoryId = isCurrent
+        ? subCategoryResult.subCategoryId
+        : await resolveSubCategoryIdInOrg(target.organizationId, subCategoryRef, categoryId)
 
-    const payload = {
-      organization_id: target.organizationId,
-      name: parsed.name,
-      sku,
-      barcode: parsed.barcode,
-      available_quantity: parsed.availableQuantity,
-      sale_price: parsed.salePrice,
-      cost_price: parsed.costPrice,
-      category_id: categoryId,
-      sub_category_id: subCategoryId,
-      supplier_id: supplierId,
-      image_url: imageResult.imageUrl,
-      owner_shared_key: sharedKey,
-      created_by: target.memberId,
+      await db.insert(products).values({
+        organizationId: target.organizationId,
+        name: parsed.name,
+        sku,
+        barcode: parsed.barcode,
+        availableQuantity: String(parsed.availableQuantity),
+        salePrice: String(parsed.salePrice),
+        costPrice: parsed.costPrice == null ? null : String(parsed.costPrice),
+        categoryId,
+        subCategoryId,
+        supplierId,
+        imageUrl: imageResult.imageUrl,
+        ownerSharedKey: sharedKey,
+        createdBy: target.memberId,
+      })
     }
-
-    let { error } = await supabase.from('products').insert(payload)
-
-    if (error?.message?.includes('available_quantity') || error?.message?.includes('supplier_id')) {
-      const {
-        available_quantity: _aq,
-        supplier_id: _si,
-        image_url: _iu,
-        created_by: _cb,
-        owner_shared_key: _key,
-        ...legacyPayload
-      } = payload
-      ;({ error } = await supabase.from('products').insert(legacyPayload))
-    } else if (error?.message?.includes('sub_category_id')) {
-      const { sub_category_id: _sc, ...payloadWithoutSubCategory } = payload
-      ;({ error } = await supabase.from('products').insert(payloadWithoutSubCategory))
-    } else if (error?.message?.includes('owner_shared_key')) {
-      const { owner_shared_key: _key, ...payloadWithoutKey } = payload
-      ;({ error } = await supabase.from('products').insert(payloadWithoutKey))
-    } else if (error?.message?.includes('created_by')) {
-      const { created_by: _cb, ...payloadWithoutCreator } = payload
-      ;({ error } = await supabase.from('products').insert(payloadWithoutCreator))
-    } else if (error?.message?.includes('image_url')) {
-      const { image_url: _iu, ...payloadWithoutImage } = payload
-      ;({ error } = await supabase.from('products').insert(payloadWithoutImage))
+  } catch (error) {
+    if (imageResult.imageUrl) {
+      const supabase = await createSupabaseServerClient()
+      await deleteProductImageByUrl(supabase, imageResult.imageUrl)
     }
-
-    if (error) {
-      if (imageResult.imageUrl && isCurrent) {
-        await deleteProductImageByUrl(supabase, imageResult.imageUrl)
-      }
-      return { error: mapProductError(error), ok: false }
-    }
+    return { error: mapProductError(error), ok: false }
   }
 
   revalidateCatalogPaths(targets, 'products', orgSlug)
   return { error: null, ok: true }
 }
 
-export async function updateProductAction(
+export async function updateProductAction (
   orgSlug: string,
   productId: string,
   _prevState: ProductFormState,
@@ -330,77 +310,53 @@ export async function updateProductAction(
     return { error: subCategoryResult.error, ok: false }
   }
 
-  const supabase = await createSupabaseServerClient()
+  const [existingProduct] = await db
+    .select({ imageUrl: products.imageUrl })
+    .from(products)
+    .where(
+      and(
+        eq(products.id, productId),
+        eq(products.organizationId, access.organization.id)
+      )
+    )
+    .limit(1)
 
-  const { data: existingProduct, error: existingError } = await supabase
-    .from('products')
-    .select('image_url')
-    .eq('id', productId)
-    .eq('organization_id', access.organization.id)
-    .maybeSingle()
-
-  if (existingError || !existingProduct) {
+  if (!existingProduct) {
     return { error: 'Producto no encontrado.', ok: false }
   }
 
   const imageResult = await resolveProductImageUrl(
     formData,
     access.organization.id,
-    existingProduct.image_url
+    existingProduct.imageUrl
   )
 
   if (imageResult.error) {
     return { error: imageResult.error, ok: false }
   }
 
-  const updatePayload = {
-    name: parsed.name,
-    barcode: parsed.barcode,
-    available_quantity: parsed.availableQuantity,
-    sale_price: parsed.salePrice,
-    cost_price: parsed.costPrice,
-    category_id: parsed.categoryId,
-    sub_category_id: subCategoryResult.subCategoryId,
-    supplier_id: parsed.supplierId,
-    image_url: imageResult.imageUrl,
-    updated_at: new Date().toISOString(),
-  }
-
-  let { error } = await supabase
-    .from('products')
-    .update(updatePayload)
-    .eq('id', productId)
-    .eq('organization_id', access.organization.id)
-
-  if (error?.message?.includes('available_quantity') || error?.message?.includes('supplier_id')) {
-    const {
-      available_quantity: _aq,
-      supplier_id: _si,
-      image_url: _iu,
-      ...legacyPayload
-    } = updatePayload
-    ;({ error } = await supabase
-      .from('products')
-      .update(legacyPayload)
-      .eq('id', productId)
-      .eq('organization_id', access.organization.id))
-  } else if (error?.message?.includes('sub_category_id')) {
-    const { sub_category_id: _sc, ...payloadWithoutSubCategory } = updatePayload
-    ;({ error } = await supabase
-      .from('products')
-      .update(payloadWithoutSubCategory)
-      .eq('id', productId)
-      .eq('organization_id', access.organization.id))
-  } else if (error?.message?.includes('image_url')) {
-    const { image_url: _iu, ...payloadWithoutImage } = updatePayload
-    ;({ error } = await supabase
-      .from('products')
-      .update(payloadWithoutImage)
-      .eq('id', productId)
-      .eq('organization_id', access.organization.id))
-  }
-
-  if (error) {
+  try {
+    await db
+      .update(products)
+      .set({
+        name: parsed.name,
+        barcode: parsed.barcode,
+        availableQuantity: String(parsed.availableQuantity),
+        salePrice: String(parsed.salePrice),
+        costPrice: parsed.costPrice == null ? null : String(parsed.costPrice),
+        categoryId: parsed.categoryId,
+        subCategoryId: subCategoryResult.subCategoryId,
+        supplierId: parsed.supplierId,
+        imageUrl: imageResult.imageUrl,
+        updatedAt: new Date().toISOString(),
+      })
+      .where(
+        and(
+          eq(products.id, productId),
+          eq(products.organizationId, access.organization.id)
+        )
+      )
+  } catch (error) {
     return { error: mapProductError(error), ok: false }
   }
 
@@ -409,7 +365,7 @@ export async function updateProductAction(
   return { error: null, ok: true }
 }
 
-export async function updateProductQuickFieldsAction(
+export async function updateProductQuickFieldsAction (
   orgSlug: string,
   productId: string,
   _prevState: ProductFormState,
@@ -442,31 +398,22 @@ export async function updateProductQuickFieldsAction(
     costPrice = parsedCost
   }
 
-  const supabase = await createSupabaseServerClient()
-
-  const updatePayload = {
-    sale_price: salePrice,
-    cost_price: costPrice,
-    available_quantity: availableQuantity,
-    updated_at: new Date().toISOString(),
-  }
-
-  let { error } = await supabase
-    .from('products')
-    .update(updatePayload)
-    .eq('id', productId)
-    .eq('organization_id', access.organization.id)
-
-  if (error?.message?.includes('available_quantity')) {
-    const { available_quantity: _aq, ...legacyPayload } = updatePayload
-    ;({ error } = await supabase
-      .from('products')
-      .update(legacyPayload)
-      .eq('id', productId)
-      .eq('organization_id', access.organization.id))
-  }
-
-  if (error) {
+  try {
+    await db
+      .update(products)
+      .set({
+        salePrice: String(salePrice),
+        costPrice: costPrice == null ? null : String(costPrice),
+        availableQuantity: String(availableQuantity),
+        updatedAt: new Date().toISOString(),
+      })
+      .where(
+        and(
+          eq(products.id, productId),
+          eq(products.organizationId, access.organization.id)
+        )
+      )
+  } catch (error) {
     return { error: mapProductError(error), ok: false }
   }
 
@@ -475,7 +422,7 @@ export async function updateProductQuickFieldsAction(
   return { error: null, ok: true }
 }
 
-export async function deleteProductAction(
+export async function deleteProductAction (
   orgSlug: string,
   productId: string,
   _prevState: ProductFormState,
@@ -486,29 +433,39 @@ export async function deleteProductAction(
     return permissionDeniedState()
   }
 
-  const supabase = await createSupabaseServerClient()
+  const [existingProduct] = await db
+    .select({ imageUrl: products.imageUrl })
+    .from(products)
+    .where(
+      and(
+        eq(products.id, productId),
+        eq(products.organizationId, access.organization.id)
+      )
+    )
+    .limit(1)
 
-  const { data: existingProduct } = await supabase
-    .from('products')
-    .select('image_url')
-    .eq('id', productId)
-    .eq('organization_id', access.organization.id)
-    .maybeSingle()
-
-  const { error } = await supabase
-    .from('products')
-    .delete()
-    .eq('id', productId)
-    .eq('organization_id', access.organization.id)
-
-  if (error) {
-    const message = error.code === '23503'
+  try {
+    await db
+      .delete(products)
+      .where(
+        and(
+          eq(products.id, productId),
+          eq(products.organizationId, access.organization.id)
+        )
+      )
+  } catch (error) {
+    const err = error as { code?: string; cause?: { code?: string } }
+    const code = err.code ?? err.cause?.code
+    const message = code === '23503'
       ? 'No se puede eliminar: el producto tiene ventas, compras o movimientos de inventario asociados.'
       : mapProductError(error)
     return { error: message, ok: false }
   }
 
-  await deleteProductImageByUrl(supabase, existingProduct?.image_url)
+  if (existingProduct?.imageUrl) {
+    const supabase = await createSupabaseServerClient()
+    await deleteProductImageByUrl(supabase, existingProduct.imageUrl)
+  }
 
   revalidatePath(`/${orgSlug}/productos`)
   redirect(`/${orgSlug}/productos`)

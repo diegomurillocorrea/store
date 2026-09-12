@@ -1,0 +1,56 @@
+---
+description: Estándares del proyecto store — TypeScript, Next.js, UI y migraciones Supabase.
+alwaysApply: true
+---
+
+# Store
+
+Escribe TypeScript claro y completo. Sigue el pedido al pie de la letra. Si no sabes algo, dilo. Si hay ambigüedad o un trade-off, pregunta antes de inventar.
+
+Este Next.js no coincide con tu entrenamiento. Antes de usar APIs, lee la guía en `node_modules/next/dist/docs/` y respeta deprecations.
+
+## Cómo trabajar
+
+1. Revisa el código existente y descríbelo entre `<CODE_REVIEW>`.
+2. Planifica el cambio entre `<PLANNING>`. No renombres variables ni literales salvo que haga falta. Nombres nuevos por convención van entre `::MAYUSCULAS::`.
+3. Parte el trabajo en pasos pequeños y sugiere una prueba corta después de cada uno.
+4. Si hay riesgo de seguridad (input, auth, secretos), añade `<SECURITY_REVIEW>`.
+5. Destaca implicaciones de operación (hosting, monitoreo, mantenimiento) cuando importen.
+
+## Código
+
+- TypeScript. Patrones funcionales; sin clases. Nombres con verbo auxiliar (`isLoading`, `hasError`).
+- Archivos: componente exportado, subcomponentes, helpers, contenido estático, tipos.
+- Directorios y archivos de componente en kebab-case (`components/auth-wizard/login-form.tsx`). Named exports. Identificadores React en PascalCase; el resto camelCase.
+- Estilo Standard.js: 2 espacios, comillas simples, sin punto y coma, `===`, espacios en operadores e `if (` / `function name (`, `else` en la misma línea que `}`, llaves en `if` multilínea, manejar `err`.
+- Server Components y SSR por defecto. `'use client'`, `useEffect` y estado local solo en componentes chicos que necesiten Web APIs. No uses client components para fetch ni estado de servidor.
+- Fetching: loading y error siempre. Zustand para estado global; Context si el prop drilling duele; `nuqs` para search params. Tipos compartidos con el cliente en archivos sin `next/headers` (p. ej. `lib/data/*-types.ts`).
+- Acceso a Postgres en servidor: Drizzle (`lib/db`). Filtra siempre por `organization_id` / membresía en código (Drizzle no aplica RLS). Auth, Storage y RPCs que usan `auth.uid()` siguen con el cliente de Supabase.
+- Formularios controlados. Validación con Zod (y react-hook-form si el form es complejo). Errores esperados como valores de retorno en Server Actions. Early return, happy path al final, log + mensaje usable.
+- UI: Tailwind (mobile-first) + primitivos ya del repo (Headless UI, Radix, Shadcn). Tailwind para layout y spacing; no `@apply`. Imágenes WebP con tamaño y lazy load. HTML semántico, ARIA y teclado.
+- Define componentes con `function`. Hooks solo en top-level. Extrae custom hooks. `useCallback` / `useMemo` / `React.memo` cuando eviten trabajo real. Controlled components. Cleanup en `useEffect`.
+- Sanitiza input. `dangerouslySetInnerHTML` solo con contenido limpio. Tests con Jest y React Testing Library en flujos críticos. JSDoc solo en lógica no obvia.
+
+## Supabase
+
+Proyecto remoto: `SUPABASE_PROJECT_REF` en `.env` o `supabase/.temp/project-ref` (tras `supabase link`). No hardcodear refs.
+
+DDL y migraciones **solo** con CLI vinculada (`supabase login` + `supabase link`):
+
+```bash
+npm run db:apply -- supabase/migrations/YYYYMMDD_nombre.sql
+npm run db:apply:latest
+npm run db:query -- "SELECT 1;"
+```
+
+`db:apply` corre `npx supabase db query --linked -f <archivo.sql>` y `NOTIFY pgrst, 'reload schema'`. Incluye ese `NOTIFY` al final de DDL nuevo. Si PostgREST responde `PGRST205`:
+
+```bash
+npm run db:query -- "NOTIFY pgrst, 'reload schema';"
+```
+
+No uses, salvo pedido explícito: `supabase db push`, `SUPABASE_DB_PASSWORD`, MCP `apply_migration` / `execute_sql`, `drizzle-kit push`, ni Postgres directo en `db.xxx.supabase.co:5432`.
+
+Drizzle lee/escribe con `DATABASE_URL` (Transaction pooler, puerto 6543, solo servidor). Tras DDL nuevo, alinea `lib/db/schema.ts` (manual o `drizzle-kit pull` si hay `DATABASE_URL`).
+
+Feature con tabla/columnas: migración idempotente en `supabase/migrations/YYYYMMDDHHMMSS_descripcion.sql` → `db:apply:latest` → `db:query` → `lib/data/` + `lib/actions/` + schema Drizzle. Si `db:apply` falla por auth: `npx supabase login` y confirma el link en `supabase/.temp/linked-project.json`.

@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { eq } from 'drizzle-orm'
 import { getActionAccess, permissionDeniedState } from '@/lib/auth/access'
 import { getOrganizationBranding } from '@/lib/data/org-branding'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
@@ -11,12 +12,15 @@ import {
   parseBrandLogoUrlFromForm,
   shouldRemoveBrandLogo,
 } from '@/lib/utils/brand-logo'
+import { db } from '@/lib/db'
+import { organizationSettings } from '@/lib/db/schema'
 
 export interface BrandingFormState {
   error: string | null
   ok: boolean
 }
 
+// Storage operations stay on Supabase client (bucket access requires auth.uid())
 async function resolveBrandLogoUrl(
   formData: FormData,
   organizationId: string,
@@ -97,30 +101,30 @@ export async function updateOrganizationBrandingAction(
     return { error: 'Todos los colores deben ser hex válidos (#rgb o #rrggbb).', ok: false }
   }
 
-  const supabase = await createSupabaseServerClient()
-  const { error } = await supabase
-    .from('organization_settings')
-    .update({
-      logo_url: logoResult.logoUrl,
-      panel_wallpaper_url: wallpaperRaw.length > 0 ? wallpaperRaw : null,
-      primary_color_light: pl,
-      primary_color_dark: pd,
-      accent_color_light: al,
-      accent_color_dark: ad,
-      muted_color_light: ml,
-      muted_color_dark: md,
-      shell_background_light: sbl,
-      shell_background_dark: sbd,
-      shell_surface_light: ssl,
-      shell_surface_dark: ssd,
-      primary_color: pl,
-      accent_color: al,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('organization_id', organizationId)
-
-  if (error) {
-    return { error: error.message || 'No se pudo guardar.', ok: false }
+  try {
+    await db
+      .update(organizationSettings)
+      .set({
+        logoUrl: logoResult.logoUrl,
+        panelWallpaperUrl: wallpaperRaw.length > 0 ? wallpaperRaw : null,
+        primaryColorLight: pl,
+        primaryColorDark: pd,
+        accentColorLight: al,
+        accentColorDark: ad,
+        mutedColorLight: ml,
+        mutedColorDark: md,
+        shellBackgroundLight: sbl,
+        shellBackgroundDark: sbd,
+        shellSurfaceLight: ssl,
+        shellSurfaceDark: ssd,
+        primaryColor: pl,
+        accentColor: al,
+        updatedAt: new Date().toISOString(),
+      })
+      .where(eq(organizationSettings.organizationId, organizationId))
+  } catch (err) {
+    const message = (err as { message?: string }).message
+    return { error: message || 'No se pudo guardar.', ok: false }
   }
 
   revalidatePath(`/${orgSlug}`, 'layout')

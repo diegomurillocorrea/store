@@ -1,11 +1,14 @@
 'use server'
 
+import { and, eq } from 'drizzle-orm'
 import { seedDefaultCategories } from '@/lib/data/categories'
 import {
   cloneOwnerCatalogToOrganization,
   getOwnerCatalogSourceOrganizationId,
 } from '@/lib/data/owner-shared-entities'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
+import { db } from '@/lib/db'
+import { organizationMembers } from '@/lib/db/schema'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 
@@ -13,7 +16,7 @@ export interface CreateOrgState {
   error: string | null
 }
 
-export async function createOrganizationAction(
+export async function createOrganizationAction (
   _prevState: CreateOrgState,
   formData: FormData
 ): Promise<CreateOrgState> {
@@ -33,6 +36,7 @@ export async function createOrganizationAction(
     return { error: 'Slug inválido. Usa minúsculas, números y guiones.' }
   }
 
+  // create_organization usa auth.uid() internamente — sigue con Supabase auth + RPC
   const supabase = await createSupabaseServerClient()
   const {
     data: { user },
@@ -61,13 +65,18 @@ export async function createOrganizationAction(
 
   const sourceOrganizationId = await getOwnerCatalogSourceOrganizationId(orgId)
   if (sourceOrganizationId) {
-    const { data: targetMember } = await supabase
-      .from('organization_members')
-      .select('id')
-      .eq('organization_id', orgId)
-      .eq('user_id', user.id)
-      .eq('status', 'active')
-      .maybeSingle()
+    // Busca el member activo en la nueva organización para usarlo como creador del catálogo
+    const [targetMember] = await db
+      .select({ id: organizationMembers.id })
+      .from(organizationMembers)
+      .where(
+        and(
+          eq(organizationMembers.organizationId, orgId),
+          eq(organizationMembers.userId, user.id),
+          eq(organizationMembers.status, 'active')
+        )
+      )
+      .limit(1)
 
     await cloneOwnerCatalogToOrganization(
       sourceOrganizationId,

@@ -1,5 +1,19 @@
+import { and, eq, ilike } from 'drizzle-orm'
+import { getCurrentUser } from '@/lib/auth/current-user'
 import { ROLE_SLUGS } from '@/lib/permissions/views'
-import { createSupabaseServerClient } from '@/lib/supabase/server'
+import { db } from '@/lib/db'
+import {
+  categories,
+  customers,
+  employees,
+  memberRoles,
+  organizationMembers,
+  organizations,
+  products,
+  roles,
+  subcategories,
+  suppliers,
+} from '@/lib/db/schema'
 import { revalidatePath } from 'next/cache'
 
 export interface OwnerOrgTarget {
@@ -36,87 +50,92 @@ const CATALOG_REVALIDATE_PATHS: Record<CatalogTable, string[]> = {
 export async function getCreateFanOutTargets (
   currentOrganizationId: string
 ): Promise<OwnerOrgTarget[]> {
-  const supabase = await createSupabaseServerClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getCurrentUser()
   if (!user) return []
 
-  const { data: memberships, error } = await supabase
-    .from('organization_members')
-    .select(`
-      id,
-      organization_id,
-      organizations ( id, slug ),
-      member_roles (
-        roles ( slug )
-      )
-    `)
-    .eq('user_id', user.id)
-    .eq('status', 'active')
+  let rows: Array<{
+    memberId: string
+    organizationId: string
+    orgSlug: string | null
+    roleSlug: string | null
+  }>
 
-  if (error) {
+  try {
+    rows = await db
+      .select({
+        memberId: organizationMembers.id,
+        organizationId: organizationMembers.organizationId,
+        orgSlug: organizations.slug,
+        roleSlug: roles.slug,
+      })
+      .from(organizationMembers)
+      .innerJoin(organizations, eq(organizationMembers.organizationId, organizations.id))
+      .leftJoin(memberRoles, eq(organizationMembers.id, memberRoles.memberId))
+      .leftJoin(roles, eq(memberRoles.roleId, roles.id))
+      .where(
+        and(
+          eq(organizationMembers.userId, user.id),
+          eq(organizationMembers.status, 'active')
+        )
+      )
+  } catch (error) {
     console.error('getCreateFanOutTargets', error)
     return []
   }
 
-  type RawMembership = {
-    id: string
-    organization_id: string
-    organizations:
-      | { id: string; slug: string }
-      | { id: string; slug: string }[]
-      | null
-    member_roles:
-      | { roles: { slug: string } | { slug: string }[] | null }[]
-      | null
+  // Group flat join rows by organizationId to collect all role slugs per membership
+  const memberMap = new Map<string, { memberId: string; orgSlug: string; roleSlugs: string[] }>()
+  for (const row of rows) {
+    if (!row.orgSlug) continue
+    if (!memberMap.has(row.organizationId)) {
+      memberMap.set(row.organizationId, {
+        memberId: row.memberId,
+        orgSlug: row.orgSlug,
+        roleSlugs: [],
+      })
+    }
+    const entry = memberMap.get(row.organizationId)!
+    if (row.roleSlug) entry.roleSlugs.push(row.roleSlug)
   }
 
   const targets = new Map<string, OwnerOrgTarget>()
 
-  for (const row of (memberships ?? []) as unknown as RawMembership[]) {
-    const org = Array.isArray(row.organizations)
-      ? row.organizations[0]
-      : row.organizations
-    if (!org) continue
-
-    const roleSlugs = (row.member_roles ?? []).flatMap((mr) => {
-      const role = Array.isArray(mr.roles) ? mr.roles[0] : mr.roles
-      return role?.slug ? [role.slug] : []
-    })
-
-    const isPropietario = roleSlugs.includes(ROLE_SLUGS.propietario)
-    const isCurrent = row.organization_id === currentOrganizationId
+  for (const [orgId, entry] of memberMap.entries()) {
+    const isPropietario = entry.roleSlugs.includes(ROLE_SLUGS.propietario)
+    const isCurrent = orgId === currentOrganizationId
 
     if (!isPropietario && !isCurrent) continue
 
-    targets.set(row.organization_id, {
-      organizationId: row.organization_id,
-      memberId: row.id,
-      slug: org.slug,
+    targets.set(orgId, {
+      organizationId: orgId,
+      memberId: entry.memberId,
+      slug: entry.orgSlug,
     })
   }
 
   if (!targets.has(currentOrganizationId)) {
-    const { data: currentMember } = await supabase
-      .from('organization_members')
-      .select('id, organizations ( slug )')
-      .eq('organization_id', currentOrganizationId)
-      .eq('user_id', user.id)
-      .eq('status', 'active')
-      .maybeSingle()
+    const [currentMember] = await db
+      .select({
+        id: organizationMembers.id,
+        orgSlug: organizations.slug,
+      })
+      .from(organizationMembers)
+      .innerJoin(organizations, eq(organizationMembers.organizationId, organizations.id))
+      .where(
+        and(
+          eq(organizationMembers.organizationId, currentOrganizationId),
+          eq(organizationMembers.userId, user.id),
+          eq(organizationMembers.status, 'active')
+        )
+      )
+      .limit(1)
 
-    if (currentMember) {
-      const org = Array.isArray(currentMember.organizations)
-        ? currentMember.organizations[0]
-        : currentMember.organizations
-      if (org?.slug) {
-        targets.set(currentOrganizationId, {
-          organizationId: currentOrganizationId,
-          memberId: currentMember.id,
-          slug: org.slug,
-        })
-      }
+    if (currentMember?.orgSlug) {
+      targets.set(currentOrganizationId, {
+        organizationId: currentOrganizationId,
+        memberId: currentMember.id,
+        slug: currentMember.orgSlug,
+      })
     }
   }
 
@@ -136,24 +155,42 @@ export async function getSharedEntityRef (
     return { sharedKey: null, name: null, categorySharedKey: null, categoryName: null }
   }
 
-  const supabase = await createSupabaseServerClient()
-  const { data, error } = await supabase
-    .from(table)
-    .select('owner_shared_key, name')
-    .eq('id', entityId)
-    .eq('organization_id', organizationId)
-    .maybeSingle()
+  let ownerSharedKey: string | null = null
+  let name: string | null = null
 
-  if (error || !data) {
+  if (table === 'categories') {
+    const [row] = await db
+      .select({ ownerSharedKey: categories.ownerSharedKey, name: categories.name })
+      .from(categories)
+      .where(
+        and(
+          eq(categories.id, entityId),
+          eq(categories.organizationId, organizationId)
+        )
+      )
+      .limit(1)
+    ownerSharedKey = row?.ownerSharedKey ?? null
+    name = row?.name ?? null
+  } else {
+    const [row] = await db
+      .select({ ownerSharedKey: suppliers.ownerSharedKey, name: suppliers.name })
+      .from(suppliers)
+      .where(
+        and(
+          eq(suppliers.id, entityId),
+          eq(suppliers.organizationId, organizationId)
+        )
+      )
+      .limit(1)
+    ownerSharedKey = row?.ownerSharedKey ?? null
+    name = row?.name ?? null
+  }
+
+  if (ownerSharedKey == null && name == null) {
     return { sharedKey: null, name: null, categorySharedKey: null, categoryName: null }
   }
 
-  return {
-    sharedKey: data.owner_shared_key ?? null,
-    name: data.name ?? null,
-    categorySharedKey: null,
-    categoryName: null,
-  }
+  return { sharedKey: ownerSharedKey, name, categorySharedKey: null, categoryName: null }
 }
 
 export async function getSubCategorySharedRef (
@@ -164,29 +201,32 @@ export async function getSubCategorySharedRef (
     return { sharedKey: null, name: null, categorySharedKey: null, categoryName: null }
   }
 
-  const supabase = await createSupabaseServerClient()
-  const { data, error } = await supabase
-    .from('subcategories')
-    .select(`
-      owner_shared_key,
-      name,
-      categories ( owner_shared_key, name )
-    `)
-    .eq('id', subCategoryId)
-    .eq('organization_id', organizationId)
-    .maybeSingle()
+  const [data] = await db
+    .select({
+      ownerSharedKey: subcategories.ownerSharedKey,
+      name: subcategories.name,
+      categoryOwnerSharedKey: categories.ownerSharedKey,
+      categoryName: categories.name,
+    })
+    .from(subcategories)
+    .leftJoin(categories, eq(subcategories.categoryId, categories.id))
+    .where(
+      and(
+        eq(subcategories.id, subCategoryId),
+        eq(subcategories.organizationId, organizationId)
+      )
+    )
+    .limit(1)
 
-  if (error || !data) {
+  if (!data) {
     return { sharedKey: null, name: null, categorySharedKey: null, categoryName: null }
   }
 
-  const category = Array.isArray(data.categories) ? data.categories[0] : data.categories
-
   return {
-    sharedKey: data.owner_shared_key ?? null,
+    sharedKey: data.ownerSharedKey ?? null,
     name: data.name ?? null,
-    categorySharedKey: category?.owner_shared_key ?? null,
-    categoryName: category?.name ?? null,
+    categorySharedKey: data.categoryOwnerSharedKey ?? null,
+    categoryName: data.categoryName ?? null,
   }
 }
 
@@ -196,27 +236,32 @@ export async function resolveCategoryIdInOrg (
 ): Promise<string | null> {
   if (!ref.sharedKey && !ref.name) return null
 
-  const supabase = await createSupabaseServerClient()
-
   if (ref.sharedKey) {
-    const { data } = await supabase
-      .from('categories')
-      .select('id')
-      .eq('organization_id', organizationId)
-      .eq('owner_shared_key', ref.sharedKey)
-      .maybeSingle()
-    if (data?.id) return data.id
+    const [row] = await db
+      .select({ id: categories.id })
+      .from(categories)
+      .where(
+        and(
+          eq(categories.organizationId, organizationId),
+          eq(categories.ownerSharedKey, ref.sharedKey)
+        )
+      )
+      .limit(1)
+    if (row?.id) return row.id
   }
 
   if (ref.name) {
-    const { data } = await supabase
-      .from('categories')
-      .select('id')
-      .eq('organization_id', organizationId)
-      .ilike('name', ref.name)
+    const [row] = await db
+      .select({ id: categories.id })
+      .from(categories)
+      .where(
+        and(
+          eq(categories.organizationId, organizationId),
+          ilike(categories.name, ref.name)
+        )
+      )
       .limit(1)
-      .maybeSingle()
-    if (data?.id) return data.id
+    if (row?.id) return row.id
   }
 
   return null
@@ -234,49 +279,61 @@ export async function ensureCategoryInOrg (
 ): Promise<string | null> {
   if (!ref.sharedKey && !ref.name) return null
 
-  const supabase = await createSupabaseServerClient()
   let sharedKey = ref.sharedKey
 
   if (!sharedKey && source?.categoryId) {
     sharedKey = newOwnerSharedKey()
-    const { error: sourceKeyError } = await supabase
-      .from('categories')
-      .update({ owner_shared_key: sharedKey })
-      .eq('id', source.categoryId)
-      .eq('organization_id', source.organizationId)
-
-    if (sourceKeyError) {
+    try {
+      await db.update(categories)
+        .set({ ownerSharedKey: sharedKey })
+        .where(
+          and(
+            eq(categories.id, source.categoryId),
+            eq(categories.organizationId, source.organizationId)
+          )
+        )
+    } catch (sourceKeyError) {
       console.error('ensureCategoryInOrg source key', sourceKeyError)
       return null
     }
   }
 
   if (sharedKey) {
-    const { data: byKey } = await supabase
-      .from('categories')
-      .select('id')
-      .eq('organization_id', targetOrganizationId)
-      .eq('owner_shared_key', sharedKey)
-      .maybeSingle()
+    const [byKey] = await db
+      .select({ id: categories.id })
+      .from(categories)
+      .where(
+        and(
+          eq(categories.organizationId, targetOrganizationId),
+          eq(categories.ownerSharedKey, sharedKey)
+        )
+      )
+      .limit(1)
     if (byKey?.id) return byKey.id
   }
 
   if (ref.name) {
-    const { data: byName } = await supabase
-      .from('categories')
-      .select('id, owner_shared_key')
-      .eq('organization_id', targetOrganizationId)
-      .ilike('name', ref.name)
+    const [byName] = await db
+      .select({ id: categories.id, ownerSharedKey: categories.ownerSharedKey })
+      .from(categories)
+      .where(
+        and(
+          eq(categories.organizationId, targetOrganizationId),
+          ilike(categories.name, ref.name)
+        )
+      )
       .limit(1)
-      .maybeSingle()
 
     if (byName?.id) {
-      if (sharedKey && byName.owner_shared_key !== sharedKey) {
-        await supabase
-          .from('categories')
-          .update({ owner_shared_key: sharedKey })
-          .eq('id', byName.id)
-          .eq('organization_id', targetOrganizationId)
+      if (sharedKey && byName.ownerSharedKey !== sharedKey) {
+        await db.update(categories)
+          .set({ ownerSharedKey: sharedKey })
+          .where(
+            and(
+              eq(categories.id, byName.id),
+              eq(categories.organizationId, targetOrganizationId)
+            )
+          )
       }
       return byName.id
     }
@@ -284,23 +341,27 @@ export async function ensureCategoryInOrg (
 
   if (!ref.name) return null
 
-  const { data: inserted, error } = await supabase
-    .from('categories')
-    .insert({
-      organization_id: targetOrganizationId,
-      name: ref.name,
-      owner_shared_key: sharedKey,
-      created_by: targetMemberId,
-    })
-    .select('id')
-    .maybeSingle()
+  try {
+    const [inserted] = await db
+      .insert(categories)
+      .values({
+        organizationId: targetOrganizationId,
+        name: ref.name,
+        ownerSharedKey: sharedKey,
+        createdBy: targetMemberId,
+      })
+      .returning({ id: categories.id })
 
-  if (error || !inserted?.id) {
+    if (!inserted?.id) {
+      console.error('ensureCategoryInOrg insert: no id returned')
+      return null
+    }
+
+    return inserted.id
+  } catch (error) {
     console.error('ensureCategoryInOrg insert', error)
     return null
   }
-
-  return inserted.id
 }
 
 export async function resolveSupplierIdInOrg (
@@ -309,27 +370,32 @@ export async function resolveSupplierIdInOrg (
 ): Promise<string | null> {
   if (!ref.sharedKey && !ref.name) return null
 
-  const supabase = await createSupabaseServerClient()
-
   if (ref.sharedKey) {
-    const { data } = await supabase
-      .from('suppliers')
-      .select('id')
-      .eq('organization_id', organizationId)
-      .eq('owner_shared_key', ref.sharedKey)
-      .maybeSingle()
-    if (data?.id) return data.id
+    const [row] = await db
+      .select({ id: suppliers.id })
+      .from(suppliers)
+      .where(
+        and(
+          eq(suppliers.organizationId, organizationId),
+          eq(suppliers.ownerSharedKey, ref.sharedKey)
+        )
+      )
+      .limit(1)
+    if (row?.id) return row.id
   }
 
   if (ref.name) {
-    const { data } = await supabase
-      .from('suppliers')
-      .select('id')
-      .eq('organization_id', organizationId)
-      .ilike('name', ref.name)
+    const [row] = await db
+      .select({ id: suppliers.id })
+      .from(suppliers)
+      .where(
+        and(
+          eq(suppliers.organizationId, organizationId),
+          ilike(suppliers.name, ref.name)
+        )
+      )
       .limit(1)
-      .maybeSingle()
-    if (data?.id) return data.id
+    if (row?.id) return row.id
   }
 
   return null
@@ -342,28 +408,33 @@ export async function resolveSubCategoryIdInOrg (
 ): Promise<string | null> {
   if (!ref.sharedKey && !ref.name) return null
 
-  const supabase = await createSupabaseServerClient()
-
   if (ref.sharedKey) {
-    const { data } = await supabase
-      .from('subcategories')
-      .select('id')
-      .eq('organization_id', organizationId)
-      .eq('owner_shared_key', ref.sharedKey)
-      .maybeSingle()
-    if (data?.id) return data.id
+    const [row] = await db
+      .select({ id: subcategories.id })
+      .from(subcategories)
+      .where(
+        and(
+          eq(subcategories.organizationId, organizationId),
+          eq(subcategories.ownerSharedKey, ref.sharedKey)
+        )
+      )
+      .limit(1)
+    if (row?.id) return row.id
   }
 
   if (ref.name && categoryId) {
-    const { data } = await supabase
-      .from('subcategories')
-      .select('id')
-      .eq('organization_id', organizationId)
-      .eq('category_id', categoryId)
-      .ilike('name', ref.name)
+    const [row] = await db
+      .select({ id: subcategories.id })
+      .from(subcategories)
+      .where(
+        and(
+          eq(subcategories.organizationId, organizationId),
+          eq(subcategories.categoryId, categoryId),
+          ilike(subcategories.name, ref.name)
+        )
+      )
       .limit(1)
-      .maybeSingle()
-    if (data?.id) return data.id
+    if (row?.id) return row.id
   }
 
   return null
@@ -376,22 +447,29 @@ export async function resolveRoleIdBySlugInOrg (
 ): Promise<string | null> {
   if (!roleId) return null
 
-  const supabase = await createSupabaseServerClient()
-  const { data: sourceRole } = await supabase
-    .from('roles')
-    .select('slug')
-    .eq('id', roleId)
-    .eq('organization_id', sourceOrganizationId)
-    .maybeSingle()
+  const [sourceRole] = await db
+    .select({ slug: roles.slug })
+    .from(roles)
+    .where(
+      and(
+        eq(roles.id, roleId),
+        eq(roles.organizationId, sourceOrganizationId)
+      )
+    )
+    .limit(1)
 
   if (!sourceRole?.slug) return null
 
-  const { data: targetRole } = await supabase
-    .from('roles')
-    .select('id')
-    .eq('organization_id', organizationId)
-    .eq('slug', sourceRole.slug)
-    .maybeSingle()
+  const [targetRole] = await db
+    .select({ id: roles.id })
+    .from(roles)
+    .where(
+      and(
+        eq(roles.organizationId, organizationId),
+        eq(roles.slug, sourceRole.slug)
+      )
+    )
+    .limit(1)
 
   return targetRole?.id ?? null
 }
@@ -400,29 +478,34 @@ export async function findCategoryIdBySharedKey (
   organizationId: string,
   sharedKey: string
 ): Promise<string | null> {
-  const supabase = await createSupabaseServerClient()
-  const { data } = await supabase
-    .from('categories')
-    .select('id')
-    .eq('organization_id', organizationId)
-    .eq('owner_shared_key', sharedKey)
-    .maybeSingle()
-  return data?.id ?? null
+  const [row] = await db
+    .select({ id: categories.id })
+    .from(categories)
+    .where(
+      and(
+        eq(categories.organizationId, organizationId),
+        eq(categories.ownerSharedKey, sharedKey)
+      )
+    )
+    .limit(1)
+  return row?.id ?? null
 }
 
 export async function findCategoryIdByName (
   organizationId: string,
   name: string
 ): Promise<string | null> {
-  const supabase = await createSupabaseServerClient()
-  const { data } = await supabase
-    .from('categories')
-    .select('id')
-    .eq('organization_id', organizationId)
-    .ilike('name', name)
+  const [row] = await db
+    .select({ id: categories.id })
+    .from(categories)
+    .where(
+      and(
+        eq(categories.organizationId, organizationId),
+        ilike(categories.name, name)
+      )
+    )
     .limit(1)
-    .maybeSingle()
-  return data?.id ?? null
+  return row?.id ?? null
 }
 
 /** Revalida rutas del catálogo en todas las sucursales afectadas. */
@@ -453,359 +536,413 @@ export async function cloneOwnerCatalogToOrganization (
   targetOrganizationId: string,
   targetMemberId: string | null
 ): Promise<void> {
-  const supabase = await createSupabaseServerClient()
-
   const categoryIdMap = new Map<string, string>()
   const subCategoryIdMap = new Map<string, string>()
   const supplierIdMap = new Map<string, string>()
 
-  const { data: sourceCategories } = await supabase
-    .from('categories')
-    .select('id, name, owner_shared_key')
-    .eq('organization_id', sourceOrganizationId)
+  // ── Categories ──────────────────────────────────────────────────────────────
+  const sourceCategories = await db
+    .select({
+      id: categories.id,
+      name: categories.name,
+      ownerSharedKey: categories.ownerSharedKey,
+    })
+    .from(categories)
+    .where(eq(categories.organizationId, sourceOrganizationId))
 
-  for (const category of sourceCategories ?? []) {
-    const sharedKey = category.owner_shared_key ?? crypto.randomUUID()
+  for (const category of sourceCategories) {
+    const sharedKey = category.ownerSharedKey ?? crypto.randomUUID()
 
-    if (!category.owner_shared_key) {
-      await supabase
-        .from('categories')
-        .update({ owner_shared_key: sharedKey })
-        .eq('id', category.id)
+    if (!category.ownerSharedKey) {
+      await db.update(categories)
+        .set({ ownerSharedKey: sharedKey })
+        .where(eq(categories.id, category.id))
     }
 
-    const { data: existingByKey } = await supabase
-      .from('categories')
-      .select('id')
-      .eq('organization_id', targetOrganizationId)
-      .eq('owner_shared_key', sharedKey)
-      .maybeSingle()
+    const [existingByKey] = await db
+      .select({ id: categories.id })
+      .from(categories)
+      .where(
+        and(
+          eq(categories.organizationId, targetOrganizationId),
+          eq(categories.ownerSharedKey, sharedKey)
+        )
+      )
+      .limit(1)
 
     if (existingByKey?.id) {
       categoryIdMap.set(category.id, existingByKey.id)
       continue
     }
 
-    const { data: existingByName } = await supabase
-      .from('categories')
-      .select('id')
-      .eq('organization_id', targetOrganizationId)
-      .ilike('name', category.name)
+    const [existingByName] = await db
+      .select({ id: categories.id })
+      .from(categories)
+      .where(
+        and(
+          eq(categories.organizationId, targetOrganizationId),
+          ilike(categories.name, category.name)
+        )
+      )
       .limit(1)
-      .maybeSingle()
 
     if (existingByName?.id) {
-      await supabase
-        .from('categories')
-        .update({ owner_shared_key: sharedKey })
-        .eq('id', existingByName.id)
+      await db.update(categories)
+        .set({ ownerSharedKey: sharedKey })
+        .where(eq(categories.id, existingByName.id))
       categoryIdMap.set(category.id, existingByName.id)
       continue
     }
 
-    const { data: inserted } = await supabase
-      .from('categories')
-      .insert({
-        organization_id: targetOrganizationId,
+    const [inserted] = await db
+      .insert(categories)
+      .values({
+        organizationId: targetOrganizationId,
         name: category.name,
-        owner_shared_key: sharedKey,
-        created_by: targetMemberId,
+        ownerSharedKey: sharedKey,
+        createdBy: targetMemberId,
       })
-      .select('id')
-      .maybeSingle()
+      .returning({ id: categories.id })
 
     if (inserted?.id) {
       categoryIdMap.set(category.id, inserted.id)
     }
   }
 
-  const { data: sourceSubCategories } = await supabase
-    .from('subcategories')
-    .select('id, name, category_id, owner_shared_key')
-    .eq('organization_id', sourceOrganizationId)
+  // ── Subcategories ────────────────────────────────────────────────────────────
+  const sourceSubCategories = await db
+    .select({
+      id: subcategories.id,
+      name: subcategories.name,
+      categoryId: subcategories.categoryId,
+      ownerSharedKey: subcategories.ownerSharedKey,
+    })
+    .from(subcategories)
+    .where(eq(subcategories.organizationId, sourceOrganizationId))
 
-  for (const sub of sourceSubCategories ?? []) {
-    const targetCategoryId = categoryIdMap.get(sub.category_id)
+  for (const sub of sourceSubCategories) {
+    const targetCategoryId = categoryIdMap.get(sub.categoryId)
     if (!targetCategoryId) continue
 
-    const sharedKey = sub.owner_shared_key ?? crypto.randomUUID()
+    const sharedKey = sub.ownerSharedKey ?? crypto.randomUUID()
 
-    if (!sub.owner_shared_key) {
-      await supabase
-        .from('subcategories')
-        .update({ owner_shared_key: sharedKey })
-        .eq('id', sub.id)
+    if (!sub.ownerSharedKey) {
+      await db.update(subcategories)
+        .set({ ownerSharedKey: sharedKey })
+        .where(eq(subcategories.id, sub.id))
     }
 
-    const { data: existing } = await supabase
-      .from('subcategories')
-      .select('id')
-      .eq('organization_id', targetOrganizationId)
-      .eq('owner_shared_key', sharedKey)
-      .maybeSingle()
+    const [existing] = await db
+      .select({ id: subcategories.id })
+      .from(subcategories)
+      .where(
+        and(
+          eq(subcategories.organizationId, targetOrganizationId),
+          eq(subcategories.ownerSharedKey, sharedKey)
+        )
+      )
+      .limit(1)
 
     if (existing?.id) {
       subCategoryIdMap.set(sub.id, existing.id)
       continue
     }
 
-    const { data: inserted } = await supabase
-      .from('subcategories')
-      .insert({
-        organization_id: targetOrganizationId,
-        category_id: targetCategoryId,
+    const [inserted] = await db
+      .insert(subcategories)
+      .values({
+        organizationId: targetOrganizationId,
+        categoryId: targetCategoryId,
         name: sub.name,
-        owner_shared_key: sharedKey,
-        created_by: targetMemberId,
+        ownerSharedKey: sharedKey,
+        createdBy: targetMemberId,
       })
-      .select('id')
-      .maybeSingle()
+      .returning({ id: subcategories.id })
 
     if (inserted?.id) {
       subCategoryIdMap.set(sub.id, inserted.id)
     }
   }
 
-  const { data: sourceSuppliers } = await supabase
-    .from('suppliers')
-    .select('id, name, phone, email, notes, tax_id, owner_shared_key')
-    .eq('organization_id', sourceOrganizationId)
+  // ── Suppliers ────────────────────────────────────────────────────────────────
+  const sourceSuppliers = await db
+    .select({
+      id: suppliers.id,
+      name: suppliers.name,
+      phone: suppliers.phone,
+      email: suppliers.email,
+      notes: suppliers.notes,
+      taxId: suppliers.taxId,
+      ownerSharedKey: suppliers.ownerSharedKey,
+    })
+    .from(suppliers)
+    .where(eq(suppliers.organizationId, sourceOrganizationId))
 
-  for (const supplier of sourceSuppliers ?? []) {
-    const sharedKey = supplier.owner_shared_key ?? crypto.randomUUID()
+  for (const supplier of sourceSuppliers) {
+    const sharedKey = supplier.ownerSharedKey ?? crypto.randomUUID()
 
-    if (!supplier.owner_shared_key) {
-      await supabase
-        .from('suppliers')
-        .update({ owner_shared_key: sharedKey })
-        .eq('id', supplier.id)
+    if (!supplier.ownerSharedKey) {
+      await db.update(suppliers)
+        .set({ ownerSharedKey: sharedKey })
+        .where(eq(suppliers.id, supplier.id))
     }
 
-    const { data: existing } = await supabase
-      .from('suppliers')
-      .select('id')
-      .eq('organization_id', targetOrganizationId)
-      .eq('owner_shared_key', sharedKey)
-      .maybeSingle()
+    const [existing] = await db
+      .select({ id: suppliers.id })
+      .from(suppliers)
+      .where(
+        and(
+          eq(suppliers.organizationId, targetOrganizationId),
+          eq(suppliers.ownerSharedKey, sharedKey)
+        )
+      )
+      .limit(1)
 
     if (existing?.id) {
       supplierIdMap.set(supplier.id, existing.id)
       continue
     }
 
-    const { data: inserted } = await supabase
-      .from('suppliers')
-      .insert({
-        organization_id: targetOrganizationId,
+    const [inserted] = await db
+      .insert(suppliers)
+      .values({
+        organizationId: targetOrganizationId,
         name: supplier.name,
         phone: supplier.phone,
         email: supplier.email,
         notes: supplier.notes,
-        tax_id: supplier.tax_id,
-        owner_shared_key: sharedKey,
-        created_by: targetMemberId,
+        taxId: supplier.taxId,
+        ownerSharedKey: sharedKey,
+        createdBy: targetMemberId,
       })
-      .select('id')
-      .maybeSingle()
+      .returning({ id: suppliers.id })
 
     if (inserted?.id) {
       supplierIdMap.set(supplier.id, inserted.id)
     }
   }
 
-  const { data: sourceCustomers } = await supabase
-    .from('customers')
-    .select('id, first_name, last_name, phone, email, tax_id, credit_limit, notes, owner_shared_key')
-    .eq('organization_id', sourceOrganizationId)
+  // ── Customers ────────────────────────────────────────────────────────────────
+  const sourceCustomers = await db
+    .select({
+      id: customers.id,
+      firstName: customers.firstName,
+      lastName: customers.lastName,
+      phone: customers.phone,
+      email: customers.email,
+      taxId: customers.taxId,
+      creditLimit: customers.creditLimit,
+      notes: customers.notes,
+      ownerSharedKey: customers.ownerSharedKey,
+    })
+    .from(customers)
+    .where(eq(customers.organizationId, sourceOrganizationId))
 
-  for (const customer of sourceCustomers ?? []) {
-    const sharedKey = customer.owner_shared_key ?? crypto.randomUUID()
+  for (const customer of sourceCustomers) {
+    const sharedKey = customer.ownerSharedKey ?? crypto.randomUUID()
 
-    if (!customer.owner_shared_key) {
-      await supabase
-        .from('customers')
-        .update({ owner_shared_key: sharedKey })
-        .eq('id', customer.id)
+    if (!customer.ownerSharedKey) {
+      await db.update(customers)
+        .set({ ownerSharedKey: sharedKey })
+        .where(eq(customers.id, customer.id))
     }
 
-    const { data: existing } = await supabase
-      .from('customers')
-      .select('id')
-      .eq('organization_id', targetOrganizationId)
-      .eq('owner_shared_key', sharedKey)
-      .maybeSingle()
+    const [existing] = await db
+      .select({ id: customers.id })
+      .from(customers)
+      .where(
+        and(
+          eq(customers.organizationId, targetOrganizationId),
+          eq(customers.ownerSharedKey, sharedKey)
+        )
+      )
+      .limit(1)
 
     if (existing?.id) continue
 
-    await supabase.from('customers').insert({
-      organization_id: targetOrganizationId,
-      first_name: customer.first_name,
-      last_name: customer.last_name,
+    await db.insert(customers).values({
+      organizationId: targetOrganizationId,
+      firstName: customer.firstName,
+      lastName: customer.lastName,
       phone: customer.phone,
       email: customer.email,
-      tax_id: customer.tax_id,
-      credit_limit: customer.credit_limit,
+      taxId: customer.taxId,
+      creditLimit: customer.creditLimit,
       notes: customer.notes,
-      owner_shared_key: sharedKey,
-      created_by: targetMemberId,
+      ownerSharedKey: sharedKey,
+      createdBy: targetMemberId,
     })
   }
 
-  const { data: sourceRoles } = await supabase
-    .from('roles')
-    .select('id, slug')
-    .eq('organization_id', sourceOrganizationId)
+  // ── Roles mapping ────────────────────────────────────────────────────────────
+  const sourceRoles = await db
+    .select({ id: roles.id, slug: roles.slug })
+    .from(roles)
+    .where(eq(roles.organizationId, sourceOrganizationId))
 
-  const { data: targetRoles } = await supabase
-    .from('roles')
-    .select('id, slug')
-    .eq('organization_id', targetOrganizationId)
+  const targetRoles = await db
+    .select({ id: roles.id, slug: roles.slug })
+    .from(roles)
+    .where(eq(roles.organizationId, targetOrganizationId))
 
-  const roleIdBySlug = new Map((targetRoles ?? []).map((r) => [r.slug, r.id]))
-  const sourceRoleSlug = new Map((sourceRoles ?? []).map((r) => [r.id, r.slug]))
+  const roleIdBySlug = new Map(targetRoles.map((r) => [r.slug, r.id]))
+  const sourceRoleSlug = new Map(sourceRoles.map((r) => [r.id, r.slug]))
 
-  const { data: sourceEmployees } = await supabase
-    .from('employees')
-    .select('id, first_name, last_name, phone, email, status, role_id, user_id, owner_shared_key')
-    .eq('organization_id', sourceOrganizationId)
+  // ── Employees ────────────────────────────────────────────────────────────────
+  const sourceEmployees = await db
+    .select({
+      id: employees.id,
+      firstName: employees.firstName,
+      lastName: employees.lastName,
+      phone: employees.phone,
+      email: employees.email,
+      status: employees.status,
+      roleId: employees.roleId,
+      userId: employees.userId,
+      ownerSharedKey: employees.ownerSharedKey,
+    })
+    .from(employees)
+    .where(eq(employees.organizationId, sourceOrganizationId))
 
-  for (const employee of sourceEmployees ?? []) {
-    const roleSlug = employee.role_id ? sourceRoleSlug.get(employee.role_id) : null
+  for (const employee of sourceEmployees) {
+    const roleSlug = employee.roleId ? sourceRoleSlug.get(employee.roleId) : null
     if (roleSlug === ROLE_SLUGS.propietario) continue
 
-    const sharedKey = employee.owner_shared_key ?? crypto.randomUUID()
+    const sharedKey = employee.ownerSharedKey ?? crypto.randomUUID()
 
-    if (!employee.owner_shared_key) {
-      await supabase
-        .from('employees')
-        .update({ owner_shared_key: sharedKey })
-        .eq('id', employee.id)
+    if (!employee.ownerSharedKey) {
+      await db.update(employees)
+        .set({ ownerSharedKey: sharedKey })
+        .where(eq(employees.id, employee.id))
     }
 
-    const { data: existing } = await supabase
-      .from('employees')
-      .select('id')
-      .eq('organization_id', targetOrganizationId)
-      .eq('owner_shared_key', sharedKey)
-      .maybeSingle()
+    const [existing] = await db
+      .select({ id: employees.id })
+      .from(employees)
+      .where(
+        and(
+          eq(employees.organizationId, targetOrganizationId),
+          eq(employees.ownerSharedKey, sharedKey)
+        )
+      )
+      .limit(1)
 
     if (existing?.id) continue
 
     const targetRoleId = roleSlug ? roleIdBySlug.get(roleSlug) ?? null : null
 
-    await supabase.from('employees').insert({
-      organization_id: targetOrganizationId,
-      first_name: employee.first_name,
-      last_name: employee.last_name,
+    await db.insert(employees).values({
+      organizationId: targetOrganizationId,
+      firstName: employee.firstName,
+      lastName: employee.lastName,
       phone: employee.phone,
       email: employee.email,
       status: employee.status,
-      role_id: targetRoleId,
-      user_id: employee.user_id,
-      owner_shared_key: sharedKey,
-      created_by: targetMemberId,
+      roleId: targetRoleId,
+      userId: employee.userId,
+      ownerSharedKey: sharedKey,
+      createdBy: targetMemberId,
     })
 
-    if (!employee.user_id) continue
+    if (!employee.userId) continue
 
-    const displayName = `${employee.first_name} ${employee.last_name}`.trim()
+    const displayName = `${employee.firstName} ${employee.lastName}`.trim()
     const memberStatus = employee.status === 'active' ? 'active' : 'suspended'
 
-    const { data: existingMember } = await supabase
-      .from('organization_members')
-      .select('id')
-      .eq('organization_id', targetOrganizationId)
-      .eq('user_id', employee.user_id)
-      .maybeSingle()
+    const [existingMember] = await db
+      .select({ id: organizationMembers.id })
+      .from(organizationMembers)
+      .where(
+        and(
+          eq(organizationMembers.organizationId, targetOrganizationId),
+          eq(organizationMembers.userId, employee.userId)
+        )
+      )
+      .limit(1)
 
     let memberId = existingMember?.id ?? null
 
     if (!memberId) {
-      const { data: createdMember } = await supabase
-        .from('organization_members')
-        .insert({
-          organization_id: targetOrganizationId,
-          user_id: employee.user_id,
+      const [createdMember] = await db
+        .insert(organizationMembers)
+        .values({
+          organizationId: targetOrganizationId,
+          userId: employee.userId,
           status: memberStatus,
-          display_name: displayName || null,
+          displayName: displayName || null,
         })
-        .select('id')
-        .single()
-
+        .returning({ id: organizationMembers.id })
       memberId = createdMember?.id ?? null
     }
 
     if (memberId && targetRoleId) {
-      await supabase.from('member_roles').upsert(
-        { member_id: memberId, role_id: targetRoleId },
-        { onConflict: 'member_id,role_id' }
-      )
+      await db.insert(memberRoles)
+        .values({ memberId, roleId: targetRoleId })
+        .onConflictDoNothing()
     }
   }
 
-  const { data: sourceProducts } = await supabase
-    .from('products')
-    .select(`
-      id,
-      name,
-      sku,
-      barcode,
-      description,
-      image_url,
-      available_quantity,
-      sale_price,
-      cost_price,
-      tax_rate,
-      is_active,
-      category_id,
-      sub_category_id,
-      supplier_id,
-      owner_shared_key
-    `)
-    .eq('organization_id', sourceOrganizationId)
+  // ── Products ─────────────────────────────────────────────────────────────────
+  const sourceProducts = await db
+    .select({
+      id: products.id,
+      name: products.name,
+      sku: products.sku,
+      barcode: products.barcode,
+      description: products.description,
+      imageUrl: products.imageUrl,
+      availableQuantity: products.availableQuantity,
+      salePrice: products.salePrice,
+      costPrice: products.costPrice,
+      taxRate: products.taxRate,
+      isActive: products.isActive,
+      categoryId: products.categoryId,
+      subCategoryId: products.subCategoryId,
+      supplierId: products.supplierId,
+      ownerSharedKey: products.ownerSharedKey,
+    })
+    .from(products)
+    .where(eq(products.organizationId, sourceOrganizationId))
 
-  for (const product of sourceProducts ?? []) {
-    const sharedKey = product.owner_shared_key ?? crypto.randomUUID()
+  for (const product of sourceProducts) {
+    const sharedKey = product.ownerSharedKey ?? crypto.randomUUID()
 
-    if (!product.owner_shared_key) {
-      await supabase
-        .from('products')
-        .update({ owner_shared_key: sharedKey })
-        .eq('id', product.id)
+    if (!product.ownerSharedKey) {
+      await db.update(products)
+        .set({ ownerSharedKey: sharedKey })
+        .where(eq(products.id, product.id))
     }
 
-    const { data: existing } = await supabase
-      .from('products')
-      .select('id')
-      .eq('organization_id', targetOrganizationId)
-      .eq('owner_shared_key', sharedKey)
-      .maybeSingle()
+    const [existing] = await db
+      .select({ id: products.id })
+      .from(products)
+      .where(
+        and(
+          eq(products.organizationId, targetOrganizationId),
+          eq(products.ownerSharedKey, sharedKey)
+        )
+      )
+      .limit(1)
 
     if (existing?.id) continue
 
-    await supabase.from('products').insert({
-      organization_id: targetOrganizationId,
+    await db.insert(products).values({
+      organizationId: targetOrganizationId,
       name: product.name,
       sku: product.sku,
       barcode: product.barcode,
       description: product.description,
-      image_url: product.image_url,
-      available_quantity: product.available_quantity,
-      sale_price: product.sale_price,
-      cost_price: product.cost_price,
-      tax_rate: product.tax_rate,
-      is_active: product.is_active,
-      category_id: product.category_id
-        ? categoryIdMap.get(product.category_id) ?? null
-        : null,
-      sub_category_id: product.sub_category_id
-        ? subCategoryIdMap.get(product.sub_category_id) ?? null
-        : null,
-      supplier_id: product.supplier_id
-        ? supplierIdMap.get(product.supplier_id) ?? null
-        : null,
-      owner_shared_key: sharedKey,
-      created_by: targetMemberId,
+      imageUrl: product.imageUrl,
+      availableQuantity: product.availableQuantity,
+      salePrice: product.salePrice,
+      costPrice: product.costPrice,
+      taxRate: product.taxRate,
+      isActive: product.isActive,
+      categoryId: product.categoryId != null ? categoryIdMap.get(product.categoryId) ?? null : null,
+      subCategoryId: product.subCategoryId != null ? subCategoryIdMap.get(product.subCategoryId) ?? null : null,
+      supplierId: product.supplierId != null ? supplierIdMap.get(product.supplierId) ?? null : null,
+      ownerSharedKey: sharedKey,
+      createdBy: targetMemberId,
     })
   }
 }

@@ -1,7 +1,9 @@
 import { cache } from 'react'
+import { and, asc, eq } from 'drizzle-orm'
 import { getCurrentUser } from '@/lib/auth/current-user'
 import { getMemberPermissionCodes } from '@/lib/data/member-permissions'
-import { createSupabaseServerClient } from '@/lib/supabase/server'
+import { db } from '@/lib/db'
+import { organizationMembers, organizations } from '@/lib/db/schema'
 
 export interface OrganizationRow {
   id: string
@@ -22,89 +24,65 @@ export interface MembershipWithOrg {
   organization: OrganizationRow
 }
 
-export async function getMyOrganizations(): Promise<MembershipWithOrg[]> {
+export async function getMyOrganizations (): Promise<MembershipWithOrg[]> {
   const user = await getCurrentUser()
-  if (!user) {
-    return []
-  }
+  if (!user) return []
 
-  const supabase = await createSupabaseServerClient()
-
-  const { data, error } = await supabase
-    .from('organization_members')
-    .select(
-      `
-      id,
-      status,
-      organizations (
-        id,
-        name,
-        slug
-      )
-    `
-    )
-    .eq('user_id', user.id)
-    .order('created_at', { ascending: true })
-
-  if (error) {
-    console.error('getMyOrganizations', error)
-    return []
-  }
-
-  type RawRow = {
-    id: string
-    status: string
-    organizations: OrganizationRow | OrganizationRow[] | null
-  }
-
-  const rows = (data ?? []) as unknown as RawRow[]
-
-  return rows
-    .map((r) => {
-      const org = Array.isArray(r.organizations) ? r.organizations[0] : r.organizations
-      if (!org) return null
-      return {
-        memberId: r.id,
-        status: r.status,
-        organization: org,
-      }
+  const rows = await db
+    .select({
+      memberId: organizationMembers.id,
+      status: organizationMembers.status,
+      orgId: organizations.id,
+      orgName: organizations.name,
+      orgSlug: organizations.slug,
+      orgTimezone: organizations.timezone,
     })
-    .filter((x): x is MembershipWithOrg => x !== null)
+    .from(organizationMembers)
+    .innerJoin(organizations, eq(organizationMembers.organizationId, organizations.id))
+    .where(eq(organizationMembers.userId, user.id))
+    .orderBy(asc(organizationMembers.createdAt))
+
+  return rows.map((r) => ({
+    memberId: r.memberId,
+    status: r.status,
+    organization: {
+      id: r.orgId,
+      name: r.orgName,
+      slug: r.orgSlug,
+      timezone: r.orgTimezone,
+    },
+  }))
 }
 
-export async function getOrgAccessBySlug(slug: string): Promise<{
+export async function getOrgAccessBySlug (slug: string): Promise<{
   organization: OrganizationRow
 } | null> {
   const user = await getCurrentUser()
-  if (!user) {
-    return null
-  }
+  if (!user) return null
 
-  const supabase = await createSupabaseServerClient()
+  const [org] = await db
+    .select({ id: organizations.id, name: organizations.name, slug: organizations.slug, timezone: organizations.timezone })
+    .from(organizations)
+    .where(eq(organizations.slug, slug))
+    .limit(1)
 
-  const { data: org, error: orgError } = await supabase
-    .from('organizations')
-    .select('id, name, slug, timezone')
-    .eq('slug', slug)
-    .maybeSingle()
+  if (!org) return null
 
-  if (orgError || !org) {
-    return null
-  }
+  const [member] = await db
+    .select({ id: organizationMembers.id })
+    .from(organizationMembers)
+    .where(
+      and(
+        eq(organizationMembers.organizationId, org.id),
+        eq(organizationMembers.userId, user.id),
+        eq(organizationMembers.status, 'active')
+      )
+    )
+    .limit(1)
 
-  const { data: member, error: memError } = await supabase
-    .from('organization_members')
-    .select('id')
-    .eq('organization_id', org.id)
-    .eq('user_id', user.id)
-    .eq('status', 'active')
-    .maybeSingle()
+  if (!member) return null
 
-  if (memError || !member) {
-    return null
-  }
-
-  return { organization: org as OrganizationRow }
+  return { organization: org }
 }
 
 /** Deduplica layout + requireViewAccess en el mismo request RSC. */
@@ -112,38 +90,34 @@ export const getOrgMemberAccess = cache(async function getOrgMemberAccess (
   slug: string
 ): Promise<OrgMemberAccess | null> {
   const user = await getCurrentUser()
-  if (!user) {
-    return null
-  }
+  if (!user) return null
 
-  const supabase = await createSupabaseServerClient()
+  const [org] = await db
+    .select({ id: organizations.id, name: organizations.name, slug: organizations.slug, timezone: organizations.timezone })
+    .from(organizations)
+    .where(eq(organizations.slug, slug))
+    .limit(1)
 
-  const { data: org, error: orgError } = await supabase
-    .from('organizations')
-    .select('id, name, slug, timezone')
-    .eq('slug', slug)
-    .maybeSingle()
+  if (!org) return null
 
-  if (orgError || !org) {
-    return null
-  }
+  const [member] = await db
+    .select({ id: organizationMembers.id })
+    .from(organizationMembers)
+    .where(
+      and(
+        eq(organizationMembers.organizationId, org.id),
+        eq(organizationMembers.userId, user.id),
+        eq(organizationMembers.status, 'active')
+      )
+    )
+    .limit(1)
 
-  const { data: member, error: memError } = await supabase
-    .from('organization_members')
-    .select('id')
-    .eq('organization_id', org.id)
-    .eq('user_id', user.id)
-    .eq('status', 'active')
-    .maybeSingle()
-
-  if (memError || !member) {
-    return null
-  }
+  if (!member) return null
 
   const permissions = await getMemberPermissionCodes(member.id)
 
   return {
-    organization: org as OrganizationRow,
+    organization: org,
     memberId: member.id,
     permissions,
   }

@@ -6,7 +6,8 @@ import { getActiveMemberIdForOrganization } from '@/lib/data/categories'
 import { getOpenCashSession } from '@/lib/data/balance'
 import type { FinancialMovementType } from '@/lib/data/financial-movement-types'
 import { roundMoney } from '@/lib/utils/money'
-import { createSupabaseServerClient } from '@/lib/supabase/server'
+import { db } from '@/lib/db'
+import { financialMovements } from '@/lib/db/schema'
 
 export interface FinancialMovementFormState {
   error: string | null
@@ -69,27 +70,28 @@ export async function createFinancialMovementAction(
   }
 
   const paymentMethodRaw = String(formData.get('paymentMethod') ?? '').trim()
-  const paymentMethod = allowedMethods.has(paymentMethodRaw) ? paymentMethodRaw : null
+  const paymentMethod = allowedMethods.has(paymentMethodRaw)
+    ? (paymentMethodRaw as 'cash' | 'card' | 'transfer' | 'other')
+    : null
   const reference = String(formData.get('reference') ?? '').trim() || null
 
   const memberId = await getActiveMemberIdForOrganization(access.organization.id)
   const openSession = await getOpenCashSession(access.organization.id)
 
-  const supabase = await createSupabaseServerClient()
-  const { error } = await supabase.from('financial_movements').insert({
-    organization_id: access.organization.id,
-    cash_session_id: openSession?.id ?? null,
-    movement_type: movementType,
-    concept,
-    amount,
-    movement_date: movementDate,
-    payment_method: paymentMethod,
-    reference,
-    created_by: memberId,
-  })
-
-  if (error) {
-    console.error('createFinancialMovementAction', error)
+  try {
+    await db.insert(financialMovements).values({
+      organizationId: access.organization.id,
+      cashSessionId: openSession?.id ?? null,
+      movementType,
+      concept,
+      amount: String(amount),
+      movementDate,
+      paymentMethod,
+      reference,
+      createdBy: memberId,
+    })
+  } catch (err) {
+    console.error('createFinancialMovementAction', err)
     return initialFailure('No se pudo registrar el movimiento.')
   }
 

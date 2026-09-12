@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
+import { eq } from 'drizzle-orm'
 import { getActionAccess, permissionDeniedState } from '@/lib/auth/access'
 import { isOrganizationSlugAvailable } from '@/lib/data/org-profile'
 import {
@@ -13,7 +14,8 @@ import {
   type BusinessHours,
   type SocialLinks,
 } from '@/lib/organization/profile-types'
-import { createSupabaseServerClient } from '@/lib/supabase/server'
+import { db } from '@/lib/db'
+import { organizations, organizationSettings } from '@/lib/db/schema'
 
 export interface OrgProfileFormState {
   error: string | null
@@ -73,6 +75,7 @@ export async function checkOrganizationSlugAction(
     return { available: false, error: 'Solo minúsculas, números y guiones.' }
   }
 
+  // isOrganizationSlugAvailable uses Supabase RPC (auth.uid()-scoped)
   const available = await isOrganizationSlugAvailable(slug, access.organization.id)
   if (!available) {
     return { available: false, error: 'Ese slug ya está en uso por otra sucursal.' }
@@ -110,6 +113,7 @@ export async function updateOrganizationProfileAction(
     return { error: 'Slug inválido. Usa minúsculas, números y guiones.', ok: false }
   }
 
+  // isOrganizationSlugAvailable uses Supabase RPC (auth.uid()-scoped)
   const slugAvailable = await isOrganizationSlugAvailable(slug, access.organization.id)
   if (!slugAvailable) {
     return { error: 'Ese slug ya está en uso por otra sucursal.', ok: false }
@@ -145,40 +149,38 @@ export async function updateOrganizationProfileAction(
     }
   }
 
-  const supabase = await createSupabaseServerClient()
   const now = new Date().toISOString()
 
-  const { error: orgError } = await supabase
-    .from('organizations')
-    .update({
-      name,
-      slug,
-      updated_at: now,
-    })
-    .eq('id', access.organization.id)
-
-  if (orgError) {
-    if (orgError.code === '23505') {
+  try {
+    await db
+      .update(organizations)
+      .set({ name, slug, updatedAt: now })
+      .where(eq(organizations.id, access.organization.id))
+  } catch (err) {
+    const e = err as { code?: string; message?: string; cause?: { code?: string } }
+    const code = e.code ?? e.cause?.code
+    if (code === '23505') {
       return { error: 'Ese slug ya está en uso por otra sucursal.', ok: false }
     }
-    return { error: orgError.message || 'No se pudo actualizar la sucursal.', ok: false }
+    return { error: e.message || 'No se pudo actualizar la sucursal.', ok: false }
   }
 
-  const { error: settingsError } = await supabase
-    .from('organization_settings')
-    .update({
-      description: description || null,
-      location_address: locationAddress || null,
-      location_lat: locationLat,
-      location_lng: locationLng,
-      business_hours: businessHours,
-      social_links: socialLinks,
-      updated_at: now,
-    })
-    .eq('organization_id', access.organization.id)
-
-  if (settingsError) {
-    return { error: settingsError.message || 'No se pudo guardar la configuración.', ok: false }
+  try {
+    await db
+      .update(organizationSettings)
+      .set({
+        description: description || null,
+        locationAddress: locationAddress || null,
+        locationLat,
+        locationLng,
+        businessHours: businessHours as Record<string, unknown>,
+        socialLinks: socialLinks as Record<string, unknown>,
+        updatedAt: now,
+      })
+      .where(eq(organizationSettings.organizationId, access.organization.id))
+  } catch (err) {
+    const message = (err as { message?: string }).message
+    return { error: message || 'No se pudo guardar la configuración.', ok: false }
   }
 
   revalidatePath(`/${orgSlug}`, 'layout')

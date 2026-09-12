@@ -1,5 +1,6 @@
 'use server'
 
+import { and, eq } from 'drizzle-orm'
 import { getActionAccess, permissionDeniedState } from '@/lib/auth/access'
 import {
   ensureCategoryInOrg,
@@ -9,7 +10,8 @@ import {
   revalidateCatalogPaths,
 } from '@/lib/data/owner-shared-entities'
 import { getSubCategoryById } from '@/lib/data/subcategories'
-import { createSupabaseServerClient } from '@/lib/supabase/server'
+import { db } from '@/lib/db'
+import { categories, subcategories } from '@/lib/db/schema'
 import { revalidatePath } from 'next/cache'
 
 export interface SubCategoryFormState {
@@ -17,7 +19,7 @@ export interface SubCategoryFormState {
   ok: boolean
 }
 
-function parseSubCategoryForm(formData: FormData): { error: string } | { name: string; categoryId: string } {
+function parseSubCategoryForm (formData: FormData): { error: string } | { name: string; categoryId: string } {
   const name = String(formData.get('name') ?? '').trim()
   const categoryId = String(formData.get('categoryId') ?? '').trim()
 
@@ -32,35 +34,36 @@ function parseSubCategoryForm(formData: FormData): { error: string } | { name: s
   return { name, categoryId }
 }
 
-function mapSubCategoryError(error: { code?: string; message?: string }): string {
-  if (error.code === '23505') {
+function mapSubCategoryError (error: unknown): string {
+  const err = error as { code?: string; message?: string; cause?: { code?: string; message?: string } }
+  const code = err.code ?? err.cause?.code
+  if (code === '23505') {
     return 'Ya existe una subcategoría con ese nombre en la categoría seleccionada.'
   }
-
-  if (error.code === '23503') {
+  if (code === '23503') {
     return 'La categoría seleccionada no es válida.'
   }
-
-  return error.message || 'No se pudo guardar la subcategoría.'
+  return err.message ?? err.cause?.message ?? 'No se pudo guardar la subcategoría.'
 }
 
-async function validateCategoryBelongsToOrg(
+async function validateCategoryBelongsToOrg (
   organizationId: string,
   categoryId: string
 ): Promise<boolean> {
-  const supabase = await createSupabaseServerClient()
-  const { data, error } = await supabase
-    .from('categories')
-    .select('id')
-    .eq('organization_id', organizationId)
-    .eq('id', categoryId)
-    .maybeSingle()
-
-  if (error || !data) return false
-  return true
+  const [row] = await db
+    .select({ id: categories.id })
+    .from(categories)
+    .where(
+      and(
+        eq(categories.organizationId, organizationId),
+        eq(categories.id, categoryId)
+      )
+    )
+    .limit(1)
+  return Boolean(row?.id)
 }
 
-export async function createSubCategoryAction(
+export async function createSubCategoryAction (
   orgSlug: string,
   _prevState: SubCategoryFormState,
   formData: FormData
@@ -98,22 +101,22 @@ export async function createSubCategoryAction(
   }
 
   const sharedKey = newOwnerSharedKey()
-  const supabase = await createSupabaseServerClient()
 
   let syncedCategoryRef = categoryRef
   if (!syncedCategoryRef.sharedKey) {
     const categorySharedKey = newOwnerSharedKey()
-    const { error: linkError } = await supabase
-      .from('categories')
-      .update({ owner_shared_key: categorySharedKey })
-      .eq('id', parsed.categoryId)
-      .eq('organization_id', access.organization.id)
-
-    if (linkError) {
-      return {
-        error: linkError.message || 'No se pudo sincronizar la categoría.',
-        ok: false,
-      }
+    try {
+      await db.update(categories)
+        .set({ ownerSharedKey: categorySharedKey })
+        .where(
+          and(
+            eq(categories.id, parsed.categoryId),
+            eq(categories.organizationId, access.organization.id)
+          )
+        )
+    } catch (linkErr) {
+      const e = linkErr as { message?: string; cause?: { message?: string } }
+      return { error: e.message ?? e.cause?.message ?? 'No se pudo sincronizar la categoría.', ok: false }
     }
 
     syncedCategoryRef = {
@@ -134,21 +137,20 @@ export async function createSubCategoryAction(
 
     if (!categoryId) {
       return {
-        error:
-          'No se pudo sincronizar la categoría en todas las sucursales. Intenta de nuevo.',
+        error: 'No se pudo sincronizar la categoría en todas las sucursales. Intenta de nuevo.',
         ok: false,
       }
     }
 
-    const { error } = await supabase.from('subcategories').insert({
-      organization_id: target.organizationId,
-      category_id: categoryId,
-      name: parsed.name,
-      owner_shared_key: sharedKey,
-      created_by: target.memberId,
-    })
-
-    if (error) {
+    try {
+      await db.insert(subcategories).values({
+        organizationId: target.organizationId,
+        categoryId: categoryId,
+        name: parsed.name,
+        ownerSharedKey: sharedKey,
+        createdBy: target.memberId,
+      })
+    } catch (error) {
       return { error: mapSubCategoryError(error), ok: false }
     }
   }
@@ -157,7 +159,7 @@ export async function createSubCategoryAction(
   return { error: null, ok: true }
 }
 
-export async function updateSubCategoryAction(
+export async function updateSubCategoryAction (
   orgSlug: string,
   _prevState: SubCategoryFormState,
   formData: FormData
@@ -185,24 +187,22 @@ export async function updateSubCategoryAction(
     return { error: 'La categoría seleccionada no es válida.', ok: false }
   }
 
-  const supabase = await createSupabaseServerClient()
-  const { data, error } = await supabase
-    .from('subcategories')
-    .update({
-      name: parsed.name,
-      category_id: parsed.categoryId,
-    })
-    .eq('id', subCategoryId)
-    .eq('organization_id', access.organization.id)
-    .select('id')
-    .maybeSingle()
+  try {
+    const [updated] = await db.update(subcategories)
+      .set({ name: parsed.name, categoryId: parsed.categoryId })
+      .where(
+        and(
+          eq(subcategories.id, subCategoryId),
+          eq(subcategories.organizationId, access.organization.id)
+        )
+      )
+      .returning({ id: subcategories.id })
 
-  if (error) {
+    if (!updated) {
+      return { error: 'No se encontró la subcategoría.', ok: false }
+    }
+  } catch (error) {
     return { error: mapSubCategoryError(error), ok: false }
-  }
-
-  if (!data) {
-    return { error: 'No se encontró la subcategoría.', ok: false }
   }
 
   revalidatePath(`/${orgSlug}/categorias/sub-categorias`)
@@ -210,7 +210,7 @@ export async function updateSubCategoryAction(
   return { error: null, ok: true }
 }
 
-export async function deleteSubCategoryAction(
+export async function deleteSubCategoryAction (
   orgSlug: string,
   subCategoryId: string,
   _prevState: SubCategoryFormState,
@@ -221,15 +221,21 @@ export async function deleteSubCategoryAction(
     return permissionDeniedState()
   }
 
-  const supabase = await createSupabaseServerClient()
-  const { error } = await supabase
-    .from('subcategories')
-    .delete()
-    .eq('id', subCategoryId)
-    .eq('organization_id', access.organization.id)
-
-  if (error) {
-    return { error: error.message || 'No se pudo eliminar la subcategoría.', ok: false }
+  try {
+    await db.delete(subcategories)
+      .where(
+        and(
+          eq(subcategories.id, subCategoryId),
+          eq(subcategories.organizationId, access.organization.id)
+        )
+      )
+  } catch (error) {
+    const err = error as { code?: string; message?: string; cause?: { code?: string; message?: string } }
+    const code = err.code ?? err.cause?.code
+    const message = code === '23503'
+      ? 'No se puede eliminar: la subcategoría tiene productos asociados.'
+      : err.message ?? err.cause?.message ?? 'No se pudo eliminar la subcategoría.'
+    return { error: message, ok: false }
   }
 
   revalidatePath(`/${orgSlug}/categorias/sub-categorias`)
@@ -237,7 +243,7 @@ export async function deleteSubCategoryAction(
   return { error: null, ok: true }
 }
 
-export async function validateProductSubCategory(
+export async function validateProductSubCategory (
   organizationId: string,
   categoryId: string | null,
   subCategoryId: string | null

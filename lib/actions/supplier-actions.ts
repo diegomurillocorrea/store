@@ -1,12 +1,14 @@
 'use server'
 
+import { and, eq } from 'drizzle-orm'
 import { getActionAccess, permissionDeniedState } from '@/lib/auth/access'
 import {
   getCreateFanOutTargets,
   newOwnerSharedKey,
   revalidateCatalogPaths,
 } from '@/lib/data/owner-shared-entities'
-import { createSupabaseServerClient } from '@/lib/supabase/server'
+import { db } from '@/lib/db'
+import { suppliers } from '@/lib/db/schema'
 import { parsePhoneFormValue } from '@/lib/utils/phone'
 import { revalidatePath } from 'next/cache'
 
@@ -21,7 +23,16 @@ interface ParsedSupplierForm {
   email: string | null
 }
 
-function parseSupplierForm(formData: FormData): { error: string } | ParsedSupplierForm {
+function mapDbError (error: unknown, fallback: string): string {
+  const err = error as { code?: string; message?: string; cause?: { code?: string; message?: string } }
+  const code = err.code ?? err.cause?.code
+  if (code === '23503') {
+    return 'No se puede eliminar: el proveedor tiene compras o cuentas por pagar asociadas.'
+  }
+  return err.message ?? err.cause?.message ?? fallback
+}
+
+function parseSupplierForm (formData: FormData): { error: string } | ParsedSupplierForm {
   const name = String(formData.get('name') ?? '').trim()
   const phoneRaw = String(formData.get('phone') ?? '').trim()
   const emailRaw = String(formData.get('email') ?? '').trim()
@@ -44,7 +55,7 @@ function parseSupplierForm(formData: FormData): { error: string } | ParsedSuppli
   return { name, phone: parsedPhone.phone, email }
 }
 
-export async function createSupplierAction(
+export async function createSupplierAction (
   orgSlug: string,
   _prevState: SupplierFormState,
   formData: FormData
@@ -65,38 +76,27 @@ export async function createSupplierAction(
   }
 
   const sharedKey = newOwnerSharedKey()
-  const supabase = await createSupabaseServerClient()
 
-  for (const target of targets) {
-    const payload = {
-      organization_id: target.organizationId,
-      name: parsed.name,
-      phone: parsed.phone,
-      email: parsed.email,
-      owner_shared_key: sharedKey,
-      created_by: target.memberId,
+  try {
+    for (const target of targets) {
+      await db.insert(suppliers).values({
+        organizationId: target.organizationId,
+        name: parsed.name,
+        phone: parsed.phone,
+        email: parsed.email,
+        ownerSharedKey: sharedKey,
+        createdBy: target.memberId,
+      })
     }
-
-    let { error } = await supabase.from('suppliers').insert(payload)
-
-    if (error?.message?.includes('created_by')) {
-      const { created_by: _ignored, ...payloadWithoutCreator } = payload
-      ;({ error } = await supabase.from('suppliers').insert(payloadWithoutCreator))
-    } else if (error?.message?.includes('owner_shared_key')) {
-      const { owner_shared_key: _key, ...payloadWithoutKey } = payload
-      ;({ error } = await supabase.from('suppliers').insert(payloadWithoutKey))
-    }
-
-    if (error) {
-      return { error: error.message || 'No se pudo crear el proveedor.', ok: false }
-    }
+  } catch (error) {
+    return { error: mapDbError(error, 'No se pudo crear el proveedor.'), ok: false }
   }
 
   revalidateCatalogPaths(targets, 'suppliers', orgSlug)
   return { error: null, ok: true }
 }
 
-export async function updateSupplierAction(
+export async function updateSupplierAction (
   orgSlug: string,
   supplierId: string,
   _prevState: SupplierFormState,
@@ -112,27 +112,30 @@ export async function updateSupplierAction(
     return { error: parsed.error, ok: false }
   }
 
-  const supabase = await createSupabaseServerClient()
-  const { error } = await supabase
-    .from('suppliers')
-    .update({
-      name: parsed.name,
-      phone: parsed.phone,
-      email: parsed.email,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', supplierId)
-    .eq('organization_id', access.organization.id)
-
-  if (error) {
-    return { error: error.message || 'No se pudo actualizar el proveedor.', ok: false }
+  try {
+    await db
+      .update(suppliers)
+      .set({
+        name: parsed.name,
+        phone: parsed.phone,
+        email: parsed.email,
+        updatedAt: new Date().toISOString(),
+      })
+      .where(
+        and(
+          eq(suppliers.id, supplierId),
+          eq(suppliers.organizationId, access.organization.id)
+        )
+      )
+  } catch (error) {
+    return { error: mapDbError(error, 'No se pudo actualizar el proveedor.'), ok: false }
   }
 
   revalidatePath(`/${orgSlug}/proveedores`)
   return { error: null, ok: true }
 }
 
-export async function deleteSupplierAction(
+export async function deleteSupplierAction (
   orgSlug: string,
   supplierId: string,
   _prevState: SupplierFormState,
@@ -143,18 +146,17 @@ export async function deleteSupplierAction(
     return permissionDeniedState()
   }
 
-  const supabase = await createSupabaseServerClient()
-  const { error } = await supabase
-    .from('suppliers')
-    .delete()
-    .eq('id', supplierId)
-    .eq('organization_id', access.organization.id)
-
-  if (error) {
-    const message = error.code === '23503'
-      ? 'No se puede eliminar: el proveedor tiene compras o cuentas por pagar asociadas.'
-      : error.message || 'No se pudo eliminar el proveedor.'
-    return { error: message, ok: false }
+  try {
+    await db
+      .delete(suppliers)
+      .where(
+        and(
+          eq(suppliers.id, supplierId),
+          eq(suppliers.organizationId, access.organization.id)
+        )
+      )
+  } catch (error) {
+    return { error: mapDbError(error, 'No se pudo eliminar el proveedor.'), ok: false }
   }
 
   revalidatePath(`/${orgSlug}/proveedores`)

@@ -1,4 +1,5 @@
 import { cache } from 'react'
+import { and, asc, count, eq, inArray } from 'drizzle-orm'
 import {
   buildPermissionCode,
   getAllViewPermissionCodes,
@@ -12,6 +13,8 @@ import {
   type RoleSlug,
 } from '@/lib/permissions/views'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
+import { db } from '@/lib/db'
+import { memberRoles, rolePermissions, roles } from '@/lib/db/schema'
 import type { OrganizationRow } from '@/lib/data/organizations'
 
 export interface RoleWithPermissions {
@@ -30,41 +33,25 @@ export interface RolesPermissionsSnapshot {
 export const getMemberPermissionCodes = cache(async function getMemberPermissionCodes (
   memberId: string
 ): Promise<Set<string>> {
-  const supabase = await createSupabaseServerClient()
+  const memberRoleRows = await db
+    .select({ roleId: memberRoles.roleId })
+    .from(memberRoles)
+    .where(eq(memberRoles.memberId, memberId))
 
-  const { data: memberRoles, error: rolesError } = await supabase
-    .from('member_roles')
-    .select('role_id')
-    .eq('member_id', memberId)
+  const roleIds = memberRoleRows.map((r) => r.roleId)
+  if (roleIds.length === 0) return new Set()
 
-  if (rolesError) {
-    console.error('getMemberPermissionCodes.member_roles', rolesError)
-    return new Set()
-  }
+  const [roleRows, permRows] = await Promise.all([
+    db.select({ id: roles.id, slug: roles.slug }).from(roles).where(inArray(roles.id, roleIds)),
+    db
+      .select({ permissionCode: rolePermissions.permissionCode })
+      .from(rolePermissions)
+      .where(inArray(rolePermissions.roleId, roleIds)),
+  ])
 
-  const roleIds = (memberRoles ?? []).map((row) => row.role_id)
-  if (roleIds.length === 0) {
-    return new Set()
-  }
+  const codes = new Set(permRows.map((r) => r.permissionCode))
 
-  const [{ data: roles, error: slugError }, { data: rolePermissions, error: permError }] =
-    await Promise.all([
-      supabase.from('roles').select('id, slug').in('id', roleIds),
-      supabase.from('role_permissions').select('permission_code').in('role_id', roleIds),
-    ])
-
-  if (slugError) {
-    console.error('getMemberPermissionCodes.roles', slugError)
-  }
-
-  if (permError) {
-    console.error('getMemberPermissionCodes.role_permissions', permError)
-    return new Set()
-  }
-
-  const codes = new Set((rolePermissions ?? []).map((row) => row.permission_code))
-
-  if ((roles ?? []).some((role) => role.slug === ROLE_SLUGS.propietario)) {
+  if (roleRows.some((role) => role.slug === ROLE_SLUGS.propietario)) {
     for (const code of getAllViewPermissionCodes()) {
       codes.add(code)
     }
@@ -73,116 +60,105 @@ export const getMemberPermissionCodes = cache(async function getMemberPermission
   return codes
 })
 
-export async function memberHasRoleSlug(
+export async function memberHasRoleSlug (
   memberId: string,
   organizationId: string,
   roleSlug: RoleSlug
 ): Promise<boolean> {
-  const supabase = await createSupabaseServerClient()
+  const memberRoleRows = await db
+    .select({ roleId: memberRoles.roleId })
+    .from(memberRoles)
+    .where(eq(memberRoles.memberId, memberId))
 
-  const { data: memberRoles, error: memberRolesError } = await supabase
-    .from('member_roles')
-    .select('role_id')
-    .eq('member_id', memberId)
+  if (!memberRoleRows.length) return false
 
-  if (memberRolesError || !memberRoles?.length) {
-    return false
-  }
+  const roleIds = memberRoleRows.map((r) => r.roleId)
 
-  const roleIds = memberRoles.map((row) => row.role_id)
-  const { data: role, error: roleError } = await supabase
-    .from('roles')
-    .select('id')
-    .eq('organization_id', organizationId)
-    .eq('slug', roleSlug)
-    .in('id', roleIds)
-    .maybeSingle()
+  const rows = await db
+    .select({ id: roles.id })
+    .from(roles)
+    .where(
+      and(
+        eq(roles.organizationId, organizationId),
+        eq(roles.slug, roleSlug),
+        inArray(roles.id, roleIds)
+      )
+    )
+    .limit(1)
 
-  if (roleError) {
-    console.error('memberHasRoleSlug', roleError)
-    return false
-  }
-
-  return role !== null
+  return rows.length > 0
 }
 
-export async function isMemberPropietario(
+export async function isMemberPropietario (
   memberId: string,
   organizationId: string
 ): Promise<boolean> {
   return memberHasRoleSlug(memberId, organizationId, ROLE_SLUGS.propietario)
 }
 
-export async function getRolesPermissionsByOrganizationId(
+export async function getRolesPermissionsByOrganizationId (
   organizationId: string
 ): Promise<RolesPermissionsSnapshot> {
-  const supabase = await createSupabaseServerClient()
+  const roleRows = await db
+    .select({ id: roles.id, name: roles.name, slug: roles.slug, isSystem: roles.isSystem })
+    .from(roles)
+    .where(
+      and(
+        eq(roles.organizationId, organizationId),
+        inArray(roles.slug, [...SYSTEM_ROLE_SLUGS])
+      )
+    )
+    .orderBy(asc(roles.name))
 
-  const { data: roles, error: rolesError } = await supabase
-    .from('roles')
-    .select('id, name, slug, is_system')
-    .eq('organization_id', organizationId)
-    .in('slug', [...SYSTEM_ROLE_SLUGS])
-    .order('name', { ascending: true })
-
-  if (rolesError) {
-    console.error('getRolesPermissionsByOrganizationId.roles', rolesError)
+  if (roleRows.length === 0) {
     return { roles: [], allPermissionCodes: getAllViewPermissionCodes() }
   }
 
-  const roleIds = (roles ?? []).map((role) => role.id)
-  if (roleIds.length === 0) {
-    return { roles: [], allPermissionCodes: getAllViewPermissionCodes() }
-  }
+  const roleIds = roleRows.map((r) => r.id)
 
-  const { data: rolePermissions, error: permError } = await supabase
-    .from('role_permissions')
-    .select('role_id, permission_code')
-    .in('role_id', roleIds)
-
-  if (permError) {
-    console.error('getRolesPermissionsByOrganizationId.role_permissions', permError)
-    return { roles: [], allPermissionCodes: getAllViewPermissionCodes() }
-  }
+  const permRows = await db
+    .select({ roleId: rolePermissions.roleId, permissionCode: rolePermissions.permissionCode })
+    .from(rolePermissions)
+    .where(inArray(rolePermissions.roleId, roleIds))
 
   const permissionsByRole = new Map<string, Set<string>>()
-  for (const row of rolePermissions ?? []) {
-    const current = permissionsByRole.get(row.role_id) ?? new Set<string>()
-    current.add(row.permission_code)
-    permissionsByRole.set(row.role_id, current)
+  for (const row of permRows) {
+    const current = permissionsByRole.get(row.roleId) ?? new Set<string>()
+    current.add(row.permissionCode)
+    permissionsByRole.set(row.roleId, current)
   }
 
   return {
-    roles: (roles ?? []).map((role) => ({
+    roles: roleRows.map((role) => ({
       id: role.id,
       name: role.name,
       slug: role.slug,
-      isSystem: role.is_system,
+      isSystem: role.isSystem,
       permissions: permissionsByRole.get(role.id) ?? new Set<string>(),
     })),
     allPermissionCodes: getAllViewPermissionCodes(),
   }
 }
 
-export async function updateRolePermissions(
+export async function updateRolePermissions (
   organizationId: string,
   roleId: string,
   permissionCodes: string[]
 ): Promise<{ error: string | null }> {
-  const supabase = await createSupabaseServerClient()
   const allowedCodes = new Set(getAllViewPermissionCodes())
   const normalizedCodes = [...new Set(permissionCodes.filter((code) => allowedCodes.has(code)))]
 
-  const { data: role, error: roleError } = await supabase
-    .from('roles')
-    .select('id, slug, is_system')
-    .eq('id', roleId)
-    .eq('organization_id', organizationId)
-    .maybeSingle()
+  const roleRows = await db
+    .select({ id: roles.id, slug: roles.slug, isSystem: roles.isSystem })
+    .from(roles)
+    .where(and(eq(roles.id, roleId), eq(roles.organizationId, organizationId)))
+    .limit(1)
 
-  if (roleError || !role) {
+  if (!roleRows.length) {
     return { error: 'Rol no encontrado.' }
   }
+
+  const role = roleRows[0]
 
   if (isLockedRoleSlug(role.slug)) {
     return { error: 'Los permisos de Propietario no se pueden modificar.' }
@@ -192,21 +168,25 @@ export async function updateRolePermissions(
     return { error: 'Este rol no se puede modificar.' }
   }
 
-  const viewCodes = normalizedCodes.filter((code) => PERMISSION_VIEWS.some((view) => code.startsWith(`${view.id}.`)))
+  const viewCodes = normalizedCodes.filter((code) =>
+    PERMISSION_VIEWS.some((view) => code.startsWith(`${view.id}.`))
+  )
 
-  const { error: deleteError } = await supabase
-    .from('role_permissions')
-    .delete()
-    .eq('role_id', roleId)
-    .in(
-      'permission_code',
-      PERMISSION_VIEWS.flatMap((view) =>
-        PERMISSION_ACTIONS.map((action: PermissionAction) => buildPermissionCode(view.id, action))
+  const codesToDelete = PERMISSION_VIEWS.flatMap((view) =>
+    PERMISSION_ACTIONS.map((action: PermissionAction) => buildPermissionCode(view.id, action))
+  )
+
+  try {
+    await db
+      .delete(rolePermissions)
+      .where(
+        and(
+          eq(rolePermissions.roleId, roleId),
+          inArray(rolePermissions.permissionCode, codesToDelete)
+        )
       )
-    )
-
-  if (deleteError) {
-    console.error('updateRolePermissions.delete', deleteError)
+  } catch (err) {
+    console.error('updateRolePermissions.delete', err)
     return { error: 'No se pudieron actualizar los permisos.' }
   }
 
@@ -214,46 +194,39 @@ export async function updateRolePermissions(
     return { error: null }
   }
 
-  const { error: insertError } = await supabase.from('role_permissions').insert(
-    viewCodes.map((permissionCode) => ({
-      role_id: roleId,
-      permission_code: permissionCode,
-    }))
-  )
-
-  if (insertError) {
-    console.error('updateRolePermissions.insert', insertError)
+  try {
+    await db.insert(rolePermissions).values(
+      viewCodes.map((permissionCode) => ({ roleId, permissionCode }))
+    )
+  } catch (err) {
+    console.error('updateRolePermissions.insert', err)
     return { error: 'No se pudieron guardar los permisos.' }
   }
 
   return { error: null }
 }
 
-export async function organizationHasSystemRoles(organizationId: string): Promise<boolean> {
-  const supabase = await createSupabaseServerClient()
+export async function organizationHasSystemRoles (organizationId: string): Promise<boolean> {
+  const [{ total }] = await db
+    .select({ total: count() })
+    .from(roles)
+    .where(
+      and(
+        eq(roles.organizationId, organizationId),
+        inArray(roles.slug, [...SYSTEM_ROLE_SLUGS])
+      )
+    )
 
-  const { count, error } = await supabase
-    .from('roles')
-    .select('id', { count: 'exact', head: true })
-    .eq('organization_id', organizationId)
-    .in('slug', [...SYSTEM_ROLE_SLUGS])
-
-  if (error) {
-    console.error('organizationHasSystemRoles', error.message ?? error)
-    return false
-  }
-
-  return (count ?? 0) >= SYSTEM_ROLE_SLUGS.length
+  return Number(total) >= SYSTEM_ROLE_SLUGS.length
 }
 
-export async function ensureOrganizationRolesSeeded(
+export async function ensureOrganizationRolesSeeded (
   organizationId: string
 ): Promise<void> {
   const hasRoles = await organizationHasSystemRoles(organizationId)
-  if (hasRoles) {
-    return
-  }
+  if (hasRoles) return
 
+  // seed_organization_roles usa auth.uid() internamente — sigue con Supabase RPC
   const supabase = await createSupabaseServerClient()
   const { data, error } = await supabase.rpc('seed_organization_roles', {
     p_org_id: organizationId,

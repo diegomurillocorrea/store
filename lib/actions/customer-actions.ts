@@ -1,12 +1,14 @@
 'use server'
 
+import { and, eq } from 'drizzle-orm'
 import { getActionAccess, permissionDeniedState } from '@/lib/auth/access'
 import {
   getCreateFanOutTargets,
   newOwnerSharedKey,
   revalidateCatalogPaths,
 } from '@/lib/data/owner-shared-entities'
-import { createSupabaseServerClient } from '@/lib/supabase/server'
+import { db } from '@/lib/db'
+import { customers } from '@/lib/db/schema'
 import { parsePhoneFormValue } from '@/lib/utils/phone'
 import { revalidatePath } from 'next/cache'
 
@@ -22,23 +24,16 @@ interface ParsedCustomerForm {
   email: string | null
 }
 
-function isMissingCustomerNameColumns(error: { code?: string; message?: string } | null): boolean {
-  if (!error) return false
-
-  return (
-    error.code === '42703' ||
-    error.code === 'PGRST200' ||
-    error.code === 'PGRST204' ||
-    Boolean(error.message?.includes('first_name')) ||
-    Boolean(error.message?.includes('schema cache'))
-  )
+function mapDbError (error: unknown, fallback: string): string {
+  const err = error as { code?: string; message?: string; cause?: { code?: string; message?: string } }
+  const code = err.code ?? err.cause?.code
+  if (code === '23503') {
+    return 'No se puede eliminar: el cliente tiene ventas o cuentas por cobrar asociadas.'
+  }
+  return err.message ?? err.cause?.message ?? fallback
 }
 
-function buildCustomerFullName(firstName: string, lastName: string): string {
-  return [firstName, lastName].filter(Boolean).join(' ').trim()
-}
-
-function parseCustomerForm(formData: FormData): { error: string } | ParsedCustomerForm {
+function parseCustomerForm (formData: FormData): { error: string } | ParsedCustomerForm {
   const firstName = String(formData.get('firstName') ?? '').trim()
   const lastName = String(formData.get('lastName') ?? '').trim()
   const phoneRaw = String(formData.get('phone') ?? '').trim()
@@ -66,7 +61,7 @@ function parseCustomerForm(formData: FormData): { error: string } | ParsedCustom
   return { firstName, lastName, phone: parsedPhone.phone, email }
 }
 
-export async function createCustomerAction(
+export async function createCustomerAction (
   orgSlug: string,
   _prevState: CustomerFormState,
   formData: FormData
@@ -87,58 +82,28 @@ export async function createCustomerAction(
   }
 
   const sharedKey = newOwnerSharedKey()
-  const supabase = await createSupabaseServerClient()
-  const fullName = buildCustomerFullName(parsed.firstName, parsed.lastName)
 
-  for (const target of targets) {
-    let { error } = await supabase.from('customers').insert({
-      organization_id: target.organizationId,
-      first_name: parsed.firstName,
-      last_name: parsed.lastName,
-      phone: parsed.phone,
-      email: parsed.email,
-      owner_shared_key: sharedKey,
-      created_by: target.memberId,
-    })
-
-    if (isMissingCustomerNameColumns(error)) {
-      ;({ error } = await supabase.from('customers').insert({
-        organization_id: target.organizationId,
-        name: fullName,
+  try {
+    for (const target of targets) {
+      await db.insert(customers).values({
+        organizationId: target.organizationId,
+        firstName: parsed.firstName,
+        lastName: parsed.lastName,
         phone: parsed.phone,
         email: parsed.email,
-        owner_shared_key: sharedKey,
-      }))
-    } else if (error?.message?.includes('created_by')) {
-      ;({ error } = await supabase.from('customers').insert({
-        organization_id: target.organizationId,
-        first_name: parsed.firstName,
-        last_name: parsed.lastName,
-        phone: parsed.phone,
-        email: parsed.email,
-        owner_shared_key: sharedKey,
-      }))
-    } else if (error?.message?.includes('owner_shared_key')) {
-      ;({ error } = await supabase.from('customers').insert({
-        organization_id: target.organizationId,
-        first_name: parsed.firstName,
-        last_name: parsed.lastName,
-        phone: parsed.phone,
-        email: parsed.email,
-        created_by: target.memberId,
-      }))
+        ownerSharedKey: sharedKey,
+        createdBy: target.memberId,
+      })
     }
-
-    if (error) {
-      return { error: error.message || 'No se pudo crear el cliente.', ok: false }
-    }
+  } catch (error) {
+    return { error: mapDbError(error, 'No se pudo crear el cliente.'), ok: false }
   }
 
   revalidateCatalogPaths(targets, 'customers', orgSlug)
   return { error: null, ok: true }
 }
 
-export async function updateCustomerAction(
+export async function updateCustomerAction (
   orgSlug: string,
   customerId: string,
   _prevState: CustomerFormState,
@@ -154,43 +119,31 @@ export async function updateCustomerAction(
     return { error: parsed.error, ok: false }
   }
 
-  const supabase = await createSupabaseServerClient()
-  const fullName = buildCustomerFullName(parsed.firstName, parsed.lastName)
-
-  let { error } = await supabase
-    .from('customers')
-    .update({
-      first_name: parsed.firstName,
-      last_name: parsed.lastName,
-      phone: parsed.phone,
-      email: parsed.email,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', customerId)
-    .eq('organization_id', access.organization.id)
-
-  if (isMissingCustomerNameColumns(error)) {
-    ;({ error } = await supabase
-      .from('customers')
-      .update({
-        name: fullName,
+  try {
+    await db
+      .update(customers)
+      .set({
+        firstName: parsed.firstName,
+        lastName: parsed.lastName,
         phone: parsed.phone,
         email: parsed.email,
-        updated_at: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       })
-      .eq('id', customerId)
-      .eq('organization_id', access.organization.id))
-  }
-
-  if (error) {
-    return { error: error.message || 'No se pudo actualizar el cliente.', ok: false }
+      .where(
+        and(
+          eq(customers.id, customerId),
+          eq(customers.organizationId, access.organization.id)
+        )
+      )
+  } catch (error) {
+    return { error: mapDbError(error, 'No se pudo actualizar el cliente.'), ok: false }
   }
 
   revalidatePath(`/${orgSlug}/clientes`)
   return { error: null, ok: true }
 }
 
-export async function deleteCustomerAction(
+export async function deleteCustomerAction (
   orgSlug: string,
   customerId: string,
   _prevState: CustomerFormState,
@@ -201,18 +154,17 @@ export async function deleteCustomerAction(
     return permissionDeniedState()
   }
 
-  const supabase = await createSupabaseServerClient()
-  const { error } = await supabase
-    .from('customers')
-    .delete()
-    .eq('id', customerId)
-    .eq('organization_id', access.organization.id)
-
-  if (error) {
-    const message = error.code === '23503'
-      ? 'No se puede eliminar: el cliente tiene ventas o cuentas por cobrar asociadas.'
-      : error.message || 'No se pudo eliminar el cliente.'
-    return { error: message, ok: false }
+  try {
+    await db
+      .delete(customers)
+      .where(
+        and(
+          eq(customers.id, customerId),
+          eq(customers.organizationId, access.organization.id)
+        )
+      )
+  } catch (error) {
+    return { error: mapDbError(error, 'No se pudo eliminar el cliente.'), ok: false }
   }
 
   revalidatePath(`/${orgSlug}/clientes`)

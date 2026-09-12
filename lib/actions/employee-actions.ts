@@ -1,5 +1,6 @@
 'use server'
 
+import { and, eq } from 'drizzle-orm'
 import { getActionAccess, permissionDeniedState } from '@/lib/auth/access'
 import type { EmployeeStatus } from '@/lib/data/employee-types'
 import {
@@ -13,6 +14,8 @@ import {
   isPropietarioRoleForOrganization,
 } from '@/lib/data/roles'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
+import { db } from '@/lib/db'
+import { employees, memberRoles, organizationMembers } from '@/lib/db/schema'
 import { parsePhoneFormValue } from '@/lib/utils/phone'
 import { revalidatePath } from 'next/cache'
 
@@ -37,7 +40,7 @@ interface ParsedCreateEmployeeForm extends ParsedEmployeeForm {
 
 const EMPLOYEE_STATUSES: EmployeeStatus[] = ['active', 'inactive']
 
-function parseEmployeeForm(formData: FormData): { error: string } | ParsedEmployeeForm {
+function parseEmployeeForm (formData: FormData): { error: string } | ParsedEmployeeForm {
   const firstName = String(formData.get('firstName') ?? '').trim()
   const lastName = String(formData.get('lastName') ?? '').trim()
   const phoneRaw = String(formData.get('phone') ?? '').trim()
@@ -79,13 +82,11 @@ function parseEmployeeForm(formData: FormData): { error: string } | ParsedEmploy
   }
 }
 
-function parseCreateEmployeeForm(
+function parseCreateEmployeeForm (
   formData: FormData
 ): { error: string } | ParsedCreateEmployeeForm {
   const parsed = parseEmployeeForm(formData)
-  if ('error' in parsed) {
-    return parsed
-  }
+  if ('error' in parsed) return parsed
 
   if (!parsed.email) {
     return { error: 'El correo electrónico es obligatorio para crear el acceso.' }
@@ -103,83 +104,86 @@ function parseCreateEmployeeForm(
   }
 }
 
-function employeeDisplayName(firstName: string, lastName: string): string {
+function employeeDisplayName (firstName: string, lastName: string): string {
   return `${firstName} ${lastName}`.trim()
 }
 
-function memberStatusFromEmployee(status: EmployeeStatus): 'active' | 'suspended' {
+function memberStatusFromEmployee (status: EmployeeStatus): 'active' | 'suspended' {
   return status === 'active' ? 'active' : 'suspended'
 }
 
-async function ensureEmployeeMembership(
+async function ensureEmployeeMembership (
   organizationId: string,
   userId: string,
   displayName: string,
   status: EmployeeStatus,
   roleId: string | null
 ): Promise<{ error: string } | { memberId: string }> {
-  const supabase = await createSupabaseServerClient()
-
-  const { data: existing, error: existingError } = await supabase
-    .from('organization_members')
-    .select('id')
-    .eq('organization_id', organizationId)
-    .eq('user_id', userId)
-    .maybeSingle()
-
-  if (existingError) {
-    return { error: existingError.message || 'No se pudo verificar la membresía.' }
-  }
+  const [existing] = await db
+    .select({ id: organizationMembers.id })
+    .from(organizationMembers)
+    .where(
+      and(
+        eq(organizationMembers.organizationId, organizationId),
+        eq(organizationMembers.userId, userId)
+      )
+    )
+    .limit(1)
 
   let memberId = existing?.id ?? null
 
   if (!memberId) {
-    const { data: created, error: createError } = await supabase
-      .from('organization_members')
-      .insert({
-        organization_id: organizationId,
-        user_id: userId,
-        status: memberStatusFromEmployee(status),
-        display_name: displayName || null,
-      })
-      .select('id')
-      .single()
+    try {
+      const [created] = await db
+        .insert(organizationMembers)
+        .values({
+          organizationId,
+          userId,
+          status: memberStatusFromEmployee(status),
+          displayName: displayName || null,
+        })
+        .returning({ id: organizationMembers.id })
 
-    if (createError || !created) {
-      return { error: createError?.message || 'No se pudo registrar la membresía.' }
+      if (!created) {
+        return { error: 'No se pudo registrar la membresía.' }
+      }
+      memberId = created.id
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'No se pudo registrar la membresía.'
+      return { error: msg }
     }
-
-    memberId = created.id
   } else {
-    const { error: updateError } = await supabase
-      .from('organization_members')
-      .update({
-        status: memberStatusFromEmployee(status),
-        display_name: displayName || null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', memberId)
-
-    if (updateError) {
-      return { error: updateError.message || 'No se pudo actualizar la membresía.' }
+    try {
+      await db
+        .update(organizationMembers)
+        .set({
+          status: memberStatusFromEmployee(status),
+          displayName: displayName || null,
+          updatedAt: new Date().toISOString(),
+        })
+        .where(eq(organizationMembers.id, memberId))
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'No se pudo actualizar la membresía.'
+      return { error: msg }
     }
   }
 
   if (roleId) {
-    const { error: roleError } = await supabase.from('member_roles').upsert(
-      { member_id: memberId, role_id: roleId },
-      { onConflict: 'member_id,role_id' }
-    )
-
-    if (roleError) {
-      return { error: roleError.message || 'No se pudo asignar el rol al usuario.' }
+    try {
+      await db
+        .insert(memberRoles)
+        .values({ memberId, roleId })
+        .onConflictDoNothing()
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'No se pudo asignar el rol al usuario.'
+      return { error: msg }
     }
   }
 
   return { memberId }
 }
 
-async function validateRoleForCreate(
+async function validateRoleForCreate (
   organizationId: string,
   roleId: string | null
 ): Promise<string | null> {
@@ -193,26 +197,23 @@ async function validateRoleForCreate(
   return null
 }
 
-async function validateRoleForUpdate(
+async function validateRoleForUpdate (
   organizationId: string,
   employeeId: string,
   roleId: string | null
 ): Promise<string | null> {
-  const supabase = await createSupabaseServerClient()
+  const [employee] = await db
+    .select({ roleId: employees.roleId })
+    .from(employees)
+    .where(and(eq(employees.id, employeeId), eq(employees.organizationId, organizationId)))
+    .limit(1)
 
-  const { data: employee, error } = await supabase
-    .from('employees')
-    .select('role_id')
-    .eq('id', employeeId)
-    .eq('organization_id', organizationId)
-    .maybeSingle()
-
-  if (error || !employee) {
+  if (!employee) {
     return 'Empleado no encontrado.'
   }
 
-  if (employee.role_id && (await isPropietarioRoleForOrganization(organizationId, employee.role_id))) {
-    if (roleId !== employee.role_id) {
+  if (employee.roleId && (await isPropietarioRoleForOrganization(organizationId, employee.roleId))) {
+    if (roleId !== employee.roleId) {
       return 'El rol Propietario no se puede modificar.'
     }
     return null
@@ -232,7 +233,7 @@ async function validateRoleForUpdate(
   return null
 }
 
-export async function createEmployeeAction(
+export async function createEmployeeAction (
   orgSlug: string,
   _prevState: EmployeeFormState,
   formData: FormData
@@ -259,8 +260,9 @@ export async function createEmployeeAction(
 
   const displayName = employeeDisplayName(parsed.firstName, parsed.lastName)
   const sharedKey = newOwnerSharedKey()
-  const supabase = await createSupabaseServerClient()
 
+  // create_confirmed_auth_user crea usuario en auth — sigue con Supabase RPC
+  const supabase = await createSupabaseServerClient()
   const { data: userId, error: authError } = await supabase.rpc('create_confirmed_auth_user', {
     p_email: parsed.email,
     p_password: parsed.password,
@@ -297,21 +299,22 @@ export async function createEmployeeAction(
       return { error: membership.error, ok: false }
     }
 
-    const { error } = await supabase.from('employees').insert({
-      organization_id: target.organizationId,
-      first_name: parsed.firstName,
-      last_name: parsed.lastName,
-      phone: parsed.phone,
-      email: parsed.email,
-      status: parsed.status,
-      role_id: roleId,
-      user_id: userId as string,
-      owner_shared_key: sharedKey,
-      created_by: target.memberId,
-    })
-
-    if (error) {
-      return { error: error.message || 'No se pudo crear el empleado.', ok: false }
+    try {
+      await db.insert(employees).values({
+        organizationId: target.organizationId,
+        firstName: parsed.firstName,
+        lastName: parsed.lastName,
+        phone: parsed.phone,
+        email: parsed.email,
+        status: parsed.status,
+        roleId,
+        userId: userId as string,
+        ownerSharedKey: sharedKey,
+        createdBy: target.memberId,
+      })
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'No se pudo crear el empleado.'
+      return { error: msg, ok: false }
     }
   }
 
@@ -319,7 +322,7 @@ export async function createEmployeeAction(
   return { error: null, ok: true }
 }
 
-export async function updateEmployeeAction(
+export async function updateEmployeeAction (
   orgSlug: string,
   employeeId: string,
   _prevState: EmployeeFormState,
@@ -344,30 +347,34 @@ export async function updateEmployeeAction(
     return { error: roleError, ok: false }
   }
 
-  const supabase = await createSupabaseServerClient()
-  const { error } = await supabase
-    .from('employees')
-    .update({
-      first_name: parsed.firstName,
-      last_name: parsed.lastName,
-      phone: parsed.phone,
-      email: parsed.email,
-      status: parsed.status,
-      role_id: parsed.roleId,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', employeeId)
-    .eq('organization_id', access.organization.id)
-
-  if (error) {
-    return { error: error.message || 'No se pudo actualizar el empleado.', ok: false }
+  try {
+    await db
+      .update(employees)
+      .set({
+        firstName: parsed.firstName,
+        lastName: parsed.lastName,
+        phone: parsed.phone,
+        email: parsed.email,
+        status: parsed.status,
+        roleId: parsed.roleId,
+        updatedAt: new Date().toISOString(),
+      })
+      .where(
+        and(
+          eq(employees.id, employeeId),
+          eq(employees.organizationId, access.organization.id)
+        )
+      )
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'No se pudo actualizar el empleado.'
+    return { error: msg, ok: false }
   }
 
   revalidatePath(`/${orgSlug}/empleados`)
   return { error: null, ok: true }
 }
 
-export async function deleteEmployeeAction(
+export async function deleteEmployeeAction (
   orgSlug: string,
   employeeId: string,
   _prevState: EmployeeFormState,
@@ -378,15 +385,18 @@ export async function deleteEmployeeAction(
     return permissionDeniedState()
   }
 
-  const supabase = await createSupabaseServerClient()
-  const { error } = await supabase
-    .from('employees')
-    .delete()
-    .eq('id', employeeId)
-    .eq('organization_id', access.organization.id)
-
-  if (error) {
-    return { error: error.message || 'No se pudo eliminar el empleado.', ok: false }
+  try {
+    await db
+      .delete(employees)
+      .where(
+        and(
+          eq(employees.id, employeeId),
+          eq(employees.organizationId, access.organization.id)
+        )
+      )
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'No se pudo eliminar el empleado.'
+    return { error: msg, ok: false }
   }
 
   revalidatePath(`/${orgSlug}/empleados`)

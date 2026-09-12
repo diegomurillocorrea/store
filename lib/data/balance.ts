@@ -1,4 +1,24 @@
-import { createSupabaseServerClient } from '@/lib/supabase/server'
+import { and, asc, desc, eq, gte, gt, inArray, isNotNull, lte } from 'drizzle-orm'
+import { alias } from 'drizzle-orm/pg-core'
+import { db } from '@/lib/db'
+import { toNumberOrZero } from '@/lib/db/numeric'
+import {
+  cashRegisters,
+  cashSessions,
+  customers,
+  employees,
+  financialMovements,
+  organizationMembers,
+  payablePayments,
+  payables,
+  products,
+  receivablePayments,
+  receivables,
+  saleLines,
+  salePayments,
+  sales,
+  suppliers,
+} from '@/lib/db/schema'
 import type {
   BalanceSummary,
   BalanceTransactionRow,
@@ -10,171 +30,145 @@ import type {
 } from '@/lib/data/balance-types'
 import { roundMoney } from '@/lib/utils/money'
 import { getDateRangeBoundsInTimeZone } from '@/lib/utils/local-date'
-import { formatSaleLinesConcept, type SaleLineConceptInput } from '@/lib/utils/sale-format'
-
-function toNumber(value: unknown): number {
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? parsed : 0
-}
-
-function mapMemberName(
-  member: { display_name: string | null } | { display_name: string | null }[] | null
-): string | null {
-  const row = Array.isArray(member) ? member[0] : member
-  return row?.display_name?.trim() || null
-}
-
-function mapSaleLines(
-  lines: Array<{
-    quantity: unknown
-    product: { name: string } | { name: string }[] | null
-  }> | null
-): SaleLineConceptInput[] {
-  if (!lines?.length) return []
-
-  return lines.map((line) => {
-    const product = Array.isArray(line.product) ? line.product[0] : line.product
-    return {
-      quantity: line.quantity,
-      productName: product?.name ?? 'Producto',
-    }
-  })
-}
+import { formatSaleLinesConcept } from '@/lib/utils/sale-format'
 
 export async function getOrCreateDefaultCashRegisterId(
   organizationId: string,
   locationId: string | null
 ): Promise<string | null> {
-  const supabase = await createSupabaseServerClient()
+  try {
+    const [existing] = await db
+      .select({ id: cashRegisters.id })
+      .from(cashRegisters)
+      .where(eq(cashRegisters.organizationId, organizationId))
+      .orderBy(asc(cashRegisters.createdAt))
+      .limit(1)
 
-  const { data: existing, error: existingError } = await supabase
-    .from('cash_registers')
-    .select('id')
-    .eq('organization_id', organizationId)
-    .order('created_at', { ascending: true })
-    .limit(1)
-    .maybeSingle()
+    if (existing?.id) return existing.id
 
-  if (!existingError && existing?.id) {
-    return existing.id
-  }
+    const [created] = await db
+      .insert(cashRegisters)
+      .values({
+        organizationId,
+        locationId,
+        name: 'Caja principal',
+      })
+      .returning({ id: cashRegisters.id })
 
-  const { data, error } = await supabase
-    .from('cash_registers')
-    .insert({
-      organization_id: organizationId,
-      location_id: locationId,
-      name: 'Caja principal',
-    })
-    .select('id')
-    .single()
-
-  if (error || !data?.id) {
-    console.error('getOrCreateDefaultCashRegisterId', error)
+    return created?.id ?? null
+  } catch (err) {
+    console.error('getOrCreateDefaultCashRegisterId', err)
     return null
   }
-
-  return data.id
 }
 
 export async function getCashOperators(
   organizationId: string
 ): Promise<CashOperatorOption[]> {
-  const supabase = await createSupabaseServerClient()
+  try {
+    const [membersRows, employeesRows] = await Promise.all([
+      db
+        .select({
+          id: organizationMembers.id,
+          displayName: organizationMembers.displayName,
+          userId: organizationMembers.userId,
+        })
+        .from(organizationMembers)
+        .where(and(
+          eq(organizationMembers.organizationId, organizationId),
+          eq(organizationMembers.status, 'active')
+        ))
+        .orderBy(asc(organizationMembers.displayName)),
+      db
+        .select({
+          userId: employees.userId,
+          firstName: employees.firstName,
+          lastName: employees.lastName,
+        })
+        .from(employees)
+        .where(and(
+          eq(employees.organizationId, organizationId),
+          eq(employees.status, 'active'),
+          isNotNull(employees.userId)
+        )),
+    ])
 
-  const [membersResult, employeesResult] = await Promise.all([
-    supabase
-      .from('organization_members')
-      .select('id, display_name, user_id')
-      .eq('organization_id', organizationId)
-      .eq('status', 'active')
-      .order('display_name', { ascending: true }),
-    supabase
-      .from('employees')
-      .select('user_id, first_name, last_name')
-      .eq('organization_id', organizationId)
-      .eq('status', 'active')
-      .not('user_id', 'is', null),
-  ])
+    const employeeNameByUserId = new Map<string, string>()
+    for (const employee of employeesRows) {
+      if (!employee.userId) continue
+      const name = [employee.firstName, employee.lastName]
+        .filter(Boolean)
+        .join(' ')
+        .trim()
+      if (name) employeeNameByUserId.set(employee.userId, name)
+    }
 
-  if (membersResult.error) {
-    console.error('getCashOperators members', membersResult.error)
+    return membersRows.map((member) => {
+      const employeeName = member.userId
+        ? employeeNameByUserId.get(member.userId)
+        : null
+      const displayName = member.displayName?.trim() || null
+      return {
+        id: member.id,
+        name: employeeName || displayName || 'Sin nombre',
+      }
+    })
+  } catch (err) {
+    console.error('getCashOperators', err)
     return []
   }
-
-  if (employeesResult.error) {
-    console.error('getCashOperators employees', employeesResult.error)
-  }
-
-  const employeeNameByUserId = new Map<string, string>()
-  for (const employee of employeesResult.data ?? []) {
-    if (!employee.user_id) continue
-    const name = [employee.first_name, employee.last_name]
-      .filter(Boolean)
-      .join(' ')
-      .trim()
-    if (name) employeeNameByUserId.set(employee.user_id, name)
-  }
-
-  return (membersResult.data ?? []).map((member) => {
-    const employeeName = member.user_id
-      ? employeeNameByUserId.get(member.user_id)
-      : null
-    const displayName = member.display_name?.trim() || null
-    return {
-      id: member.id,
-      name: employeeName || displayName || 'Sin nombre',
-    }
-  })
 }
 
 export async function getOpenCashSession(
   organizationId: string
 ): Promise<CashSessionSummary | null> {
-  const supabase = await createSupabaseServerClient()
+  try {
+    const opener = alias(organizationMembers, 'opener')
+    const closer = alias(organizationMembers, 'closer')
 
-  const { data, error } = await supabase
-    .from('cash_sessions')
-    .select(
-      `
-      id,
-      status,
-      opening_amount,
-      closing_amount,
-      difference,
-      opened_at,
-      closed_at,
-      notes,
-      opener:organization_members!cash_sessions_opened_by_fkey ( display_name ),
-      closer:organization_members!cash_sessions_closed_by_fkey ( display_name ),
-      register:cash_registers ( name )
-    `
-    )
-    .eq('organization_id', organizationId)
-    .eq('status', 'open')
-    .order('opened_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
+    const [row] = await db
+      .select({
+        id: cashSessions.id,
+        status: cashSessions.status,
+        openingAmount: cashSessions.openingAmount,
+        closingAmount: cashSessions.closingAmount,
+        difference: cashSessions.difference,
+        openedAt: cashSessions.openedAt,
+        closedAt: cashSessions.closedAt,
+        notes: cashSessions.notes,
+        openerName: opener.displayName,
+        closerName: closer.displayName,
+        registerName: cashRegisters.name,
+      })
+      .from(cashSessions)
+      .leftJoin(opener, eq(cashSessions.openedBy, opener.id))
+      .leftJoin(closer, eq(cashSessions.closedBy, closer.id))
+      .leftJoin(cashRegisters, eq(cashSessions.cashRegisterId, cashRegisters.id))
+      .where(and(
+        eq(cashSessions.organizationId, organizationId),
+        eq(cashSessions.status, 'open')
+      ))
+      .orderBy(desc(cashSessions.openedAt))
+      .limit(1)
 
-  if (error || !data) {
-    if (error) console.error('getOpenCashSession', error)
+    if (!row) return null
+
+    return {
+      id: row.id,
+      status: row.status,
+      openingAmount: toNumberOrZero(row.openingAmount),
+      closingAmount: row.closingAmount != null ? toNumberOrZero(row.closingAmount) : null,
+      difference: row.difference != null ? toNumberOrZero(row.difference) : null,
+      openedAt: row.openedAt,
+      closedAt: row.closedAt,
+      openedByName: row.openerName?.trim() || null,
+      closedByName: row.closerName?.trim() || null,
+      notes: row.notes,
+      registerName: row.registerName ?? null,
+    }
+  } catch (err) {
+    console.error('getOpenCashSession', err)
     return null
-  }
-
-  const register = Array.isArray(data.register) ? data.register[0] : data.register
-
-  return {
-    id: data.id,
-    status: data.status,
-    openingAmount: toNumber(data.opening_amount),
-    closingAmount: data.closing_amount != null ? toNumber(data.closing_amount) : null,
-    difference: data.difference != null ? toNumber(data.difference) : null,
-    openedAt: data.opened_at,
-    closedAt: data.closed_at,
-    openedByName: mapMemberName(data.opener),
-    closedByName: mapMemberName(data.closer),
-    notes: data.notes,
-    registerName: register?.name ?? null,
   }
 }
 
@@ -182,48 +176,48 @@ export async function getCashClosings(
   organizationId: string,
   limit = 50
 ): Promise<CashClosingRow[]> {
-  const supabase = await createSupabaseServerClient()
+  try {
+    const opener = alias(organizationMembers, 'opener')
+    const closer = alias(organizationMembers, 'closer')
 
-  const { data, error } = await supabase
-    .from('cash_sessions')
-    .select(
-      `
-      id,
-      opening_amount,
-      closing_amount,
-      difference,
-      opened_at,
-      closed_at,
-      opener:organization_members!cash_sessions_opened_by_fkey ( display_name ),
-      closer:organization_members!cash_sessions_closed_by_fkey ( display_name ),
-      register:cash_registers ( name )
-    `
-    )
-    .eq('organization_id', organizationId)
-    .eq('status', 'closed')
-    .order('closed_at', { ascending: false })
-    .limit(limit)
+    const rows = await db
+      .select({
+        id: cashSessions.id,
+        openingAmount: cashSessions.openingAmount,
+        closingAmount: cashSessions.closingAmount,
+        difference: cashSessions.difference,
+        openedAt: cashSessions.openedAt,
+        closedAt: cashSessions.closedAt,
+        openerName: opener.displayName,
+        closerName: closer.displayName,
+        registerName: cashRegisters.name,
+      })
+      .from(cashSessions)
+      .leftJoin(opener, eq(cashSessions.openedBy, opener.id))
+      .leftJoin(closer, eq(cashSessions.closedBy, closer.id))
+      .leftJoin(cashRegisters, eq(cashSessions.cashRegisterId, cashRegisters.id))
+      .where(and(
+        eq(cashSessions.organizationId, organizationId),
+        eq(cashSessions.status, 'closed')
+      ))
+      .orderBy(desc(cashSessions.closedAt))
+      .limit(limit)
 
-  if (error || !data) {
-    console.error('getCashClosings', error)
+    return rows.map((row) => ({
+      id: row.id,
+      openedAt: row.openedAt,
+      closedAt: row.closedAt,
+      openingAmount: toNumberOrZero(row.openingAmount),
+      closingAmount: row.closingAmount != null ? toNumberOrZero(row.closingAmount) : null,
+      difference: row.difference != null ? toNumberOrZero(row.difference) : null,
+      openedByName: row.openerName?.trim() || null,
+      closedByName: row.closerName?.trim() || null,
+      registerName: row.registerName ?? null,
+    }))
+  } catch (err) {
+    console.error('getCashClosings', err)
     return []
   }
-
-  return data.map((row) => {
-    const register = Array.isArray(row.register) ? row.register[0] : row.register
-
-    return {
-      id: row.id,
-      openedAt: row.opened_at,
-      closedAt: row.closed_at,
-      openingAmount: toNumber(row.opening_amount),
-      closingAmount: row.closing_amount != null ? toNumber(row.closing_amount) : null,
-      difference: row.difference != null ? toNumber(row.difference) : null,
-      openedByName: mapMemberName(row.opener),
-      closedByName: mapMemberName(row.closer),
-      registerName: register?.name ?? null,
-    }
-  })
 }
 
 async function getSaleIncomeTransactions(
@@ -232,66 +226,104 @@ async function getSaleIncomeTransactions(
   endDate: string,
   timeZone: string
 ): Promise<BalanceTransactionRow[]> {
-  const supabase = await createSupabaseServerClient()
   const { start, end } = getDateRangeBoundsInTimeZone(startDate, endDate, timeZone)
 
-  const { data: sales, error } = await supabase
-    .from('sales')
-    .select(
-      `
-      id,
-      sale_number,
-      total,
-      created_at,
-      customer:customers ( first_name, last_name ),
-      payments:sale_payments ( method, amount, created_at ),
-      lines:sale_lines (
-        quantity,
-        product:products ( name )
-      )
-    `
-    )
-    .eq('organization_id', organizationId)
-    .eq('status', 'completed')
-    .gte('created_at', start)
-    .lte('created_at', end)
-    .order('created_at', { ascending: false })
+  try {
+    const salesRows = await db
+      .select({
+        id: sales.id,
+        saleNumber: sales.saleNumber,
+        total: sales.total,
+        createdAt: sales.createdAt,
+        customerFirstName: customers.firstName,
+        customerLastName: customers.lastName,
+      })
+      .from(sales)
+      .leftJoin(customers, eq(sales.customerId, customers.id))
+      .where(and(
+        eq(sales.organizationId, organizationId),
+        eq(sales.status, 'completed'),
+        gte(sales.createdAt, start),
+        lte(sales.createdAt, end)
+      ))
+      .orderBy(desc(sales.createdAt))
 
-  if (error || !sales) {
-    console.error('getSaleIncomeTransactions', error)
+    if (salesRows.length === 0) return []
+
+    const saleIds = salesRows.map((s) => s.id)
+
+    const [paymentsRows, linesRows] = await Promise.all([
+      db
+        .select({
+          saleId: salePayments.saleId,
+          method: salePayments.method,
+          amount: salePayments.amount,
+        })
+        .from(salePayments)
+        .where(inArray(salePayments.saleId, saleIds)),
+      db
+        .select({
+          saleId: saleLines.saleId,
+          quantity: saleLines.quantity,
+          productName: products.name,
+        })
+        .from(saleLines)
+        .leftJoin(products, eq(saleLines.productId, products.id))
+        .where(inArray(saleLines.saleId, saleIds)),
+    ])
+
+    const paymentsBySaleId = new Map<string, typeof paymentsRows>()
+    for (const row of paymentsRows) {
+      const arr = paymentsBySaleId.get(row.saleId) ?? []
+      arr.push(row)
+      paymentsBySaleId.set(row.saleId, arr)
+    }
+
+    const linesBySaleId = new Map<string, typeof linesRows>()
+    for (const row of linesRows) {
+      const arr = linesBySaleId.get(row.saleId) ?? []
+      arr.push(row)
+      linesBySaleId.set(row.saleId, arr)
+    }
+
+    const rows: BalanceTransactionRow[] = []
+
+    for (const sale of salesRows) {
+      const pmts = paymentsBySaleId.get(sale.id) ?? []
+      const lines = linesBySaleId.get(sale.id) ?? []
+      const customerName = sale.customerFirstName
+        ? `${sale.customerFirstName} ${sale.customerLastName ?? ''}`.trim()
+        : null
+      const concept = formatSaleLinesConcept(
+        lines.map((l) => ({
+          quantity: l.quantity,
+          productName: l.productName ?? 'Producto',
+        }))
+      )
+      const primaryPayment = pmts.find((p) => toNumberOrZero(p.amount) > 0) ?? pmts[0] ?? null
+      const paidAmount = pmts.reduce((sum, p) => sum + toNumberOrZero(p.amount), 0)
+      const amount = paidAmount > 0 ? paidAmount : toNumberOrZero(sale.total)
+
+      if (amount <= 0) continue
+
+      rows.push({
+        id: `sale-${sale.id}`,
+        source: 'sale',
+        referenceId: sale.id,
+        concept,
+        amount,
+        occurredAt: sale.createdAt,
+        paymentMethod: primaryPayment?.method ?? null,
+        reference: sale.saleNumber,
+        counterpartyName: customerName,
+      })
+    }
+
+    return rows
+  } catch (err) {
+    console.error('getSaleIncomeTransactions', err)
     return []
   }
-
-  const rows: BalanceTransactionRow[] = []
-
-  for (const sale of sales) {
-    const customer = Array.isArray(sale.customer) ? sale.customer[0] : sale.customer
-    const customerName = customer
-      ? `${customer.first_name} ${customer.last_name}`.trim()
-      : null
-    const payments = sale.payments ?? []
-    const concept = formatSaleLinesConcept(mapSaleLines(sale.lines))
-    const primaryPayment =
-      payments.find((payment) => toNumber(payment.amount) > 0) ?? payments[0] ?? null
-    const paidAmount = payments.reduce((sum, payment) => sum + toNumber(payment.amount), 0)
-    const amount = paidAmount > 0 ? paidAmount : toNumber(sale.total)
-
-    if (amount <= 0) continue
-
-    rows.push({
-      id: `sale-${sale.id}`,
-      source: 'sale',
-      referenceId: sale.id,
-      concept,
-      amount,
-      occurredAt: sale.created_at,
-      paymentMethod: primaryPayment?.method ?? null,
-      reference: sale.sale_number,
-      counterpartyName: customerName,
-    })
-  }
-
-  return rows
 }
 
 async function getReceivablePaymentTransactions(
@@ -300,60 +332,47 @@ async function getReceivablePaymentTransactions(
   endDate: string,
   timeZone: string
 ): Promise<BalanceTransactionRow[]> {
-  const supabase = await createSupabaseServerClient()
   const { start, end } = getDateRangeBoundsInTimeZone(startDate, endDate, timeZone)
 
-  const { data, error } = await supabase
-    .from('receivable_payments')
-    .select(
-      `
-      id,
-      amount,
-      method,
-      reference,
-      paid_at,
-      receivable:receivables!inner (
-        organization_id,
-        document_number,
-        customer:customers ( first_name, last_name )
-      )
-    `
-    )
-    .eq('receivable.organization_id', organizationId)
-    .gte('paid_at', start)
-    .lte('paid_at', end)
-    .order('paid_at', { ascending: false })
+  try {
+    const rows = await db
+      .select({
+        id: receivablePayments.id,
+        amount: receivablePayments.amount,
+        method: receivablePayments.method,
+        reference: receivablePayments.reference,
+        paidAt: receivablePayments.paidAt,
+        documentNumber: receivables.documentNumber,
+        customerFirstName: customers.firstName,
+        customerLastName: customers.lastName,
+      })
+      .from(receivablePayments)
+      .innerJoin(receivables, eq(receivablePayments.receivableId, receivables.id))
+      .leftJoin(customers, eq(receivables.customerId, customers.id))
+      .where(and(
+        eq(receivables.organizationId, organizationId),
+        gte(receivablePayments.paidAt, start),
+        lte(receivablePayments.paidAt, end)
+      ))
+      .orderBy(desc(receivablePayments.paidAt))
 
-  if (error || !data) {
-    console.error('getReceivablePaymentTransactions', error)
-    return []
-  }
-
-  return data.map((row) => {
-    const receivable = Array.isArray(row.receivable) ? row.receivable[0] : row.receivable
-    const customer = receivable?.customer
-      ? Array.isArray(receivable.customer)
-        ? receivable.customer[0]
-        : receivable.customer
-      : null
-    const customerName = customer
-      ? `${customer.first_name} ${customer.last_name}`.trim()
-      : null
-
-    return {
+    return rows.map((row) => ({
       id: `receivable-payment-${row.id}`,
-      source: 'receivable_payment',
+      source: 'receivable_payment' as const,
       referenceId: row.id,
-      concept: receivable?.document_number
-        ? `Cobro ${receivable.document_number}`
-        : 'Cobro a cliente',
-      amount: toNumber(row.amount),
-      occurredAt: row.paid_at,
+      concept: row.documentNumber ? `Cobro ${row.documentNumber}` : 'Cobro a cliente',
+      amount: toNumberOrZero(row.amount),
+      occurredAt: row.paidAt,
       paymentMethod: row.method,
       reference: row.reference,
-      counterpartyName: customerName,
-    }
-  })
+      counterpartyName: row.customerFirstName
+        ? `${row.customerFirstName} ${row.customerLastName ?? ''}`.trim()
+        : null,
+    }))
+  } catch (err) {
+    console.error('getReceivablePaymentTransactions', err)
+    return []
+  }
 }
 
 async function getManualIncomeTransactions(
@@ -361,35 +380,40 @@ async function getManualIncomeTransactions(
   startDate: string,
   endDate: string
 ): Promise<BalanceTransactionRow[]> {
-  const supabase = await createSupabaseServerClient()
+  try {
+    const rows = await db
+      .select({
+        id: financialMovements.id,
+        concept: financialMovements.concept,
+        amount: financialMovements.amount,
+        paymentMethod: financialMovements.paymentMethod,
+        reference: financialMovements.reference,
+        createdAt: financialMovements.createdAt,
+      })
+      .from(financialMovements)
+      .where(and(
+        eq(financialMovements.organizationId, organizationId),
+        eq(financialMovements.movementType, 'income'),
+        gte(financialMovements.movementDate, startDate),
+        lte(financialMovements.movementDate, endDate)
+      ))
+      .orderBy(desc(financialMovements.createdAt))
 
-  const { data, error } = await supabase
-    .from('financial_movements')
-    .select('id, concept, amount, payment_method, reference, created_at, movement_date')
-    .eq('organization_id', organizationId)
-    .eq('movement_type', 'income')
-    .gte('movement_date', startDate)
-    .lte('movement_date', endDate)
-    .order('created_at', { ascending: false })
-
-  if (error || !data) {
-    if (error?.code !== 'PGRST205') {
-      console.error('getManualIncomeTransactions', error)
-    }
+    return rows.map((row) => ({
+      id: `manual-income-${row.id}`,
+      source: 'manual' as const,
+      referenceId: row.id,
+      concept: row.concept,
+      amount: toNumberOrZero(row.amount),
+      occurredAt: row.createdAt,
+      paymentMethod: row.paymentMethod,
+      reference: row.reference,
+      counterpartyName: null,
+    }))
+  } catch (err) {
+    console.error('getManualIncomeTransactions', err)
     return []
   }
-
-  return data.map((row) => ({
-    id: `manual-income-${row.id}`,
-    source: 'manual' as const,
-    referenceId: row.id,
-    concept: row.concept,
-    amount: toNumber(row.amount),
-    occurredAt: row.created_at,
-    paymentMethod: row.payment_method,
-    reference: row.reference,
-    counterpartyName: null,
-  }))
 }
 
 async function getPayablePaymentTransactions(
@@ -398,57 +422,44 @@ async function getPayablePaymentTransactions(
   endDate: string,
   timeZone: string
 ): Promise<BalanceTransactionRow[]> {
-  const supabase = await createSupabaseServerClient()
   const { start, end } = getDateRangeBoundsInTimeZone(startDate, endDate, timeZone)
 
-  const { data, error } = await supabase
-    .from('payable_payments')
-    .select(
-      `
-      id,
-      amount,
-      method,
-      reference,
-      paid_at,
-      payable:payables!inner (
-        organization_id,
-        document_number,
-        supplier:suppliers ( name )
-      )
-    `
-    )
-    .eq('payable.organization_id', organizationId)
-    .gte('paid_at', start)
-    .lte('paid_at', end)
-    .order('paid_at', { ascending: false })
+  try {
+    const rows = await db
+      .select({
+        id: payablePayments.id,
+        amount: payablePayments.amount,
+        method: payablePayments.method,
+        reference: payablePayments.reference,
+        paidAt: payablePayments.paidAt,
+        documentNumber: payables.documentNumber,
+        supplierName: suppliers.name,
+      })
+      .from(payablePayments)
+      .innerJoin(payables, eq(payablePayments.payableId, payables.id))
+      .leftJoin(suppliers, eq(payables.supplierId, suppliers.id))
+      .where(and(
+        eq(payables.organizationId, organizationId),
+        gte(payablePayments.paidAt, start),
+        lte(payablePayments.paidAt, end)
+      ))
+      .orderBy(desc(payablePayments.paidAt))
 
-  if (error || !data) {
-    console.error('getPayablePaymentTransactions', error)
-    return []
-  }
-
-  return data.map((row) => {
-    const payable = Array.isArray(row.payable) ? row.payable[0] : row.payable
-    const supplier = payable?.supplier
-      ? Array.isArray(payable.supplier)
-        ? payable.supplier[0]
-        : payable.supplier
-      : null
-
-    return {
+    return rows.map((row) => ({
       id: `payable-payment-${row.id}`,
       source: 'payable_payment' as const,
       referenceId: row.id,
-      concept: payable?.document_number
-        ? `Pago ${payable.document_number}`
-        : 'Pago a proveedor',
-      amount: toNumber(row.amount),
-      occurredAt: row.paid_at,
+      concept: row.documentNumber ? `Pago ${row.documentNumber}` : 'Pago a proveedor',
+      amount: toNumberOrZero(row.amount),
+      occurredAt: row.paidAt,
       paymentMethod: row.method,
       reference: row.reference,
-      counterpartyName: supplier?.name ?? null,
-    }
-  })
+      counterpartyName: row.supplierName ?? null,
+    }))
+  } catch (err) {
+    console.error('getPayablePaymentTransactions', err)
+    return []
+  }
 }
 
 async function getManualExpenseTransactions(
@@ -456,35 +467,40 @@ async function getManualExpenseTransactions(
   startDate: string,
   endDate: string
 ): Promise<BalanceTransactionRow[]> {
-  const supabase = await createSupabaseServerClient()
+  try {
+    const rows = await db
+      .select({
+        id: financialMovements.id,
+        concept: financialMovements.concept,
+        amount: financialMovements.amount,
+        paymentMethod: financialMovements.paymentMethod,
+        reference: financialMovements.reference,
+        createdAt: financialMovements.createdAt,
+      })
+      .from(financialMovements)
+      .where(and(
+        eq(financialMovements.organizationId, organizationId),
+        eq(financialMovements.movementType, 'expense'),
+        gte(financialMovements.movementDate, startDate),
+        lte(financialMovements.movementDate, endDate)
+      ))
+      .orderBy(desc(financialMovements.createdAt))
 
-  const { data, error } = await supabase
-    .from('financial_movements')
-    .select('id, concept, amount, payment_method, reference, created_at, movement_date')
-    .eq('organization_id', organizationId)
-    .eq('movement_type', 'expense')
-    .gte('movement_date', startDate)
-    .lte('movement_date', endDate)
-    .order('created_at', { ascending: false })
-
-  if (error || !data) {
-    if (error?.code !== 'PGRST205') {
-      console.error('getManualExpenseTransactions', error)
-    }
+    return rows.map((row) => ({
+      id: `manual-expense-${row.id}`,
+      source: 'manual' as const,
+      referenceId: row.id,
+      concept: row.concept,
+      amount: toNumberOrZero(row.amount),
+      occurredAt: row.createdAt,
+      paymentMethod: row.paymentMethod,
+      reference: row.reference,
+      counterpartyName: null,
+    }))
+  } catch (err) {
+    console.error('getManualExpenseTransactions', err)
     return []
   }
-
-  return data.map((row) => ({
-    id: `manual-expense-${row.id}`,
-    source: 'manual' as const,
-    referenceId: row.id,
-    concept: row.concept,
-    amount: toNumber(row.amount),
-    occurredAt: row.created_at,
-    paymentMethod: row.payment_method,
-    reference: row.reference,
-    counterpartyName: null,
-  }))
 }
 
 export async function getIncomeTransactions(
@@ -493,13 +509,13 @@ export async function getIncomeTransactions(
   endDate: string,
   timeZone: string
 ): Promise<BalanceTransactionRow[]> {
-  const [sales, receivablePayments, manual] = await Promise.all([
+  const [saleTxs, receivablePaymentTxs, manual] = await Promise.all([
     getSaleIncomeTransactions(organizationId, startDate, endDate, timeZone),
     getReceivablePaymentTransactions(organizationId, startDate, endDate, timeZone),
     getManualIncomeTransactions(organizationId, startDate, endDate),
   ])
 
-  return [...sales, ...receivablePayments, ...manual].sort(
+  return [...saleTxs, ...receivablePaymentTxs, ...manual].sort(
     (a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime()
   )
 }
@@ -510,12 +526,12 @@ export async function getExpenseTransactions(
   endDate: string,
   timeZone: string
 ): Promise<BalanceTransactionRow[]> {
-  const [payablePayments, manual] = await Promise.all([
+  const [payablePaymentTxs, manual] = await Promise.all([
     getPayablePaymentTransactions(organizationId, startDate, endDate, timeZone),
     getManualExpenseTransactions(organizationId, startDate, endDate),
   ])
 
-  return [...payablePayments, ...manual].sort(
+  return [...payablePaymentTxs, ...manual].sort(
     (a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime()
   )
 }
@@ -523,91 +539,84 @@ export async function getExpenseTransactions(
 export async function getOpenReceivables(
   organizationId: string
 ): Promise<ReceivableBalanceRow[]> {
-  const supabase = await createSupabaseServerClient()
+  try {
+    const rows = await db
+      .select({
+        id: receivables.id,
+        documentNumber: receivables.documentNumber,
+        total: receivables.total,
+        balanceDue: receivables.balanceDue,
+        issuedAt: receivables.issuedAt,
+        dueAt: receivables.dueAt,
+        status: receivables.status,
+        customerFirstName: customers.firstName,
+        customerLastName: customers.lastName,
+      })
+      .from(receivables)
+      .leftJoin(customers, eq(receivables.customerId, customers.id))
+      .where(and(
+        eq(receivables.organizationId, organizationId),
+        inArray(receivables.status, ['open', 'partial']),
+        gt(receivables.balanceDue, '0')
+      ))
+      .orderBy(desc(receivables.issuedAt))
 
-  const { data, error } = await supabase
-    .from('receivables')
-    .select(
-      `
-      id,
-      document_number,
-      total,
-      balance_due,
-      issued_at,
-      due_at,
-      status,
-      customer:customers ( first_name, last_name )
-    `
-    )
-    .eq('organization_id', organizationId)
-    .in('status', ['open', 'partial'])
-    .gt('balance_due', 0)
-    .order('issued_at', { ascending: false })
-
-  if (error || !data) {
-    console.error('getOpenReceivables', error)
+    return rows.map((row) => ({
+      id: row.id,
+      documentNumber: row.documentNumber,
+      customerName: row.customerFirstName
+        ? `${row.customerFirstName} ${row.customerLastName ?? ''}`.trim()
+        : 'Cliente',
+      total: toNumberOrZero(row.total),
+      balanceDue: toNumberOrZero(row.balanceDue),
+      issuedAt: row.issuedAt,
+      dueAt: row.dueAt,
+      status: row.status,
+    }))
+  } catch (err) {
+    console.error('getOpenReceivables', err)
     return []
   }
-
-  return data.map((row) => {
-    const customer = Array.isArray(row.customer) ? row.customer[0] : row.customer
-
-    return {
-      id: row.id,
-      documentNumber: row.document_number,
-      customerName: customer
-        ? `${customer.first_name} ${customer.last_name}`.trim()
-        : 'Cliente',
-      total: toNumber(row.total),
-      balanceDue: toNumber(row.balance_due),
-      issuedAt: row.issued_at,
-      dueAt: row.due_at,
-      status: row.status,
-    }
-  })
 }
 
-export async function getOpenPayables(organizationId: string): Promise<PayableBalanceRow[]> {
-  const supabase = await createSupabaseServerClient()
+export async function getOpenPayables(
+  organizationId: string
+): Promise<PayableBalanceRow[]> {
+  try {
+    const rows = await db
+      .select({
+        id: payables.id,
+        documentNumber: payables.documentNumber,
+        total: payables.total,
+        balanceDue: payables.balanceDue,
+        issuedAt: payables.issuedAt,
+        dueAt: payables.dueAt,
+        status: payables.status,
+        supplierName: suppliers.name,
+      })
+      .from(payables)
+      .leftJoin(suppliers, eq(payables.supplierId, suppliers.id))
+      .where(and(
+        eq(payables.organizationId, organizationId),
+        inArray(payables.status, ['open', 'partial']),
+        gt(payables.balanceDue, '0')
+      ))
+      .orderBy(desc(payables.issuedAt))
 
-  const { data, error } = await supabase
-    .from('payables')
-    .select(
-      `
-      id,
-      document_number,
-      total,
-      balance_due,
-      issued_at,
-      due_at,
-      status,
-      supplier:suppliers ( name )
-    `
-    )
-    .eq('organization_id', organizationId)
-    .in('status', ['open', 'partial'])
-    .gt('balance_due', 0)
-    .order('issued_at', { ascending: false })
-
-  if (error || !data) {
-    console.error('getOpenPayables', error)
+    return rows.map((row) => ({
+      id: row.id,
+      documentNumber: row.documentNumber,
+      supplierName: row.supplierName ?? 'Proveedor',
+      total: toNumberOrZero(row.total),
+      balanceDue: toNumberOrZero(row.balanceDue),
+      issuedAt: row.issuedAt,
+      dueAt: row.dueAt,
+      status: row.status,
+    }))
+  } catch (err) {
+    console.error('getOpenPayables', err)
     return []
   }
-
-  return data.map((row) => {
-    const supplier = Array.isArray(row.supplier) ? row.supplier[0] : row.supplier
-
-    return {
-      id: row.id,
-      documentNumber: row.document_number,
-      supplierName: supplier?.name ?? 'Proveedor',
-      total: toNumber(row.total),
-      balanceDue: toNumber(row.balance_due),
-      issuedAt: row.issued_at,
-      dueAt: row.due_at,
-      status: row.status,
-    }
-  })
 }
 
 export async function getBalanceSummary(

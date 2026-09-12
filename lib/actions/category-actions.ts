@@ -1,5 +1,6 @@
 'use server'
 
+import { and, eq } from 'drizzle-orm'
 import { getActionAccess, permissionDeniedState } from '@/lib/auth/access'
 import {
   findCategoryIdByName,
@@ -7,7 +8,8 @@ import {
   newOwnerSharedKey,
   revalidateCatalogPaths,
 } from '@/lib/data/owner-shared-entities'
-import { createSupabaseServerClient } from '@/lib/supabase/server'
+import { db } from '@/lib/db'
+import { categories } from '@/lib/db/schema'
 import { revalidatePath } from 'next/cache'
 
 export interface CategoryFormState {
@@ -15,7 +17,7 @@ export interface CategoryFormState {
   ok: boolean
 }
 
-function parseCategoryName(formData: FormData): { error: string } | { name: string } {
+function parseCategoryName (formData: FormData): { error: string } | { name: string } {
   const name = String(formData.get('name') ?? '').trim()
 
   if (name.length < 2) {
@@ -25,7 +27,7 @@ function parseCategoryName(formData: FormData): { error: string } | { name: stri
   return { name }
 }
 
-export async function createCategoryAction(
+export async function createCategoryAction (
   orgSlug: string,
   _prevState: CategoryFormState,
   formData: FormData
@@ -46,40 +48,40 @@ export async function createCategoryAction(
   }
 
   const sharedKey = newOwnerSharedKey()
-  const supabase = await createSupabaseServerClient()
 
-  for (const target of targets) {
-    const existingId = await findCategoryIdByName(target.organizationId, parsed.name)
-    if (existingId) {
-      const { error: linkError } = await supabase
-        .from('categories')
-        .update({ owner_shared_key: sharedKey })
-        .eq('id', existingId)
-        .eq('organization_id', target.organizationId)
-
-      if (linkError) {
-        return { error: linkError.message || 'No se pudo crear la categoría.', ok: false }
+  try {
+    for (const target of targets) {
+      const existingId = await findCategoryIdByName(target.organizationId, parsed.name)
+      if (existingId) {
+        await db
+          .update(categories)
+          .set({ ownerSharedKey: sharedKey })
+          .where(
+            and(
+              eq(categories.id, existingId),
+              eq(categories.organizationId, target.organizationId)
+            )
+          )
+        continue
       }
-      continue
-    }
 
-    const { error } = await supabase.from('categories').insert({
-      organization_id: target.organizationId,
-      name: parsed.name,
-      owner_shared_key: sharedKey,
-      created_by: target.memberId,
-    })
-
-    if (error) {
-      return { error: error.message || 'No se pudo crear la categoría.', ok: false }
+      await db.insert(categories).values({
+        organizationId: target.organizationId,
+        name: parsed.name,
+        ownerSharedKey: sharedKey,
+        createdBy: target.memberId,
+      })
     }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'No se pudo crear la categoría.'
+    return { error: message, ok: false }
   }
 
   revalidateCatalogPaths(targets, 'categories', orgSlug)
   return { error: null, ok: true }
 }
 
-export async function updateCategoryAction(
+export async function updateCategoryAction (
   orgSlug: string,
   _prevState: CategoryFormState,
   formData: FormData
@@ -99,21 +101,24 @@ export async function updateCategoryAction(
     return { error: parsed.error, ok: false }
   }
 
-  const supabase = await createSupabaseServerClient()
-  const { data, error } = await supabase
-    .from('categories')
-    .update({ name: parsed.name })
-    .eq('id', categoryId)
-    .eq('organization_id', access.organization.id)
-    .select('id')
-    .maybeSingle()
+  try {
+    const updated = await db
+      .update(categories)
+      .set({ name: parsed.name })
+      .where(
+        and(
+          eq(categories.id, categoryId),
+          eq(categories.organizationId, access.organization.id)
+        )
+      )
+      .returning({ id: categories.id })
 
-  if (error) {
-    return { error: error.message || 'No se pudo actualizar la categoría.', ok: false }
-  }
-
-  if (!data) {
-    return { error: 'No se encontró la categoría.', ok: false }
+    if (updated.length === 0) {
+      return { error: 'No se encontró la categoría.', ok: false }
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'No se pudo actualizar la categoría.'
+    return { error: message, ok: false }
   }
 
   revalidatePath(`/${orgSlug}/categorias`)
@@ -121,7 +126,7 @@ export async function updateCategoryAction(
   return { error: null, ok: true }
 }
 
-export async function deleteCategoryAction(
+export async function deleteCategoryAction (
   orgSlug: string,
   categoryId: string,
   _prevState: CategoryFormState,
@@ -132,15 +137,18 @@ export async function deleteCategoryAction(
     return permissionDeniedState()
   }
 
-  const supabase = await createSupabaseServerClient()
-  const { error } = await supabase
-    .from('categories')
-    .delete()
-    .eq('id', categoryId)
-    .eq('organization_id', access.organization.id)
-
-  if (error) {
-    return { error: error.message || 'No se pudo eliminar la categoría.', ok: false }
+  try {
+    await db
+      .delete(categories)
+      .where(
+        and(
+          eq(categories.id, categoryId),
+          eq(categories.organizationId, access.organization.id)
+        )
+      )
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'No se pudo eliminar la categoría.'
+    return { error: message, ok: false }
   }
 
   revalidatePath(`/${orgSlug}/categorias`)

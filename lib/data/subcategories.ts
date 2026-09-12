@@ -1,4 +1,7 @@
-import { createSupabaseServerClient } from '@/lib/supabase/server'
+import { and, asc, eq } from 'drizzle-orm'
+import { alias } from 'drizzle-orm/pg-core'
+import { db } from '@/lib/db'
+import { categories, organizationMembers, subcategories } from '@/lib/db/schema'
 
 export interface SubCategoryRow {
   id: string
@@ -16,61 +19,55 @@ export interface SubCategoryOption {
   categoryId: string
 }
 
-interface RawSubCategoryRow {
-  id: string
-  name: string
-  category_id: string
-  created_at: string
-  created_by: string | null
-  category: { id: string; name: string } | { id: string; name: string }[] | null
-  creator: { display_name: string | null } | { display_name: string | null }[] | null
+async function selectSubCategories (organizationId: string, subCategoryId?: string) {
+  const creator = alias(organizationMembers, 'subcategory_creator')
+  const conditions = [eq(subcategories.organizationId, organizationId)]
+  if (subCategoryId) {
+    conditions.push(eq(subcategories.id, subCategoryId))
+  }
+
+  return db
+    .select({
+      id: subcategories.id,
+      name: subcategories.name,
+      categoryId: subcategories.categoryId,
+      categoryName: categories.name,
+      createdAt: subcategories.createdAt,
+      createdBy: subcategories.createdBy,
+      createdByName: creator.displayName,
+    })
+    .from(subcategories)
+    .leftJoin(categories, eq(subcategories.categoryId, categories.id))
+    .leftJoin(creator, eq(subcategories.createdBy, creator.id))
+    .where(and(...conditions))
+    .orderBy(asc(subcategories.name))
 }
 
-function mapSubCategoryRow(row: RawSubCategoryRow): SubCategoryRow {
-  const category = Array.isArray(row.category) ? row.category[0] : row.category
-  const creator = Array.isArray(row.creator) ? row.creator[0] : row.creator
-
+function mapRow (row: Awaited<ReturnType<typeof selectSubCategories>>[number]): SubCategoryRow {
   return {
     id: row.id,
     name: row.name,
-    categoryId: row.category_id,
-    categoryName: category?.name ?? '',
-    createdAt: row.created_at,
-    createdBy: row.created_by,
-    createdByName: creator?.display_name?.trim() || null,
+    categoryId: row.categoryId,
+    categoryName: row.categoryName ?? '',
+    createdAt: row.createdAt,
+    createdBy: row.createdBy,
+    createdByName: row.createdByName?.trim() || null,
   }
 }
 
-export async function getSubCategoriesByOrganizationId(
+export async function getSubCategoriesByOrganizationId (
   organizationId: string
 ): Promise<SubCategoryRow[]> {
-  const supabase = await createSupabaseServerClient()
-
-  const { data, error } = await supabase
-    .from('subcategories')
-    .select(
-      `
-      id,
-      name,
-      category_id,
-      created_at,
-      created_by,
-      category:categories ( id, name ),
-      creator:organization_members!subcategories_created_by_fkey ( display_name )
-    `
-    )
-    .eq('organization_id', organizationId)
-    .order('name', { ascending: true })
-
-  if (error) {
+  try {
+    const rows = await selectSubCategories(organizationId)
+    return rows.map(mapRow)
+  } catch (error) {
     console.error('getSubCategoriesByOrganizationId', error)
     return []
   }
-
-  return (data ?? []).map((row) => mapSubCategoryRow(row as unknown as RawSubCategoryRow))
 }
 
-export async function getSubCategoryOptionsByOrganizationId(
+export async function getSubCategoryOptionsByOrganizationId (
   organizationId: string
 ): Promise<SubCategoryOption[]> {
   const rows = await getSubCategoriesByOrganizationId(organizationId)
@@ -81,33 +78,17 @@ export async function getSubCategoryOptionsByOrganizationId(
   }))
 }
 
-export async function getSubCategoryById(
+export async function getSubCategoryById (
   organizationId: string,
   subCategoryId: string
 ): Promise<SubCategoryRow | null> {
-  const supabase = await createSupabaseServerClient()
-
-  const { data, error } = await supabase
-    .from('subcategories')
-    .select(
-      `
-      id,
-      name,
-      category_id,
-      created_at,
-      created_by,
-      category:categories ( id, name ),
-      creator:organization_members!subcategories_created_by_fkey ( display_name )
-    `
-    )
-    .eq('organization_id', organizationId)
-    .eq('id', subCategoryId)
-    .maybeSingle()
-
-  if (error || !data) {
-    if (error) console.error('getSubCategoryById', error)
+  try {
+    const rows = await selectSubCategories(organizationId, subCategoryId)
+    const row = rows[0]
+    if (!row) return null
+    return mapRow(row)
+  } catch (error) {
+    console.error('getSubCategoryById', error)
     return null
   }
-
-  return mapSubCategoryRow(data as unknown as RawSubCategoryRow)
 }

@@ -1,5 +1,9 @@
+import { and, asc, eq } from 'drizzle-orm'
+import { alias } from 'drizzle-orm/pg-core'
 import { DEFAULT_CATEGORY_NAMES } from '@/lib/data/default-categories'
-import { createSupabaseServerClient } from '@/lib/supabase/server'
+import { getCurrentUser } from '@/lib/auth/current-user'
+import { db } from '@/lib/db'
+import { categories, organizationMembers } from '@/lib/db/schema'
 
 export interface CategoryRow {
   id: string
@@ -9,104 +13,86 @@ export interface CategoryRow {
   createdByName: string | null
 }
 
-interface RawCategoryRow {
-  id: string
-  name: string
-  created_at: string
-  created_by: string | null
-  creator: { display_name: string | null } | { display_name: string | null }[] | null
-}
-
-function mapCategoryRow(row: RawCategoryRow): CategoryRow {
-  const creator = Array.isArray(row.creator) ? row.creator[0] : row.creator
-
-  return {
-    id: row.id,
-    name: row.name,
-    createdAt: row.created_at,
-    createdBy: row.created_by,
-    createdByName: creator?.display_name?.trim() || null,
-  }
-}
-
-export async function getCategoriesByOrganizationId(
+export async function getCategoriesByOrganizationId (
   organizationId: string
 ): Promise<CategoryRow[]> {
-  const supabase = await createSupabaseServerClient()
+  try {
+    const creator = alias(organizationMembers, 'category_creator')
+    const rows = await db
+      .select({
+        id: categories.id,
+        name: categories.name,
+        createdAt: categories.createdAt,
+        createdBy: categories.createdBy,
+        createdByName: creator.displayName,
+      })
+      .from(categories)
+      .leftJoin(creator, eq(categories.createdBy, creator.id))
+      .where(eq(categories.organizationId, organizationId))
+      .orderBy(asc(categories.name))
 
-  const { data, error } = await supabase
-    .from('categories')
-    .select(
-      `
-      id,
-      name,
-      created_at,
-      created_by,
-      creator:organization_members!categories_created_by_fkey ( display_name )
-    `
-    )
-    .eq('organization_id', organizationId)
-    .order('name', { ascending: true })
-
-  if (error) {
+    return rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      createdAt: row.createdAt,
+      createdBy: row.createdBy,
+      createdByName: row.createdByName?.trim() || null,
+    }))
+  } catch (error) {
     console.error('getCategoriesByOrganizationId', error)
     return []
   }
-
-  return (data ?? []).map((row) => mapCategoryRow(row as unknown as RawCategoryRow))
 }
 
 /** Inserta categorías del catálogo inicial que aún no existen (por nombre). */
-export async function seedDefaultCategories(organizationId: string): Promise<number> {
-  const supabase = await createSupabaseServerClient()
+export async function seedDefaultCategories (organizationId: string): Promise<number> {
+  try {
+    const existing = await db
+      .select({ name: categories.name })
+      .from(categories)
+      .where(eq(categories.organizationId, organizationId))
 
-  const { data: existing, error: existingError } = await supabase
-    .from('categories')
-    .select('name')
-    .eq('organization_id', organizationId)
+    const existingNames = new Set(
+      existing.map((row) => String(row.name).trim().toLowerCase())
+    )
 
-  if (existingError) {
-    console.error('seedDefaultCategories:existing', existingError)
+    const rowsToInsert = DEFAULT_CATEGORY_NAMES.flatMap((name) => {
+      if (existingNames.has(name.trim().toLowerCase())) return []
+      return [{ organizationId, name }]
+    })
+
+    if (rowsToInsert.length === 0) return 0
+
+    await db.insert(categories).values(rowsToInsert)
+    return rowsToInsert.length
+  } catch (error) {
+    console.error('seedDefaultCategories', error)
     return 0
   }
-
-  const existingNames = new Set(
-    (existing ?? []).map((row) => String(row.name).trim().toLowerCase())
-  )
-
-  const rowsToInsert = DEFAULT_CATEGORY_NAMES.flatMap((name) => {
-    if (existingNames.has(name.trim().toLowerCase())) return []
-    return [{ organization_id: organizationId, name }]
-  })
-
-  if (rowsToInsert.length === 0) return 0
-
-  const { error } = await supabase.from('categories').insert(rowsToInsert)
-  if (error) {
-    console.error('seedDefaultCategories:insert', error)
-    return 0
-  }
-
-  return rowsToInsert.length
 }
 
-export async function getActiveMemberIdForOrganization(
+export async function getActiveMemberIdForOrganization (
   organizationId: string
 ): Promise<string | null> {
-  const supabase = await createSupabaseServerClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getCurrentUser()
   if (!user) return null
 
-  const { data: member, error } = await supabase
-    .from('organization_members')
-    .select('id')
-    .eq('organization_id', organizationId)
-    .eq('user_id', user.id)
-    .eq('status', 'active')
-    .maybeSingle()
+  try {
+    const [member] = await db
+      .select({ id: organizationMembers.id })
+      .from(organizationMembers)
+      .where(
+        and(
+          eq(organizationMembers.organizationId, organizationId),
+          eq(organizationMembers.userId, user.id),
+          eq(organizationMembers.status, 'active')
+        )
+      )
+      .limit(1)
 
-  if (error || !member) return null
-  return member.id
+    return member?.id ?? null
+  } catch (error) {
+    console.error('getActiveMemberIdForOrganization', error)
+    return null
+  }
 }

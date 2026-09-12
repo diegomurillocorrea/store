@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { and, eq } from 'drizzle-orm'
 import { getActionAccess, permissionDeniedState } from '@/lib/auth/access'
 import { getActiveMemberIdForOrganization } from '@/lib/data/categories'
 import {
@@ -9,7 +10,8 @@ import {
 } from '@/lib/data/balance'
 import { getOrCreateDefaultLocationId } from '@/lib/data/locations'
 import { roundMoney } from '@/lib/utils/money'
-import { createSupabaseServerClient } from '@/lib/supabase/server'
+import { db } from '@/lib/db'
+import { cashSessions, organizationMembers } from '@/lib/db/schema'
 
 export interface CashActionState {
   error: string | null
@@ -51,21 +53,26 @@ export async function openCashSessionAction(
   const requestedOpenedBy = String(formData.get('openedBy') ?? '').trim()
   let openedBy = currentMemberId
 
-  const supabase = await createSupabaseServerClient()
-
   if (requestedOpenedBy && requestedOpenedBy !== currentMemberId) {
-    const { data: operator, error: operatorError } = await supabase
-      .from('organization_members')
-      .select('id')
-      .eq('id', requestedOpenedBy)
-      .eq('organization_id', access.organization.id)
-      .eq('status', 'active')
-      .maybeSingle()
+    try {
+      const [operator] = await db
+        .select({ id: organizationMembers.id })
+        .from(organizationMembers)
+        .where(and(
+          eq(organizationMembers.id, requestedOpenedBy),
+          eq(organizationMembers.organizationId, access.organization.id),
+          eq(organizationMembers.status, 'active')
+        ))
+        .limit(1)
 
-    if (operatorError || !operator) {
+      if (!operator) {
+        return initialFailure('El empleado encargado no es válido.')
+      }
+      openedBy = operator.id
+    } catch (err) {
+      console.error('openCashSessionAction operator lookup', err)
       return initialFailure('El empleado encargado no es válido.')
     }
-    openedBy = operator.id
   }
 
   const locationId = await getOrCreateDefaultLocationId(access.organization.id)
@@ -78,17 +85,17 @@ export async function openCashSessionAction(
     return initialFailure('No se pudo preparar la caja registradora.')
   }
 
-  const { error } = await supabase.from('cash_sessions').insert({
-    organization_id: access.organization.id,
-    cash_register_id: registerId,
-    status: 'open',
-    opening_amount: openingAmount,
-    opened_by: openedBy,
-    notes: String(formData.get('notes') ?? '').trim() || null,
-  })
-
-  if (error) {
-    console.error('openCashSessionAction', error)
+  try {
+    await db.insert(cashSessions).values({
+      organizationId: access.organization.id,
+      cashRegisterId: registerId,
+      status: 'open',
+      openingAmount: String(openingAmount),
+      openedBy,
+      notes: String(formData.get('notes') ?? '').trim() || null,
+    })
+  } catch (err) {
+    console.error('openCashSessionAction', err)
     return initialFailure('No se pudo abrir la caja.')
   }
 
@@ -120,24 +127,25 @@ export async function closeCashSessionAction(
   }
 
   const difference = roundMoney(closingAmount - session.openingAmount)
-  const supabase = await createSupabaseServerClient()
 
-  const { error } = await supabase
-    .from('cash_sessions')
-    .update({
-      status: 'closed',
-      closing_amount: closingAmount,
-      difference,
-      closed_by: memberId,
-      closed_at: new Date().toISOString(),
-      notes: String(formData.get('notes') ?? '').trim() || session.notes,
-    })
-    .eq('id', session.id)
-    .eq('organization_id', access.organization.id)
-    .eq('status', 'open')
-
-  if (error) {
-    console.error('closeCashSessionAction', error)
+  try {
+    await db
+      .update(cashSessions)
+      .set({
+        status: 'closed',
+        closingAmount: String(closingAmount),
+        difference: String(difference),
+        closedBy: memberId,
+        closedAt: new Date().toISOString(),
+        notes: String(formData.get('notes') ?? '').trim() || session.notes,
+      })
+      .where(and(
+        eq(cashSessions.id, session.id),
+        eq(cashSessions.organizationId, access.organization.id),
+        eq(cashSessions.status, 'open')
+      ))
+  } catch (err) {
+    console.error('closeCashSessionAction', err)
     return initialFailure('No se pudo cerrar la caja.')
   }
 
