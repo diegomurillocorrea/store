@@ -6,10 +6,13 @@ import {
   CalendarDaysIcon,
   ChartBarIcon,
   ShoppingBagIcon,
+  TrophyIcon,
 } from '@heroicons/react/24/outline'
 import { ChevronDownIcon } from '@heroicons/react/20/solid'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useCallback, useEffect } from 'react'
+import { StatisticsProductCard } from '@/components/estadisticas/statistics-product-card'
+import { StatisticsTrendChart } from '@/components/estadisticas/statistics-trend-chart'
 import type { SalesStatistics } from '@/lib/data/statistics-types'
 import { formatCurrency } from '@/lib/utils/money'
 import {
@@ -44,6 +47,18 @@ const surfaceClass =
 
 const inputClass =
   'border-zinc-200 bg-white text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100'
+
+function formatUnits (quantity: number): string {
+  const label = Number.isInteger(quantity)
+    ? String(quantity)
+    : quantity.toLocaleString('es-MX', { maximumFractionDigits: 2 })
+  return quantity === 1 ? `${label} unidad` : `${label} unidades`
+}
+
+function productMarginLabel (sold: number, profit: number | null): string | undefined {
+  if (profit == null || sold <= 0) return undefined
+  return `${((profit / sold) * 100).toFixed(1)}% margen`
+}
 
 function SummaryCard({
   label,
@@ -198,7 +213,7 @@ export function StatisticsPanel({
           Estadísticas
         </h1>
         <Text className="mt-1 text-zinc-500 dark:text-zinc-400">
-          Ventas, inversión y ganancia según el periodo seleccionado.
+          Ventas, inversión, ganancia y productos destacados del periodo.
         </Text>
       </div>
 
@@ -288,25 +303,86 @@ export function StatisticsPanel({
           icon={statistics.profit != null && statistics.profit >= 0 ? ArrowTrendingUpIcon : ChartBarIcon}
           subtitle={
             statistics.profit == null
-              ? 'Agrega costo a los productos para calcular la ganancia'
+              ? statistics.salesCount === 0
+                ? undefined
+                : 'Agrega costo a los productos para calcular la ganancia'
               : marginPercent
           }
         />
       </div>
 
-      {statistics.salesCount === 0 ? (
-        <div className={`mt-8 rounded-2xl p-8 text-center ${surfaceClass}`}>
-          <ChartBarIcon
-            className="mx-auto size-10 text-zinc-400 dark:text-zinc-500"
-            aria-hidden="true"
-          />
-          <Text className="mt-4 text-zinc-600 dark:text-zinc-300">
-            {startDate === endDate
-              ? 'No hay ventas completadas en esta fecha.'
-              : 'No hay ventas completadas en este periodo.'}
-          </Text>
-        </div>
-      ) : null}
+      <div className="mt-4 grid gap-4 md:grid-cols-2">
+        <StatisticsProductCard
+          orgSlug={orgSlug}
+          title="Más vendido"
+          emptyLabel={
+            statistics.salesCount === 0
+              ? startDate === endDate
+                ? 'No hay ventas completadas en esta fecha.'
+                : 'No hay ventas completadas en este periodo.'
+              : 'No hay un producto destacado en este periodo.'
+          }
+          product={statistics.bestSellingProduct}
+          value={
+            statistics.bestSellingProduct
+              ? formatUnits(statistics.bestSellingProduct.quantity)
+              : '—'
+          }
+          tone="neutral"
+          icon={TrophyIcon}
+          subtitle={
+            statistics.bestSellingProduct
+              ? `${formatCurrency(statistics.bestSellingProduct.sold)} vendidos`
+              : undefined
+          }
+        />
+        <StatisticsProductCard
+          orgSlug={orgSlug}
+          title="Mayor ganancia"
+          emptyLabel={
+            statistics.salesCount === 0
+              ? startDate === endDate
+                ? 'No hay ventas completadas en esta fecha.'
+                : 'No hay ventas completadas en este periodo.'
+              : 'Agrega costo a los productos para calcular la ganancia.'
+          }
+          product={statistics.highestProfitProduct}
+          value={
+            statistics.highestProfitProduct?.profit != null
+              ? formatCurrency(statistics.highestProfitProduct.profit)
+              : '—'
+          }
+          tone={
+            statistics.highestProfitProduct?.profit == null
+              ? 'neutral'
+              : statistics.highestProfitProduct.profit >= 0
+                ? 'positive'
+                : 'negative'
+          }
+          icon={ArrowTrendingUpIcon}
+          subtitle={
+            statistics.highestProfitProduct
+              ? [
+                  formatUnits(statistics.highestProfitProduct.quantity),
+                  productMarginLabel(
+                    statistics.highestProfitProduct.sold,
+                    statistics.highestProfitProduct.profit
+                  ),
+                ]
+                  .filter(Boolean)
+                  .join(' · ')
+              : undefined
+          }
+        />
+      </div>
+
+      <div className="mt-4">
+        <StatisticsTrendChart
+          series={statistics.series}
+          granularity={statistics.seriesGranularity}
+          hasSales={statistics.salesCount > 0}
+        />
+      </div>
     </>
   )
 }

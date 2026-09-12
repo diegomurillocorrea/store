@@ -37,7 +37,7 @@ export default async function EstadisticasPage({ params, searchParams }: Estadis
   const statistics = await getSalesStatistics(organizationId, startDate, endDate, timeZone)
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8">
+    <div className="px-4 pb-10 sm:px-6 lg:px-8">
       <StatisticsPanel
         orgSlug={orgSlug}
         selectedDate={selectedDate}
