@@ -1,7 +1,7 @@
 export type ProductColumnKey =
   | 'name'
   | 'category'
-  | 'subCategory'
+  | 'tags'
   | 'salePrice'
   | 'costPrice'
   | 'stock'
@@ -13,7 +13,8 @@ export type ProductColumnFilters = Partial<Record<ProductColumnKey, string[]>>
 const COLUMN_PARAM_MAP: Record<string, ProductColumnKey> = {
   nombre: 'name',
   categoria: 'category',
-  subcategoria: 'subCategory',
+  etiquetas: 'tags',
+  subcategoria: 'tags',
   precio: 'salePrice',
   costo: 'costPrice',
   stock: 'stock',
@@ -21,9 +22,16 @@ const COLUMN_PARAM_MAP: Record<string, ProductColumnKey> = {
   margen: 'profitPercent',
 }
 
-const COLUMN_KEY_TO_PARAM = Object.fromEntries(
-  Object.entries(COLUMN_PARAM_MAP).map(([param, key]) => [key, param])
-) as Record<ProductColumnKey, string>
+const COLUMN_KEY_TO_PARAM: Record<ProductColumnKey, string> = {
+  name: 'nombre',
+  category: 'categoria',
+  tags: 'etiquetas',
+  salePrice: 'precio',
+  costPrice: 'costo',
+  stock: 'stock',
+  profit: 'ganancia',
+  profitPercent: 'margen',
+}
 
 type SearchParamsLike = Pick<URLSearchParams, 'get' | 'getAll'>
 
@@ -35,9 +43,9 @@ export function parseProductFiltersFromSearchParams(
 
   for (const [param, key] of Object.entries(COLUMN_PARAM_MAP)) {
     const values = searchParams.getAll(param).filter((value) => value.length > 0)
-    if (values.length > 0) {
-      columnFilters[key] = values
-    }
+    if (values.length === 0) continue
+    const existing = columnFilters[key] ?? []
+    columnFilters[key] = [...new Set([...existing, ...values])]
   }
 
   return { query, columnFilters }

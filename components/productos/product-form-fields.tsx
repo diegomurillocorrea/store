@@ -1,9 +1,9 @@
 'use client'
 
-import { CategorySubCategoryFields } from '@/components/productos/category-subcategory-fields'
+import { CategoryTagFields } from '@/components/productos/category-tag-fields'
 import { ProductImageField } from '@/components/productos/product-image-field'
 import { ProductOptionCombobox } from '@/components/productos/product-option-combobox'
-import type { ProductOption, SubCategoryProductOption } from '@/lib/data/product-types'
+import type { ProductOption, TagProductOption } from '@/lib/data/product-types'
 import { formatUnitPriceInput, sanitizeDecimalInput } from '@/lib/utils/money'
 import { Field, Label } from '@/styles/catalyst-ui-kit/fieldset'
 import { Input } from '@/styles/catalyst-ui-kit/input'
@@ -16,7 +16,7 @@ export interface ProductFormDefaults {
   salePrice?: number
   costPrice?: number | null
   categoryId?: string | null
-  subCategoryId?: string | null
+  tagIds?: string[]
   supplierId?: string | null
   imageUrl?: string | null
 }
@@ -26,7 +26,7 @@ interface ProductFormFieldsProps {
   orgSlug: string
   organizationId: string
   categories: ProductOption[]
-  subCategories: SubCategoryProductOption[]
+  tags: TagProductOption[]
   suppliers: ProductOption[]
   defaults?: ProductFormDefaults
   resetKey?: boolean | string | number
@@ -88,10 +88,9 @@ function CurrencyInput({
 
 export function ProductFormFields({
   idPrefix,
-  orgSlug,
   organizationId,
   categories,
-  subCategories,
+  tags,
   suppliers,
   defaults,
   resetKey,
@@ -173,12 +172,12 @@ export function ProductFormFields({
         </Field>
       </div>
 
-      <CategorySubCategoryFields
+      <CategoryTagFields
         idPrefix={idPrefix}
         categories={categories}
-        subCategories={subCategories}
+        tags={tags}
         defaultCategoryId={defaults?.categoryId}
-        defaultSubCategoryId={defaults?.subCategoryId}
+        defaultTagIds={defaults?.tagIds}
         resetKey={resetKey}
       />
 

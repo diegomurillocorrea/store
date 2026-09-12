@@ -110,10 +110,9 @@ export const categories = pgTable('categories', {
   ownerSharedKey: uuid('owner_shared_key'),
 })
 
-export const subcategories = pgTable('subcategories', {
+export const tags = pgTable('tags', {
   id: uuid('id').defaultRandom().notNull().primaryKey(),
   organizationId: uuid('organization_id').notNull(),
-  categoryId: uuid('category_id').notNull(),
   name: text('name').notNull(),
   createdBy: uuid('created_by'),
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
@@ -176,9 +175,16 @@ export const products = pgTable('products', {
   availableQuantity: numeric('available_quantity', { precision: 18, scale: 4 }).default('0').notNull(),
   createdBy: uuid('created_by'),
   imageUrl: text('image_url'),
-  subCategoryId: uuid('sub_category_id'),
   ownerSharedKey: uuid('owner_shared_key'),
 })
+
+export const productTags = pgTable('product_tags', {
+  productId: uuid('product_id').notNull(),
+  tagId: uuid('tag_id').notNull(),
+  organizationId: uuid('organization_id').notNull(),
+}, (table) => [
+  primaryKey({ columns: [table.productId, table.tagId] }),
+])
 
 export const productVariants = pgTable('product_variants', {
   id: uuid('id').defaultRandom().notNull().primaryKey(),

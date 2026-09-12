@@ -14,6 +14,7 @@ import {
   Cog6ToothIcon,
   FolderIcon,
   HomeIcon,
+  TagIcon,
   ShieldCheckIcon,
   SwatchIcon,
   UserGroupIcon,
@@ -70,7 +71,8 @@ function getMobilePageTitle(pathname: string, base: string, orgName: string): st
     [`${base}/estadisticas`]: 'Estadísticas',
     [`${base}/productos`]: 'Productos',
     [`${base}/categorias`]: 'Categorías',
-    [`${base}/categorias/sub-categorias`]: 'Subcategorías',
+    [`${base}/etiquetas`]: 'Etiquetas',
+    [`${base}/categorias/sub-categorias`]: 'Etiquetas',
     [`${base}/inventario`]: 'Existencias',
     [`${base}/movimientos`]: 'Movimientos',
     [`${base}/clientes`]: 'Clientes',
@@ -172,6 +174,7 @@ function OrgDashboardShellInner({
   const catalogLinks: NavItemDefinition[] = [
     { href: `${base}/productos`, label: 'Productos', icon: CubeIcon, viewId: 'productos' },
     { href: `${base}/categorias`, label: 'Categorías', icon: FolderIcon, viewId: 'categorias' },
+    { href: `${base}/etiquetas`, label: 'Etiquetas', icon: TagIcon, viewId: 'etiquetas' },
   ]
 
   const inventoryLinks: NavItemDefinition[] = [

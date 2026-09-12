@@ -10,9 +10,10 @@ import {
   organizationMembers,
   organizations,
   products,
+  productTags,
   roles,
-  subcategories,
   suppliers,
+  tags,
 } from '@/lib/db/schema'
 import { revalidatePath } from 'next/cache'
 
@@ -31,15 +32,15 @@ export interface SharedEntityRef {
 
 type CatalogTable =
   | 'categories'
-  | 'subcategories'
+  | 'tags'
   | 'suppliers'
   | 'customers'
   | 'employees'
   | 'products'
 
 const CATALOG_REVALIDATE_PATHS: Record<CatalogTable, string[]> = {
-  categories: ['/categorias', '/categorias/sub-categorias', '/productos'],
-  subcategories: ['/categorias/sub-categorias', '/productos'],
+  categories: ['/categorias', '/etiquetas', '/productos'],
+  tags: ['/etiquetas', '/productos'],
   suppliers: ['/proveedores', '/productos'],
   customers: ['/clientes'],
   employees: ['/empleados'],
@@ -193,27 +194,24 @@ export async function getSharedEntityRef (
   return { sharedKey: ownerSharedKey, name, categorySharedKey: null, categoryName: null }
 }
 
-export async function getSubCategorySharedRef (
+export async function getTagSharedRef (
   organizationId: string,
-  subCategoryId: string | null
+  tagId: string | null
 ): Promise<SharedEntityRef> {
-  if (!subCategoryId) {
+  if (!tagId) {
     return { sharedKey: null, name: null, categorySharedKey: null, categoryName: null }
   }
 
   const [data] = await db
     .select({
-      ownerSharedKey: subcategories.ownerSharedKey,
-      name: subcategories.name,
-      categoryOwnerSharedKey: categories.ownerSharedKey,
-      categoryName: categories.name,
+      ownerSharedKey: tags.ownerSharedKey,
+      name: tags.name,
     })
-    .from(subcategories)
-    .leftJoin(categories, eq(subcategories.categoryId, categories.id))
+    .from(tags)
     .where(
       and(
-        eq(subcategories.id, subCategoryId),
-        eq(subcategories.organizationId, organizationId)
+        eq(tags.id, tagId),
+        eq(tags.organizationId, organizationId)
       )
     )
     .limit(1)
@@ -225,8 +223,8 @@ export async function getSubCategorySharedRef (
   return {
     sharedKey: data.ownerSharedKey ?? null,
     name: data.name ?? null,
-    categorySharedKey: data.categoryOwnerSharedKey ?? null,
-    categoryName: data.categoryName ?? null,
+    categorySharedKey: null,
+    categoryName: null,
   }
 }
 
@@ -401,36 +399,34 @@ export async function resolveSupplierIdInOrg (
   return null
 }
 
-export async function resolveSubCategoryIdInOrg (
+export async function resolveTagIdInOrg (
   organizationId: string,
-  ref: SharedEntityRef,
-  categoryId: string | null
+  ref: SharedEntityRef
 ): Promise<string | null> {
   if (!ref.sharedKey && !ref.name) return null
 
   if (ref.sharedKey) {
     const [row] = await db
-      .select({ id: subcategories.id })
-      .from(subcategories)
+      .select({ id: tags.id })
+      .from(tags)
       .where(
         and(
-          eq(subcategories.organizationId, organizationId),
-          eq(subcategories.ownerSharedKey, ref.sharedKey)
+          eq(tags.organizationId, organizationId),
+          eq(tags.ownerSharedKey, ref.sharedKey)
         )
       )
       .limit(1)
     if (row?.id) return row.id
   }
 
-  if (ref.name && categoryId) {
+  if (ref.name) {
     const [row] = await db
-      .select({ id: subcategories.id })
-      .from(subcategories)
+      .select({ id: tags.id })
+      .from(tags)
       .where(
         and(
-          eq(subcategories.organizationId, organizationId),
-          eq(subcategories.categoryId, categoryId),
-          ilike(subcategories.name, ref.name)
+          eq(tags.organizationId, organizationId),
+          ilike(tags.name, ref.name)
         )
       )
       .limit(1)
@@ -537,7 +533,7 @@ export async function cloneOwnerCatalogToOrganization (
   targetMemberId: string | null
 ): Promise<void> {
   const categoryIdMap = new Map<string, string>()
-  const subCategoryIdMap = new Map<string, string>()
+  const tagIdMap = new Map<string, string>()
   const supplierIdMap = new Map<string, string>()
 
   // ── Categories ──────────────────────────────────────────────────────────────
@@ -609,58 +605,72 @@ export async function cloneOwnerCatalogToOrganization (
     }
   }
 
-  // ── Subcategories ────────────────────────────────────────────────────────────
-  const sourceSubCategories = await db
+  // ── Tags ─────────────────────────────────────────────────────────────────────
+  const sourceTags = await db
     .select({
-      id: subcategories.id,
-      name: subcategories.name,
-      categoryId: subcategories.categoryId,
-      ownerSharedKey: subcategories.ownerSharedKey,
+      id: tags.id,
+      name: tags.name,
+      ownerSharedKey: tags.ownerSharedKey,
     })
-    .from(subcategories)
-    .where(eq(subcategories.organizationId, sourceOrganizationId))
+    .from(tags)
+    .where(eq(tags.organizationId, sourceOrganizationId))
 
-  for (const sub of sourceSubCategories) {
-    const targetCategoryId = categoryIdMap.get(sub.categoryId)
-    if (!targetCategoryId) continue
+  for (const tag of sourceTags) {
+    const sharedKey = tag.ownerSharedKey ?? crypto.randomUUID()
 
-    const sharedKey = sub.ownerSharedKey ?? crypto.randomUUID()
-
-    if (!sub.ownerSharedKey) {
-      await db.update(subcategories)
+    if (!tag.ownerSharedKey) {
+      await db.update(tags)
         .set({ ownerSharedKey: sharedKey })
-        .where(eq(subcategories.id, sub.id))
+        .where(eq(tags.id, tag.id))
     }
 
     const [existing] = await db
-      .select({ id: subcategories.id })
-      .from(subcategories)
+      .select({ id: tags.id })
+      .from(tags)
       .where(
         and(
-          eq(subcategories.organizationId, targetOrganizationId),
-          eq(subcategories.ownerSharedKey, sharedKey)
+          eq(tags.organizationId, targetOrganizationId),
+          eq(tags.ownerSharedKey, sharedKey)
         )
       )
       .limit(1)
 
     if (existing?.id) {
-      subCategoryIdMap.set(sub.id, existing.id)
+      tagIdMap.set(tag.id, existing.id)
+      continue
+    }
+
+    const [byName] = await db
+      .select({ id: tags.id })
+      .from(tags)
+      .where(
+        and(
+          eq(tags.organizationId, targetOrganizationId),
+          ilike(tags.name, tag.name)
+        )
+      )
+      .limit(1)
+
+    if (byName?.id) {
+      await db.update(tags)
+        .set({ ownerSharedKey: sharedKey })
+        .where(eq(tags.id, byName.id))
+      tagIdMap.set(tag.id, byName.id)
       continue
     }
 
     const [inserted] = await db
-      .insert(subcategories)
+      .insert(tags)
       .values({
         organizationId: targetOrganizationId,
-        categoryId: targetCategoryId,
-        name: sub.name,
+        name: tag.name,
         ownerSharedKey: sharedKey,
         createdBy: targetMemberId,
       })
-      .returning({ id: subcategories.id })
+      .returning({ id: tags.id })
 
     if (inserted?.id) {
-      subCategoryIdMap.set(sub.id, inserted.id)
+      tagIdMap.set(tag.id, inserted.id)
     }
   }
 
@@ -897,12 +907,13 @@ export async function cloneOwnerCatalogToOrganization (
       taxRate: products.taxRate,
       isActive: products.isActive,
       categoryId: products.categoryId,
-      subCategoryId: products.subCategoryId,
       supplierId: products.supplierId,
       ownerSharedKey: products.ownerSharedKey,
     })
     .from(products)
     .where(eq(products.organizationId, sourceOrganizationId))
+
+  const productIdMap = new Map<string, string>()
 
   for (const product of sourceProducts) {
     const sharedKey = product.ownerSharedKey ?? crypto.randomUUID()
@@ -924,9 +935,12 @@ export async function cloneOwnerCatalogToOrganization (
       )
       .limit(1)
 
-    if (existing?.id) continue
+    if (existing?.id) {
+      productIdMap.set(product.id, existing.id)
+      continue
+    }
 
-    await db.insert(products).values({
+    const [inserted] = await db.insert(products).values({
       organizationId: targetOrganizationId,
       name: product.name,
       sku: product.sku,
@@ -939,11 +953,38 @@ export async function cloneOwnerCatalogToOrganization (
       taxRate: product.taxRate,
       isActive: product.isActive,
       categoryId: product.categoryId != null ? categoryIdMap.get(product.categoryId) ?? null : null,
-      subCategoryId: product.subCategoryId != null ? subCategoryIdMap.get(product.subCategoryId) ?? null : null,
       supplierId: product.supplierId != null ? supplierIdMap.get(product.supplierId) ?? null : null,
       ownerSharedKey: sharedKey,
       createdBy: targetMemberId,
+    }).returning({ id: products.id })
+
+    if (inserted?.id) {
+      productIdMap.set(product.id, inserted.id)
+    }
+  }
+
+  // ── Product tags ─────────────────────────────────────────────────────────────
+  const sourceProductTags = await db
+    .select({
+      productId: productTags.productId,
+      tagId: productTags.tagId,
     })
+    .from(productTags)
+    .where(eq(productTags.organizationId, sourceOrganizationId))
+
+  for (const row of sourceProductTags) {
+    const targetProductId = productIdMap.get(row.productId)
+    const targetTagId = tagIdMap.get(row.tagId)
+    if (!targetProductId || !targetTagId) continue
+
+    await db
+      .insert(productTags)
+      .values({
+        productId: targetProductId,
+        tagId: targetTagId,
+        organizationId: targetOrganizationId,
+      })
+      .onConflictDoNothing()
   }
 }
 

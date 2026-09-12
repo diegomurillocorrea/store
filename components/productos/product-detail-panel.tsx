@@ -10,7 +10,7 @@ import {
   updateProductAction,
   type ProductFormState,
 } from '@/lib/actions/product-actions'
-import type { ProductOption, ProductRow, SubCategoryProductOption } from '@/lib/data/product-types'
+import type { ProductOption, ProductRow, TagProductOption } from '@/lib/data/product-types'
 import type { ViewActionFlags } from '@/lib/permissions/views'
 import { useFormActionSuccess } from '@/lib/hooks/use-form-action-success'
 import { Button } from '@/styles/catalyst-ui-kit/button'
@@ -25,7 +25,7 @@ interface ProductDetailPanelProps {
   organizationId: string
   product: ProductRow
   categories: ProductOption[]
-  subCategories: SubCategoryProductOption[]
+  tags: TagProductOption[]
   suppliers: ProductOption[]
   actions: Pick<ViewActionFlags, 'canEdit' | 'canDelete'>
 }
@@ -35,7 +35,7 @@ export function ProductDetailPanel({
   organizationId,
   product,
   categories,
-  subCategories,
+  tags,
   suppliers,
   actions,
 }: ProductDetailPanelProps) {
@@ -56,7 +56,7 @@ export function ProductDetailPanel({
   const formDefaultsKey = [
     product.id,
     product.categoryId ?? '',
-    product.subCategoryId ?? '',
+    product.tagIds.join(','),
     product.supplierId ?? '',
     formResetKey,
   ].join(':')
@@ -97,7 +97,7 @@ export function ProductDetailPanel({
               orgSlug={orgSlug}
               organizationId={organizationId}
               categories={categories}
-              subCategories={subCategories}
+              tags={tags}
               suppliers={suppliers}
               resetKey={formDefaultsKey}
               defaults={{
@@ -107,7 +107,7 @@ export function ProductDetailPanel({
                 salePrice: product.salePrice,
                 costPrice: product.costPrice,
                 categoryId: product.categoryId,
-                subCategoryId: product.subCategoryId,
+                tagIds: product.tagIds,
                 supplierId: product.supplierId,
                 imageUrl: product.imageUrl,
               }}
@@ -137,7 +137,7 @@ export function ProductDetailPanel({
             orgSlug={orgSlug}
             organizationId={organizationId}
             categories={categories}
-            subCategories={subCategories}
+            tags={tags}
             suppliers={suppliers}
             resetKey={formDefaultsKey}
             defaults={{
@@ -147,7 +147,7 @@ export function ProductDetailPanel({
               salePrice: product.salePrice,
               costPrice: product.costPrice,
               categoryId: product.categoryId,
-              subCategoryId: product.subCategoryId,
+              tagIds: product.tagIds,
               supplierId: product.supplierId,
               imageUrl: product.imageUrl,
             }}

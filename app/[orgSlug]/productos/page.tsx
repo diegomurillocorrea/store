@@ -2,7 +2,7 @@ import { ProductsPanel } from '@/components/productos/products-panel'
 import { requireViewAccess } from '@/lib/auth/access'
 import { getCategoriesByOrganizationId } from '@/lib/data/categories'
 import { getProductsByOrganizationId } from '@/lib/data/products'
-import { getSubCategoryOptionsByOrganizationId } from '@/lib/data/subcategories'
+import { getTagOptionsByOrganizationId } from '@/lib/data/tags'
 import { getSuppliersByOrganizationId } from '@/lib/data/suppliers'
 import { getViewActionFlags } from '@/lib/permissions/views'
 import { parseProductFiltersFromPageSearchParams } from '@/lib/utils/product-filters-url'
@@ -22,10 +22,10 @@ export default async function ProductosPage({ params, searchParams }: ProductosP
   const organizationId = access.organization.id
   const actions = getViewActionFlags(access.permissions, 'productos')
 
-  const [products, categories, subCategories, suppliers] = await Promise.all([
+  const [products, categories, tags, suppliers] = await Promise.all([
     getProductsByOrganizationId(organizationId),
     getCategoriesByOrganizationId(organizationId),
-    getSubCategoryOptionsByOrganizationId(organizationId),
+    getTagOptionsByOrganizationId(organizationId),
     getSuppliersByOrganizationId(organizationId),
   ])
 
@@ -47,7 +47,7 @@ export default async function ProductosPage({ params, searchParams }: ProductosP
         organizationId={organizationId}
         products={products}
         categories={categoryOptions}
-        subCategories={subCategories}
+        tags={tags}
         suppliers={supplierOptions}
         actions={actions}
         initialQuery={initialQuery}

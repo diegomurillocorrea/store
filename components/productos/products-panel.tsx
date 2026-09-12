@@ -6,7 +6,7 @@ import { useCallback, useDeferredValue, useMemo, useState } from 'react'
 import { CreateProductDialog } from '@/components/productos/create-product-dialog'
 import { ColumnFilterHeader } from '@/components/productos/column-filter-header'
 import { ProductsTableRow } from '@/components/productos/products-table-row'
-import type { ProductOption, ProductRow, SubCategoryProductOption } from '@/lib/data/product-types'
+import type { ProductOption, ProductRow, TagProductOption } from '@/lib/data/product-types'
 import { useProductFiltersUrl } from '@/lib/hooks/use-product-filters-url'
 import type { ViewActionFlags } from '@/lib/permissions/views'
 import type { ProductColumnFilters, ProductColumnKey } from '@/lib/utils/product-filters-url'
@@ -20,7 +20,7 @@ interface ProductsPanelProps {
   organizationId: string
   products: ProductRow[]
   categories: ProductOption[]
-  subCategories: SubCategoryProductOption[]
+  tags: TagProductOption[]
   suppliers: ProductOption[]
   actions: Pick<ViewActionFlags, 'canCreate' | 'canEdit' | 'canDelete'>
   initialQuery: string
@@ -40,6 +40,7 @@ const percentFormatter = new Intl.NumberFormat('es-MX', {
 interface ProductFilterIndexEntry {
   product: ProductRow
   columnValues: Record<ProductColumnKey, string>
+  tagNames: string[]
   searchHaystack: string
   profitLabel: string
   profitPercentLabel: string
@@ -92,13 +93,16 @@ function buildProductFilterIndex(products: ProductRow[]): ProductFilterIndexEntr
   return products.map((product) => {
     const profit = getProductProfit(product.salePrice, product.costPrice)
     const profitPercent = getProductProfitPercent(product.salePrice, product.costPrice)
+    const tagsLabel =
+      product.tagNames.length > 0 ? product.tagNames.join(', ') : 'Sin etiqueta'
 
     return {
       product,
+      tagNames: product.tagNames,
       columnValues: {
         name: product.name,
         category: product.categoryName ?? 'Sin categoría',
-        subCategory: product.subCategoryName ?? 'Sin subcategoría',
+        tags: tagsLabel,
         salePrice: formatCurrency(product.salePrice),
         costPrice: formatCurrency(product.costPrice),
         stock: String(product.availableQuantity),
@@ -110,7 +114,7 @@ function buildProductFilterIndex(products: ProductRow[]): ProductFilterIndexEntr
         product.barcode ?? '',
         product.sku,
         product.categoryName ?? '',
-        product.subCategoryName ?? '',
+        ...product.tagNames,
         product.supplierName ?? '',
         product.createdByName ?? '',
       ]
@@ -138,12 +142,19 @@ function buildActiveColumnFilterSets(
   return activeFilters
 }
 
+function matchesTagFilter(entry: ProductFilterIndexEntry, selectedValues: Set<string>): boolean {
+  if (selectedValues.has('Sin etiqueta') && entry.tagNames.length === 0) {
+    return true
+  }
+  return entry.tagNames.some((name) => selectedValues.has(name))
+}
+
 export function ProductsPanel({
   orgSlug,
   organizationId,
   products,
   categories,
-  subCategories,
+  tags,
   suppliers,
   actions,
   initialQuery,
@@ -161,15 +172,10 @@ export function ProductsPanel({
   const productIndex = useMemo(() => buildProductFilterIndex(products), [products])
 
   const columnOptions = useMemo(() => {
-    const selectedCategoryNames = columnFilters.category ?? []
-    const selectedCategorySet =
-      selectedCategoryNames.length > 0 ? new Set(selectedCategoryNames) : null
-    const categoryNameById = new Map(categories.map((category) => [category.id, category.name]))
-
     const productValues: Record<ProductColumnKey, string[]> = {
       name: [],
       category: [],
-      subCategory: [],
+      tags: [],
       salePrice: [],
       costPrice: [],
       stock: [],
@@ -179,24 +185,17 @@ export function ProductsPanel({
 
     for (const entry of productIndex) {
       for (const key of Object.keys(productValues) as ProductColumnKey[]) {
+        if (key === 'tags') {
+          if (entry.tagNames.length === 0) {
+            productValues.tags.push('Sin etiqueta')
+          } else {
+            productValues.tags.push(...entry.tagNames)
+          }
+          continue
+        }
         productValues[key].push(entry.columnValues[key])
       }
     }
-
-    const catalogSubCategoryNames = subCategories
-      .filter((subCategory) => {
-        if (!selectedCategorySet) return true
-        const categoryName = categoryNameById.get(subCategory.categoryId)
-        return categoryName != null && selectedCategorySet.has(categoryName)
-      })
-      .map((subCategory) => subCategory.name)
-
-    const productSubCategoryNames = productIndex
-      .filter((entry) => {
-        if (!selectedCategorySet) return true
-        return selectedCategorySet.has(entry.columnValues.category)
-      })
-      .map((entry) => entry.columnValues.subCategory)
 
     return {
       name: uniqueSortedValues(productValues.name),
@@ -204,9 +203,9 @@ export function ProductsPanel({
         ...categories.map((category) => category.name),
         ...productValues.category,
       ]),
-      subCategory: uniqueSortedValues([
-        ...catalogSubCategoryNames,
-        ...productSubCategoryNames,
+      tags: uniqueSortedValues([
+        ...tags.map((tag) => tag.name),
+        ...productValues.tags,
       ]),
       salePrice: uniqueSortedValues(productValues.salePrice),
       costPrice: uniqueSortedValues(productValues.costPrice),
@@ -214,7 +213,7 @@ export function ProductsPanel({
       profit: uniqueSortedValues(productValues.profit),
       profitPercent: uniqueSortedValues(productValues.profitPercent),
     }
-  }, [productIndex, categories, subCategories, columnFilters.category])
+  }, [productIndex, categories, tags])
 
   const filteredProducts = useMemo(() => {
     const normalizedQuery = deferredQuery.trim().toLowerCase()
@@ -226,6 +225,10 @@ export function ProductsPanel({
 
     return productIndex.filter((entry) => {
       for (const [key, selectedValues] of activeFilterEntries) {
+        if (key === 'tags') {
+          if (!matchesTagFilter(entry, selectedValues)) return false
+          continue
+        }
         if (!selectedValues.has(entry.columnValues[key])) return false
       }
 
@@ -250,7 +253,7 @@ export function ProductsPanel({
         <div className="sm:flex-auto">
           <Subheading level={3}>Catálogo de productos</Subheading>
           <Text className="mt-2 max-w-2xl">
-            Administra precios, stock y relaciones con categorías y proveedores.
+            Administra precios, stock y relaciones con categorías, etiquetas y proveedores.
           </Text>
         </div>
         <div className="mt-4 sm:mt-0 sm:ml-16 sm:flex-none">
@@ -269,7 +272,7 @@ export function ProductsPanel({
           <Input
             type="search"
             name="product-search"
-            placeholder="Buscar por nombre, código o categoría"
+            placeholder="Buscar por nombre, código, categoría o etiqueta"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             aria-label="Buscar producto"
@@ -323,10 +326,10 @@ export function ProductsPanel({
                     className="w-[12%] px-3 py-3.5 text-center text-sm font-semibold text-foreground!"
                   >
                     <ColumnFilterHeader
-                      label="Subcategoría"
-                      options={columnOptions.subCategory}
-                      selected={columnFilters.subCategory ?? []}
-                      onChange={(selected) => handleColumnFilterChange('subCategory', selected)}
+                      label="Etiquetas"
+                      options={columnOptions.tags}
+                      selected={columnFilters.tags ?? []}
+                      onChange={(selected) => handleColumnFilterChange('tags', selected)}
                     />
                   </th>
                   <th
@@ -421,7 +424,7 @@ export function ProductsPanel({
         orgSlug={orgSlug}
         organizationId={organizationId}
         categories={categories}
-        subCategories={subCategories}
+        tags={tags}
         suppliers={suppliers}
         open={isCreateOpen}
         onClose={handleCloseCreate}

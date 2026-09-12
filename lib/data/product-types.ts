@@ -8,8 +8,8 @@ export interface ProductRow {
   costPrice: number | null
   categoryId: string | null
   categoryName: string | null
-  subCategoryId: string | null
-  subCategoryName: string | null
+  tagIds: string[]
+  tagNames: string[]
   supplierId: string | null
   supplierName: string | null
   imageUrl: string | null
@@ -23,8 +23,7 @@ export interface ProductOption {
   name: string
 }
 
-export interface SubCategoryProductOption {
+export interface TagProductOption {
   id: string
   name: string
-  categoryId: string
 }

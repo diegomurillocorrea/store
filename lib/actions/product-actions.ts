@@ -1,20 +1,21 @@
 'use server'
 
 import { and, eq } from 'drizzle-orm'
-import { validateProductSubCategory } from '@/lib/actions/subcategory-actions'
+import { ensureTagsByNames, validateProductTags } from '@/lib/actions/tag-actions'
 import { getActionAccess, permissionDeniedState } from '@/lib/auth/access'
 import {
   getCreateFanOutTargets,
   getSharedEntityRef,
-  getSubCategorySharedRef,
+  getTagSharedRef,
   newOwnerSharedKey,
   resolveCategoryIdInOrg,
-  resolveSubCategoryIdInOrg,
   resolveSupplierIdInOrg,
+  resolveTagIdInOrg,
   revalidateCatalogPaths,
+  type SharedEntityRef,
 } from '@/lib/data/owner-shared-entities'
 import { db } from '@/lib/db'
-import { products } from '@/lib/db/schema'
+import { products, productTags } from '@/lib/db/schema'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import {
   deleteProductImageByUrl,
@@ -38,13 +39,44 @@ interface ParsedProductForm {
   salePrice: number
   costPrice: number | null
   categoryId: string | null
-  subCategoryId: string | null
+  tagIds: string[]
   supplierId: string | null
 }
 
 function parseOptionalUuid (value: FormDataEntryValue | null): string | null {
   const raw = String(value ?? '').trim()
   return raw.length > 0 ? raw : null
+}
+
+function parseTagIdsFromForm (formData: FormData): string[] {
+  return formData
+    .getAll('tagIds')
+    .map((value) => String(value ?? '').trim())
+    .filter((value) => value.length > 0)
+}
+
+function parseNewTagNamesFromForm (formData: FormData): string[] {
+  return formData
+    .getAll('newTagNames')
+    .map((value) => String(value ?? '').trim())
+    .filter((value) => value.length > 0)
+}
+
+async function resolveSubmittedTagIds (
+  organizationId: string,
+  formData: FormData,
+  existingTagIds: string[]
+): Promise<{ error: string } | { tagIds: string[]; createdCount: number }> {
+  const ensured = await ensureTagsByNames(organizationId, parseNewTagNamesFromForm(formData))
+  if ('error' in ensured) return ensured
+
+  const tagsResult = await validateProductTags(organizationId, [
+    ...existingTagIds,
+    ...ensured.tagIds,
+  ])
+  if ('error' in tagsResult) return tagsResult
+
+  return { tagIds: tagsResult.tagIds, createdCount: ensured.createdCount }
 }
 
 function parseNonNegativeNumber (
@@ -135,7 +167,7 @@ function parseProductForm (formData: FormData): { error: string } | ParsedProduc
     salePrice,
     costPrice,
     categoryId: parseOptionalUuid(formData.get('categoryId')),
-    subCategoryId: parseOptionalUuid(formData.get('subCategoryId')),
+    tagIds: parseTagIdsFromForm(formData),
     supplierId: parseOptionalUuid(formData.get('supplierId')),
   }
 }
@@ -155,7 +187,7 @@ function mapProductError (error: unknown): string {
   }
 
   if (code === '23503') {
-    return 'La categoría, subcategoría o el proveedor seleccionado no es válido.'
+    return 'La categoría, etiqueta o el proveedor seleccionado no es válido.'
   }
 
   return message || 'No se pudo guardar el producto.'
@@ -192,6 +224,47 @@ async function resolveProductImageUrl (
   return { imageUrl: currentImageUrl, error: null }
 }
 
+async function replaceProductTags (
+  organizationId: string,
+  productId: string,
+  tagIds: string[]
+): Promise<void> {
+  await db
+    .delete(productTags)
+    .where(
+      and(
+        eq(productTags.productId, productId),
+        eq(productTags.organizationId, organizationId)
+      )
+    )
+
+  if (tagIds.length === 0) return
+
+  await db.insert(productTags).values(
+    tagIds.map((tagId) => ({
+      productId,
+      tagId,
+      organizationId,
+    }))
+  )
+}
+
+async function resolveTagIdsForTarget (
+  organizationId: string,
+  isCurrent: boolean,
+  sourceTagIds: string[],
+  tagRefs: SharedEntityRef[]
+): Promise<string[]> {
+  if (isCurrent) return sourceTagIds
+
+  const resolved: string[] = []
+  for (const ref of tagRefs) {
+    const tagId = await resolveTagIdInOrg(organizationId, ref)
+    if (tagId) resolved.push(tagId)
+  }
+  return resolved
+}
+
 export async function createProductAction (
   orgSlug: string,
   _prevState: ProductFormState,
@@ -207,13 +280,13 @@ export async function createProductAction (
     return { error: parsed.error, ok: false }
   }
 
-  const subCategoryResult = await validateProductSubCategory(
+  const tagsResult = await resolveSubmittedTagIds(
     access.organization.id,
-    parsed.categoryId,
-    parsed.subCategoryId
+    formData,
+    parsed.tagIds
   )
-  if ('error' in subCategoryResult) {
-    return { error: subCategoryResult.error, ok: false }
+  if ('error' in tagsResult) {
+    return { error: tagsResult.error, ok: false }
   }
 
   const targets = await getCreateFanOutTargets(access.organization.id)
@@ -236,9 +309,8 @@ export async function createProductAction (
     access.organization.id,
     parsed.supplierId
   )
-  const subCategoryRef = await getSubCategorySharedRef(
-    access.organization.id,
-    subCategoryResult.subCategoryId
+  const tagRefs = await Promise.all(
+    tagsResult.tagIds.map((tagId) => getTagSharedRef(access.organization.id, tagId))
   )
 
   const sharedKey = newOwnerSharedKey()
@@ -253,11 +325,14 @@ export async function createProductAction (
       const supplierId = isCurrent
         ? parsed.supplierId
         : await resolveSupplierIdInOrg(target.organizationId, supplierRef)
-      const subCategoryId = isCurrent
-        ? subCategoryResult.subCategoryId
-        : await resolveSubCategoryIdInOrg(target.organizationId, subCategoryRef, categoryId)
+      const tagIds = await resolveTagIdsForTarget(
+        target.organizationId,
+        isCurrent,
+        tagsResult.tagIds,
+        tagRefs
+      )
 
-      await db.insert(products).values({
+      const [inserted] = await db.insert(products).values({
         organizationId: target.organizationId,
         name: parsed.name,
         sku,
@@ -266,12 +341,21 @@ export async function createProductAction (
         salePrice: String(parsed.salePrice),
         costPrice: parsed.costPrice == null ? null : String(parsed.costPrice),
         categoryId,
-        subCategoryId,
         supplierId,
         imageUrl: imageResult.imageUrl,
         ownerSharedKey: sharedKey,
         createdBy: target.memberId,
-      })
+      }).returning({ id: products.id })
+
+      if (inserted?.id && tagIds.length > 0) {
+        await db.insert(productTags).values(
+          tagIds.map((tagId) => ({
+            productId: inserted.id,
+            tagId,
+            organizationId: target.organizationId,
+          }))
+        )
+      }
     }
   } catch (error) {
     if (imageResult.imageUrl) {
@@ -282,6 +366,9 @@ export async function createProductAction (
   }
 
   revalidateCatalogPaths(targets, 'products', orgSlug)
+  if (tagsResult.createdCount > 0) {
+    revalidateCatalogPaths(targets, 'tags', orgSlug)
+  }
   return { error: null, ok: true }
 }
 
@@ -301,13 +388,13 @@ export async function updateProductAction (
     return { error: parsed.error, ok: false }
   }
 
-  const subCategoryResult = await validateProductSubCategory(
+  const tagsResult = await resolveSubmittedTagIds(
     access.organization.id,
-    parsed.categoryId,
-    parsed.subCategoryId
+    formData,
+    parsed.tagIds
   )
-  if ('error' in subCategoryResult) {
-    return { error: subCategoryResult.error, ok: false }
+  if ('error' in tagsResult) {
+    return { error: tagsResult.error, ok: false }
   }
 
   const [existingProduct] = await db
@@ -345,7 +432,6 @@ export async function updateProductAction (
         salePrice: String(parsed.salePrice),
         costPrice: parsed.costPrice == null ? null : String(parsed.costPrice),
         categoryId: parsed.categoryId,
-        subCategoryId: subCategoryResult.subCategoryId,
         supplierId: parsed.supplierId,
         imageUrl: imageResult.imageUrl,
         updatedAt: new Date().toISOString(),
@@ -356,12 +442,17 @@ export async function updateProductAction (
           eq(products.organizationId, access.organization.id)
         )
       )
+
+    await replaceProductTags(access.organization.id, productId, tagsResult.tagIds)
   } catch (error) {
     return { error: mapProductError(error), ok: false }
   }
 
   revalidatePath(`/${orgSlug}/productos`)
   revalidatePath(`/${orgSlug}/productos/${productId}`)
+  if (tagsResult.createdCount > 0) {
+    revalidatePath(`/${orgSlug}/etiquetas`)
+  }
   return { error: null, ok: true }
 }
 
@@ -445,6 +536,15 @@ export async function deleteProductAction (
     .limit(1)
 
   try {
+    await db
+      .delete(productTags)
+      .where(
+        and(
+          eq(productTags.productId, productId),
+          eq(productTags.organizationId, access.organization.id)
+        )
+      )
+
     await db
       .delete(products)
       .where(

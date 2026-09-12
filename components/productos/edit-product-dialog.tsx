@@ -5,7 +5,7 @@ import {
   updateProductAction,
   type ProductFormState,
 } from '@/lib/actions/product-actions'
-import type { ProductOption, ProductRow, SubCategoryProductOption } from '@/lib/data/product-types'
+import type { ProductOption, ProductRow, TagProductOption } from '@/lib/data/product-types'
 import { ProductFormFields } from '@/components/productos/product-form-fields'
 import { useFormActionSuccess } from '@/lib/hooks/use-form-action-success'
 import { Button } from '@/styles/catalyst-ui-kit/button'
@@ -26,7 +26,7 @@ interface EditProductDialogProps {
   organizationId: string
   product: ProductRow | null
   categories: ProductOption[]
-  subCategories: SubCategoryProductOption[]
+  tags: TagProductOption[]
   suppliers: ProductOption[]
   open: boolean
   onClose: () => void
@@ -37,7 +37,7 @@ export function EditProductDialog({
   organizationId,
   product,
   categories,
-  subCategories,
+  tags,
   suppliers,
   open,
   onClose,
@@ -69,7 +69,7 @@ export function EditProductDialog({
               orgSlug={orgSlug}
               organizationId={organizationId}
               categories={categories}
-              subCategories={subCategories}
+              tags={tags}
               suppliers={suppliers}
               defaults={{
                 barcode: product.barcode ?? '',
@@ -78,7 +78,7 @@ export function EditProductDialog({
                 salePrice: product.salePrice,
                 costPrice: product.costPrice,
                 categoryId: product.categoryId,
-                subCategoryId: product.subCategoryId,
+                tagIds: product.tagIds,
                 supplierId: product.supplierId,
                 imageUrl: product.imageUrl,
               }}

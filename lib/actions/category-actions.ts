@@ -122,7 +122,7 @@ export async function updateCategoryAction (
   }
 
   revalidatePath(`/${orgSlug}/categorias`)
-  revalidatePath(`/${orgSlug}/categorias/sub-categorias`)
+  revalidatePath(`/${orgSlug}/etiquetas`)
   return { error: null, ok: true }
 }
 
@@ -152,6 +152,6 @@ export async function deleteCategoryAction (
   }
 
   revalidatePath(`/${orgSlug}/categorias`)
-  revalidatePath(`/${orgSlug}/categorias/sub-categorias`)
+  revalidatePath(`/${orgSlug}/etiquetas`)
   return { error: null, ok: true }
 }

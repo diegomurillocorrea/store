@@ -87,11 +87,11 @@ function filterProducts(
   products: ProductRow[],
   query: string,
   selectedCategories: Set<string>,
-  selectedSubCategories: Set<string>
+  selectedTags: Set<string>
 ): ProductRow[] {
   const normalizedQuery = query.trim().toLowerCase()
   const hasCategoryFilter = selectedCategories.size > 0
-  const hasSubCategoryFilter = selectedSubCategories.size > 0
+  const hasTagFilter = selectedTags.size > 0
 
   return products.filter((product) => {
     if (hasCategoryFilter && (!product.categoryName || !selectedCategories.has(product.categoryName))) {
@@ -99,8 +99,8 @@ function filterProducts(
     }
 
     if (
-      hasSubCategoryFilter &&
-      (!product.subCategoryName || !selectedSubCategories.has(product.subCategoryName))
+      hasTagFilter &&
+      !product.tagNames.some((tagName) => selectedTags.has(tagName))
     ) {
       return false
     }
@@ -112,7 +112,7 @@ function filterProducts(
       product.barcode ?? '',
       product.sku,
       product.categoryName ?? '',
-      product.subCategoryName ?? '',
+      ...product.tagNames,
     ]
       .join(' ')
       .toLowerCase()
@@ -248,14 +248,14 @@ function ProductCard({
           <h3 className="line-clamp-2 min-h-10 text-sm leading-snug font-semibold text-zinc-900 dark:text-zinc-50">
             {product.name}
           </h3>
-          {product.categoryName || product.subCategoryName ? (
+          {product.categoryName || product.tagNames.length > 0 ? (
             <div className="flex min-h-5 flex-wrap items-center gap-1.5">
               {product.categoryName ? (
                 <CatalogDotBadge>{product.categoryName}</CatalogDotBadge>
               ) : null}
-              {product.subCategoryName ? (
-                <CatalogDotBadge>{product.subCategoryName}</CatalogDotBadge>
-              ) : null}
+              {product.tagNames.map((tagName) => (
+                <CatalogDotBadge key={tagName}>{tagName}</CatalogDotBadge>
+              ))}
             </div>
           ) : (
             <span className="invisible inline-flex min-h-5 max-h-5 items-center px-2 text-xs">
@@ -617,7 +617,7 @@ function PosCartSidebar({
 export function PosPanel({ orgSlug, products, customers }: PosPanelProps) {
   const [query, setQuery] = useState('')
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(() => new Set())
-  const [selectedSubCategories, setSelectedSubCategories] = useState<Set<string>>(
+  const [selectedTags, setSelectedTags] = useState<Set<string>>(
     () => new Set()
   )
   const [cartLines, setCartLines] = usePersistedPosCart(orgSlug, products)
@@ -630,14 +630,14 @@ export function PosPanel({ orgSlug, products, customers }: PosPanelProps) {
     [products]
   )
 
-  const subCategoryNames = useMemo(
-    () => uniqueSortedNames(products.map((product) => product.subCategoryName)),
+  const tagNames = useMemo(
+    () => uniqueSortedNames(products.flatMap((product) => product.tagNames)),
     [products]
   )
 
   const filteredProducts = useMemo(
-    () => filterProducts(products, query, selectedCategories, selectedSubCategories),
-    [products, query, selectedCategories, selectedSubCategories]
+    () => filterProducts(products, query, selectedCategories, selectedTags),
+    [products, query, selectedCategories, selectedTags]
   )
 
   const subtotal = useMemo(() => getCartSubtotal(cartLines), [cartLines])
@@ -758,7 +758,7 @@ export function PosPanel({ orgSlug, products, customers }: PosPanelProps) {
   const handleSaleComplete = useCallback(() => {
     setCartLines([])
     setSelectedCategories(new Set())
-    setSelectedSubCategories(new Set())
+    setSelectedTags(new Set())
   }, [])
 
   const cartProps = {
@@ -839,22 +839,22 @@ export function PosPanel({ orgSlug, products, customers }: PosPanelProps) {
               </div>
             ) : null}
 
-            {subCategoryNames.length > 0 ? (
+            {tagNames.length > 0 ? (
               <div className="-mx-1 overflow-x-auto px-1">
                 <div
                   role="group"
-                  aria-label="Filtrar por subcategoría"
+                  aria-label="Filtrar por etiqueta"
                   className="flex w-max min-w-full flex-nowrap items-center gap-1.5"
                 >
-                  {subCategoryNames.map((name) => {
-                    const isSelected = selectedSubCategories.has(name)
+                  {tagNames.map((name) => {
+                    const isSelected = selectedTags.has(name)
                     return (
                       <CatalogDotBadge
                         key={name}
                         selected={isSelected}
-                        dimmed={selectedSubCategories.size > 0 && !isSelected}
+                        dimmed={selectedTags.size > 0 && !isSelected}
                         onClick={() => {
-                          setSelectedSubCategories((current) => toggleSelection(current, name))
+                          setSelectedTags((current) => toggleSelection(current, name))
                         }}
                       >
                         {name}

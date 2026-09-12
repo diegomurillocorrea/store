@@ -77,9 +77,11 @@ function ProductsTableRowComponent({
         )}
       </td>
       <td className="px-3 py-4 text-center">
-        {product.subCategoryName ? (
-          <div className="flex justify-center">
-            <CatalogDotBadge>{product.subCategoryName}</CatalogDotBadge>
+        {product.tagNames.length > 0 ? (
+          <div className="flex flex-wrap justify-center gap-1">
+            {product.tagNames.map((tagName) => (
+              <CatalogDotBadge key={tagName}>{tagName}</CatalogDotBadge>
+            ))}
           </div>
         ) : (
           <span className="text-sm text-muted-foreground">—</span>

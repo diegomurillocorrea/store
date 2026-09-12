@@ -1,12 +1,8 @@
 'use client'
 
 import { useActionState } from 'react'
-import {
-  updateSubCategoryAction,
-  type SubCategoryFormState,
-} from '@/lib/actions/subcategory-actions'
-import type { CategoryRow } from '@/lib/data/categories'
-import type { SubCategoryRow } from '@/lib/data/subcategories'
+import { updateTagAction, type TagFormState } from '@/lib/actions/tag-actions'
+import type { TagRow } from '@/lib/data/tags'
 import { useFormActionSuccess } from '@/lib/hooks/use-form-action-success'
 import { Button } from '@/styles/catalyst-ui-kit/button'
 import {
@@ -18,69 +14,46 @@ import {
 } from '@/styles/catalyst-ui-kit/dialog'
 import { Field, FieldGroup, Fieldset, Label } from '@/styles/catalyst-ui-kit/fieldset'
 import { Input } from '@/styles/catalyst-ui-kit/input'
-import { Select } from '@/styles/catalyst-ui-kit/select'
 import { Text } from '@/styles/catalyst-ui-kit/text'
 
-const initialState: SubCategoryFormState = { error: null, ok: false }
+const initialState: TagFormState = { error: null, ok: false }
 
-interface EditSubCategoryDialogProps {
+interface EditTagDialogProps {
   orgSlug: string
-  categories: CategoryRow[]
-  subCategory: SubCategoryRow | null
+  tag: TagRow | null
   open: boolean
   onClose: () => void
 }
 
-export function EditSubCategoryDialog({
-  orgSlug,
-  categories,
-  subCategory,
-  open,
-  onClose,
-}: EditSubCategoryDialogProps) {
-  const boundAction = updateSubCategoryAction.bind(null, orgSlug)
+export function EditTagDialog({ orgSlug, tag, open, onClose }: EditTagDialogProps) {
+  const boundAction = updateTagAction.bind(null, orgSlug)
   const [state, formAction, pending] = useActionState(boundAction, initialState)
 
-  useFormActionSuccess(state.ok, onClose, pending, 'Subcategoría actualizada correctamente.')
+  useFormActionSuccess(state.ok, onClose, pending, 'Etiqueta actualizada correctamente.')
 
-  if (!subCategory) return null
+  if (!tag) return null
 
   return (
     <Dialog open={open} onClose={onClose} size="md">
-      <DialogTitle>Editar subcategoría</DialogTitle>
+      <DialogTitle>Editar etiqueta</DialogTitle>
       <DialogDescription>
-        Modifica la subcategoría <strong>{subCategory.name}</strong>.
+        Modifica la etiqueta <strong>{tag.name}</strong>.
       </DialogDescription>
 
-      <form action={formAction} key={subCategory.id}>
-        <input type="hidden" name="subCategoryId" value={subCategory.id} />
+      <form action={formAction} key={tag.id}>
+        <input type="hidden" name="tagId" value={tag.id} />
         <DialogBody>
           <Fieldset>
             <FieldGroup>
               <Field>
-                <Label htmlFor="edit-subcategory-category">Categoría</Label>
-                <Select
-                  id="edit-subcategory-category"
-                  name="categoryId"
-                  required
-                  defaultValue={subCategory.categoryId}
-                >
-                  {categories.map((category) => (
-                    <option key={category.id} value={category.id}>
-                      {category.name}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-              <Field>
-                <Label htmlFor="edit-subcategory-name">Nombre</Label>
+                <Label htmlFor="edit-tag-name">Nombre</Label>
                 <Input
-                  id="edit-subcategory-name"
+                  id="edit-tag-name"
                   name="name"
                   required
                   minLength={2}
                   autoComplete="off"
-                  defaultValue={subCategory.name}
+                  defaultValue={tag.name}
                 />
               </Field>
             </FieldGroup>
