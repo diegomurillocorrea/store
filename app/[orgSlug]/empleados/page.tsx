@@ -1,4 +1,5 @@
 import { EmployeesPanel } from '@/components/empleados/employees-panel'
+import { ListPageFrame } from '@/components/list-page-frame'
 import { requireViewAccess } from '@/lib/auth/access'
 import { ensureOrganizationRolesSeeded } from '@/lib/data/member-permissions'
 import { getEmployeesByOrganizationId } from '@/lib/data/employees'
@@ -7,7 +8,6 @@ import {
   getPropietarioRoleByOrganizationId,
 } from '@/lib/data/roles'
 import { getViewActionFlags } from '@/lib/permissions/views'
-import { Heading } from '@/styles/catalyst-ui-kit/heading'
 
 interface EmpleadosPageProps {
   params: Promise<{ orgSlug: string }>
@@ -27,8 +27,7 @@ export default async function EmpleadosPage({ params }: EmpleadosPageProps) {
   ])
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8">
-      <Heading>Empleados</Heading>
+    <ListPageFrame title="Empleados">
       <EmployeesPanel
         orgSlug={orgSlug}
         employees={employees}
@@ -36,6 +35,6 @@ export default async function EmpleadosPage({ params }: EmpleadosPageProps) {
         propietarioRole={propietarioRole}
         actions={actions}
       />
-    </div>
+    </ListPageFrame>
   )
 }

@@ -52,8 +52,8 @@ export function CreateProductDialog({
         Registra un producto con precios, stock y relaciones de catálogo.
       </DialogDescription>
 
-      <form action={formAction}>
-        <DialogBody>
+      <form action={formAction} className="flex min-h-0 flex-col">
+        <DialogBody className="min-h-0">
           <Fieldset>
             <ProductFormFields
               idPrefix="product"

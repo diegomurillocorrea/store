@@ -1,5 +1,14 @@
 @import "tailwindcss";
 
+/*
+ * Cortes de producto (tokens por defecto de Tailwind; no hay screens custom):
+ *   402 = base (sin prefijo) — top bar + cajón, tablas reducidas, POS en hoja
+ *   768 = md
+ *   1024 = lg — sidebar de listados; POS sin columna de carrito
+ *   Desktop-2 = xl+ (1280 o más) — sidebar + carrito w-96 + grilla 5
+ * No crear --breakpoint-phone ni alias tablet:/desktop:.
+ */
+
 /* dark: de Tailwind según clase .dark en un ancestro (normalmente <html>) */
 @custom-variant dark (&:where(.dark, .dark *));
 

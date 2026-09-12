@@ -82,7 +82,7 @@ function RolePermissionsGrid({
   }, [])
 
   return (
-    <form action={formAction} className="mt-8">
+    <form action={formAction} className="mt-4 md:mt-8">
       <input type="hidden" name="roleId" value={role.id} />
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -106,17 +106,17 @@ function RolePermissionsGrid({
       ) : null}
 
       <div className="mt-6 overflow-x-auto rounded-xl ring-1 ring-zinc-950/10 dark:ring-white/10">
-        <table className="min-w-full text-left text-sm">
+        <table className="min-w-0 w-full text-left text-sm">
           <thead className="bg-zinc-50 dark:bg-white/5">
             <tr>
-              <th scope="col" className="px-4 py-3 font-semibold text-foreground">
+              <th scope="col" className="min-w-0 px-3 py-2.5 font-semibold text-foreground md:px-4 md:py-3">
                 Vista
               </th>
               {PERMISSION_ACTIONS.map((action) => (
                 <th
                   key={action}
                   scope="col"
-                  className="px-4 py-3 text-center font-semibold text-foreground"
+                  className="px-3 py-2.5 text-center font-semibold text-foreground md:px-4 md:py-3"
                 >
                   {PERMISSION_ACTION_LABELS[action as PermissionAction]}
                 </th>
@@ -129,21 +129,21 @@ function RolePermissionsGrid({
                 <tr className="bg-zinc-50/70 dark:bg-white/[0.03]">
                   <td
                     colSpan={PERMISSION_ACTIONS.length + 1}
-                    className="px-4 py-2 text-xs font-semibold tracking-wide text-zinc-500 uppercase dark:text-zinc-400"
+                    className="px-3 py-1.5 text-xs font-semibold tracking-wide text-zinc-500 uppercase md:px-4 md:py-2 dark:text-zinc-400"
                   >
                     {section}
                   </td>
                 </tr>
                 {views.map((view) => (
                   <tr key={view.id}>
-                    <td className="px-4 py-3 font-medium text-foreground">{view.label}</td>
+                    <td className="min-w-0 px-3 py-2.5 font-medium text-foreground md:px-4 md:py-3">{view.label}</td>
                     {PERMISSION_ACTIONS.map((action) => {
                       const code = buildPermissionCode(view.id, action)
                       const checked = role.permissions.has(code)
                       const fieldName = permissionFieldName(code)
 
                       return (
-                        <td key={code} className="px-4 py-3 text-center">
+                        <td key={code} className="px-3 py-2.5 text-center md:px-4 md:py-3">
                           <div className="flex justify-center">
                             <Checkbox
                               name={fieldName}
@@ -174,7 +174,7 @@ export function RolesPermissionsPanel({
   const rolesBySlug = new Map(roles.map((role) => [role.slug, role]))
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-6 md:space-y-10">
       {SYSTEM_ROLE_SLUGS.map((slug) => {
         const role = rolesBySlug.get(slug)
         if (!role) {

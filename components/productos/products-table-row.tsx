@@ -5,6 +5,7 @@ import { CatalogDotBadge } from '@/components/catalog-dot-badge'
 import { OptimizedImage } from '@/components/optimized-image'
 import { ProductInlineFields } from '@/components/productos/product-inline-fields'
 import type { ProductRow } from '@/lib/data/product-types'
+import { listCellCompactClass } from '@/lib/ui/list-chrome'
 
 interface ProductsTableRowProps {
   orgSlug: string
@@ -43,7 +44,7 @@ function ProductsTableRowComponent({
       onKeyDown={handleKeyDown}
       className="cursor-pointer transition hover:bg-muted/40 focus-visible:bg-muted/40 focus-visible:outline-none"
     >
-      <td className="px-3 py-4 text-center">
+      <td className="hidden px-3 py-4 text-center md:table-cell">
         <div className="flex justify-center">
           {product.imageUrl ? (
             <OptimizedImage
@@ -64,10 +65,10 @@ function ProductsTableRowComponent({
           )}
         </div>
       </td>
-      <td className="px-3 py-4 text-center text-sm font-medium text-foreground!">
+      <td className={`min-w-0 ${listCellCompactClass} font-medium text-foreground!`}>
         <span className="line-clamp-2 break-words">{product.name}</span>
       </td>
-      <td className="px-3 py-4 text-center">
+      <td className="hidden px-3 py-4 text-center md:table-cell">
         {product.categoryName ? (
           <div className="flex justify-center">
             <CatalogDotBadge>{product.categoryName}</CatalogDotBadge>
@@ -76,7 +77,7 @@ function ProductsTableRowComponent({
           <span className="text-sm text-muted-foreground">—</span>
         )}
       </td>
-      <td className="px-3 py-4 text-center">
+      <td className="hidden px-3 py-4 text-center lg:table-cell">
         {product.tagNames.length > 0 ? (
           <div className="flex flex-wrap justify-center gap-1">
             {product.tagNames.map((tagName) => (
@@ -92,10 +93,10 @@ function ProductsTableRowComponent({
         product={product}
         canEdit={canEdit}
       />
-      <td className={`px-3 py-4 text-center text-sm whitespace-nowrap ${profitToneClass}`}>
+      <td className={`hidden px-3 py-4 text-center text-sm whitespace-nowrap xl:table-cell ${profitToneClass}`}>
         {profitLabel}
       </td>
-      <td className={`px-3 py-4 text-center text-sm whitespace-nowrap ${profitPercentToneClass}`}>
+      <td className={`hidden px-3 py-4 text-center text-sm whitespace-nowrap xl:table-cell ${profitPercentToneClass}`}>
         {profitPercentLabel}
       </td>
     </tr>

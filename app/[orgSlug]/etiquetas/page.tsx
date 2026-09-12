@@ -1,8 +1,8 @@
 import { TagsPanel } from '@/components/etiquetas/tags-panel'
+import { ListPageFrame } from '@/components/list-page-frame'
 import { requireViewAccess } from '@/lib/auth/access'
 import { getTagsByOrganizationId } from '@/lib/data/tags'
 import { getViewActionFlags } from '@/lib/permissions/views'
-import { Heading } from '@/styles/catalyst-ui-kit/heading'
 
 interface EtiquetasPageProps {
   params: Promise<{ orgSlug: string }>
@@ -15,11 +15,8 @@ export default async function EtiquetasPage({ params }: EtiquetasPageProps) {
   const tags = await getTagsByOrganizationId(access.organization.id)
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8">
-      <Heading>Etiquetas</Heading>
-      <div className="mt-8">
-        <TagsPanel orgSlug={orgSlug} tags={tags} actions={actions} />
-      </div>
-    </div>
+    <ListPageFrame title="Etiquetas" spaced>
+      <TagsPanel orgSlug={orgSlug} tags={tags} actions={actions} />
+    </ListPageFrame>
   )
 }

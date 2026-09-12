@@ -1,3 +1,4 @@
+import { ListPageFrame } from '@/components/list-page-frame'
 import { ProductsPanel } from '@/components/productos/products-panel'
 import { requireViewAccess } from '@/lib/auth/access'
 import { getCategoriesByOrganizationId } from '@/lib/data/categories'
@@ -6,7 +7,6 @@ import { getTagOptionsByOrganizationId } from '@/lib/data/tags'
 import { getSuppliersByOrganizationId } from '@/lib/data/suppliers'
 import { getViewActionFlags } from '@/lib/permissions/views'
 import { parseProductFiltersFromPageSearchParams } from '@/lib/utils/product-filters-url'
-import { Heading } from '@/styles/catalyst-ui-kit/heading'
 
 interface ProductosPageProps {
   params: Promise<{ orgSlug: string }>
@@ -40,8 +40,7 @@ export default async function ProductosPage({ params, searchParams }: ProductosP
   }))
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8">
-      <Heading>Productos</Heading>
+    <ListPageFrame title="Productos">
       <ProductsPanel
         orgSlug={orgSlug}
         organizationId={organizationId}
@@ -53,6 +52,6 @@ export default async function ProductosPage({ params, searchParams }: ProductosP
         initialQuery={initialQuery}
         initialColumnFilters={initialColumnFilters}
       />
-    </div>
+    </ListPageFrame>
   )
 }

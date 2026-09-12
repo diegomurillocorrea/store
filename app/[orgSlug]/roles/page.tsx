@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation'
+import { ListPageFrame } from '@/components/list-page-frame'
 import { RolesPermissionsPanel } from '@/components/roles/roles-permissions-panel'
 import { requireViewAccess } from '@/lib/auth/access'
 import {
@@ -6,7 +7,6 @@ import {
   getRolesPermissionsByOrganizationId,
   isMemberPropietario,
 } from '@/lib/data/member-permissions'
-import { Heading } from '@/styles/catalyst-ui-kit/heading'
 import { Text } from '@/styles/catalyst-ui-kit/text'
 
 interface RolesPageProps {
@@ -28,9 +28,8 @@ export default async function RolesPage({ params }: RolesPageProps) {
   }
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8">
-      <Heading>Roles y permisos</Heading>
-      <Text className="mt-2 max-w-3xl">
+    <ListPageFrame title="Roles y permisos">
+      <Text className="mt-1 max-w-3xl md:mt-2">
         Propietario, Administrador y Vendedor. Solo el propietario puede editar los permisos
         de administrador y vendedor por vista.
       </Text>
@@ -39,6 +38,6 @@ export default async function RolesPage({ params }: RolesPageProps) {
         roles={snapshot.roles}
         canManageRoles={canManageRoles}
       />
-    </div>
+    </ListPageFrame>
   )
 }

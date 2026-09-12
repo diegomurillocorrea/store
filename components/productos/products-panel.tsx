@@ -9,6 +9,14 @@ import { ProductsTableRow } from '@/components/productos/products-table-row'
 import type { ProductOption, ProductRow, TagProductOption } from '@/lib/data/product-types'
 import { useProductFiltersUrl } from '@/lib/hooks/use-product-filters-url'
 import type { ViewActionFlags } from '@/lib/permissions/views'
+import {
+  listDescriptionClass,
+  listEmptyWrapClass,
+  listHeadCompactClass,
+  listHeaderActionsClass,
+  listSearchClass,
+  listTableWrapClass,
+} from '@/lib/ui/list-chrome'
 import type { ProductColumnFilters, ProductColumnKey } from '@/lib/utils/product-filters-url'
 import { Button } from '@/styles/catalyst-ui-kit/button'
 import { Input, InputGroup } from '@/styles/catalyst-ui-kit/input'
@@ -252,11 +260,11 @@ export function ProductsPanel({
       <div className="sm:flex sm:items-center">
         <div className="sm:flex-auto">
           <Subheading level={3}>Catálogo de productos</Subheading>
-          <Text className="mt-2 max-w-2xl">
+          <Text className={listDescriptionClass}>
             Administra precios, stock y relaciones con categorías, etiquetas y proveedores.
           </Text>
         </div>
-        <div className="mt-4 sm:mt-0 sm:ml-16 sm:flex-none">
+        <div className={listHeaderActionsClass}>
           {actions.canCreate ? (
             <Button type="button" color="dark/zinc" onClick={handleOpenCreate}>
               <PlusIcon data-slot="icon" aria-hidden="true" />
@@ -266,7 +274,7 @@ export function ProductsPanel({
         </div>
       </div>
 
-      <div className="mt-6 max-w-md">
+      <div className={listSearchClass}>
         <InputGroup>
           <MagnifyingGlassIcon data-slot="icon" aria-hidden="true" />
           <Input
@@ -281,27 +289,27 @@ export function ProductsPanel({
       </div>
 
       {products.length === 0 ? (
-        <div className="glass-surface mt-8 rounded-xl p-8 text-center sm:rounded-2xl">
+        <div className={listEmptyWrapClass}>
           <Subheading level={3}>Sin productos</Subheading>
           <Text className="mt-2">
             Registra tu primer producto con el botón de arriba.
           </Text>
         </div>
       ) : (
-        <div className="glass-surface mt-8 w-full overflow-hidden rounded-xl sm:rounded-2xl">
+        <div className={`${listTableWrapClass} w-full`}>
           <div className="w-full overflow-x-auto">
-            <table className="relative w-full table-fixed divide-y divide-border">
+            <table className="relative w-full min-w-0 divide-y divide-border xl:table-fixed">
               <thead>
                 <tr>
                   <th
                     scope="col"
-                    className="w-24 px-3 py-3.5 text-center text-sm font-semibold text-foreground!"
+                    className="hidden w-24 px-3 py-3.5 text-center text-sm font-semibold text-foreground! md:table-cell"
                   >
                     Imagen
                   </th>
                   <th
                     scope="col"
-                    className="w-[18%] px-3 py-3.5 text-center text-sm font-semibold text-foreground!"
+                    className={`min-w-0 ${listHeadCompactClass} xl:w-[18%]`}
                   >
                     <ColumnFilterHeader
                       label="Nombre"
@@ -312,7 +320,7 @@ export function ProductsPanel({
                   </th>
                   <th
                     scope="col"
-                    className="w-[12%] px-3 py-3.5 text-center text-sm font-semibold text-foreground!"
+                    className="hidden px-3 py-3.5 text-center text-sm font-semibold text-foreground! md:table-cell xl:w-[12%]"
                   >
                     <ColumnFilterHeader
                       label="Categoría"
@@ -323,7 +331,7 @@ export function ProductsPanel({
                   </th>
                   <th
                     scope="col"
-                    className="w-[12%] px-3 py-3.5 text-center text-sm font-semibold text-foreground!"
+                    className="hidden px-3 py-3.5 text-center text-sm font-semibold text-foreground! lg:table-cell xl:w-[12%]"
                   >
                     <ColumnFilterHeader
                       label="Etiquetas"
@@ -334,7 +342,7 @@ export function ProductsPanel({
                   </th>
                   <th
                     scope="col"
-                    className="w-[10%] px-3 py-3.5 text-center text-sm font-semibold text-foreground!"
+                    className={`${listHeadCompactClass} xl:w-[10%]`}
                   >
                     <ColumnFilterHeader
                       label="Precio"
@@ -345,7 +353,7 @@ export function ProductsPanel({
                   </th>
                   <th
                     scope="col"
-                    className="w-[10%] px-3 py-3.5 text-center text-sm font-semibold text-foreground!"
+                    className="hidden px-3 py-3.5 text-center text-sm font-semibold text-foreground! lg:table-cell xl:w-[10%]"
                   >
                     <ColumnFilterHeader
                       label="Costo"
@@ -356,7 +364,7 @@ export function ProductsPanel({
                   </th>
                   <th
                     scope="col"
-                    className="w-[8%] px-3 py-3.5 text-center text-sm font-semibold text-foreground!"
+                    className={`${listHeadCompactClass} xl:w-[8%]`}
                   >
                     <ColumnFilterHeader
                       label="Stock"
@@ -367,7 +375,7 @@ export function ProductsPanel({
                   </th>
                   <th
                     scope="col"
-                    className="w-[10%] px-3 py-3.5 text-center text-sm font-semibold text-foreground!"
+                    className="hidden px-3 py-3.5 text-center text-sm font-semibold text-foreground! xl:table-cell xl:w-[10%]"
                   >
                     <ColumnFilterHeader
                       label="Ganancia"
@@ -378,7 +386,7 @@ export function ProductsPanel({
                   </th>
                   <th
                     scope="col"
-                    className="w-[10%] px-3 py-3.5 text-center text-sm font-semibold text-foreground!"
+                    className="hidden px-3 py-3.5 text-center text-sm font-semibold text-foreground! xl:table-cell xl:w-[10%]"
                   >
                     <ColumnFilterHeader
                       label="% Margen"
@@ -392,7 +400,7 @@ export function ProductsPanel({
               <tbody className="divide-y divide-border">
                 {filteredProducts.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="px-3 py-10 text-center">
+                    <td colSpan={9} className="px-3 py-6 text-center md:py-10">
                       <Subheading level={3}>Sin resultados</Subheading>
                       <Text className="mt-2">
                         Prueba con otro término de búsqueda o ajusta los filtros de columna.

@@ -61,8 +61,8 @@ export function EditProductDialog({
         Modifica los datos de <strong>{product.name}</strong>.
       </DialogDescription>
 
-      <form action={formAction} key={product.id}>
-        <DialogBody>
+      <form action={formAction} key={product.id} className="flex min-h-0 flex-col">
+        <DialogBody className="min-h-0">
           <Fieldset>
             <ProductFormFields
               idPrefix="edit-product"

@@ -7,6 +7,18 @@ import { DeleteCategoryDialog } from '@/components/categorias/delete-category-di
 import { EditCategoryDialog } from '@/components/categorias/edit-category-dialog'
 import { CatalogDotBadge } from '@/components/catalog-dot-badge'
 import type { CategoryRow } from '@/lib/data/categories'
+import {
+  listActionsRowClass,
+  listDescriptionClass,
+  listEmptyWrapClass,
+  listHeaderActionsClass,
+  listSearchClass,
+  listTableWrapClass,
+  listTdActionsClass,
+  listTdPrimaryClass,
+  listThActionsClass,
+  listThPrimaryClass,
+} from '@/lib/ui/list-chrome'
 import type { ViewActionFlags } from '@/lib/permissions/views'
 import { Button } from '@/styles/catalyst-ui-kit/button'
 import { Input, InputGroup } from '@/styles/catalyst-ui-kit/input'
@@ -43,11 +55,11 @@ export function CategoriesPanel({ orgSlug, categories, actions }: CategoriesPane
       <div className="sm:flex sm:items-center">
         <div className="sm:flex-auto">
           <Subheading level={3}>Listado de categorías</Subheading>
-          <Text className="mt-2 max-w-2xl">
+          <Text className={listDescriptionClass}>
             Todas las categorías de tu catálogo. Puedes buscar, crear, editar o eliminar.
           </Text>
         </div>
-        <div className="mt-4 sm:mt-0 sm:ml-16 sm:flex-none">
+        <div className={listHeaderActionsClass}>
           {actions.canCreate ? (
             <Button type="button" color="dark/zinc" onClick={handleOpenCreate}>
               <PlusIcon data-slot="icon" aria-hidden="true" />
@@ -57,7 +69,7 @@ export function CategoriesPanel({ orgSlug, categories, actions }: CategoriesPane
         </div>
       </div>
 
-      <div className="mt-6 max-w-md">
+      <div className={listSearchClass}>
         <InputGroup>
           <MagnifyingGlassIcon data-slot="icon" aria-hidden="true" />
           <Input
@@ -72,7 +84,7 @@ export function CategoriesPanel({ orgSlug, categories, actions }: CategoriesPane
       </div>
 
       {filteredCategories.length === 0 ? (
-        <div className="glass-surface mt-8 rounded-xl p-8 text-center sm:rounded-2xl">
+        <div className={listEmptyWrapClass}>
           <Subheading level={3}>
             {categories.length === 0 ? 'Sin categorías' : 'Sin resultados'}
           </Subheading>
@@ -83,18 +95,15 @@ export function CategoriesPanel({ orgSlug, categories, actions }: CategoriesPane
           </Text>
         </div>
       ) : (
-        <div className="glass-surface mt-8 overflow-hidden rounded-xl sm:rounded-2xl">
+        <div className={listTableWrapClass}>
           <div className="overflow-x-auto">
-            <table className="relative min-w-full divide-y divide-border">
+            <table className="relative min-w-0 w-full divide-y divide-border">
               <thead>
                 <tr>
-                  <th
-                    scope="col"
-                    className="py-3.5 pr-3 pl-4 text-left text-sm font-semibold text-foreground! sm:pl-6"
-                  >
+                  <th scope="col" className={listThPrimaryClass}>
                     Nombre
                   </th>
-                  <th scope="col" className="py-3.5 pr-4 pl-3 sm:pr-6">
+                  <th scope="col" className={listThActionsClass}>
                     <span className="sr-only">Acciones</span>
                   </th>
                 </tr>
@@ -102,12 +111,12 @@ export function CategoriesPanel({ orgSlug, categories, actions }: CategoriesPane
               <tbody className="divide-y divide-border">
                 {filteredCategories.map((category) => (
                   <tr key={category.id}>
-                    <td className="py-4 pr-3 pl-4 text-sm font-medium whitespace-nowrap sm:pl-6">
+                    <td className={listTdPrimaryClass}>
                       <CatalogDotBadge>{category.name}</CatalogDotBadge>
                     </td>
-                    <td className="py-4 pr-4 pl-3 text-right text-sm font-medium whitespace-nowrap sm:pr-6">
+                    <td className={listTdActionsClass}>
                       {actions.canEdit || actions.canDelete ? (
-                        <div className="flex items-center justify-end gap-4">
+                        <div className={listActionsRowClass}>
                           {actions.canEdit ? (
                             <button
                               type="button"

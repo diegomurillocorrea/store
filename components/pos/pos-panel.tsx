@@ -7,10 +7,12 @@ import {
   PlusIcon,
   ShoppingCartIcon,
   TrashIcon,
+  XMarkIcon,
 } from '@heroicons/react/24/outline'
 import clsx from 'clsx'
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import { CatalogDotBadge } from '@/components/catalog-dot-badge'
+import { PosCartSheet } from '@/components/pos/pos-cart-sheet'
 import { useLayoutSecondaryAside } from '@/components/pos/pos-secondary-column'
 import { PosCheckoutPanel } from '@/components/pos/pos-checkout-panel'
 import { PosProductImage } from '@/components/pos/pos-product-image'
@@ -506,6 +508,7 @@ interface PosCartSidebarProps {
   onUpdateQuantity: (productId: string, quantity: number) => void
   onClear: () => void
   onSaleComplete: () => void
+  onDismiss?: () => void
   className?: string
 }
 
@@ -522,6 +525,7 @@ function PosCartSidebar({
   onUpdateQuantity,
   onClear,
   onSaleComplete,
+  onDismiss,
   className = '',
 }: PosCartSidebarProps) {
   const [step, setStep] = useState<'cart' | 'checkout'>('cart')
@@ -541,6 +545,7 @@ function PosCartSidebar({
         customers={customers}
         onBack={() => setStep('cart')}
         onSaleComplete={onSaleComplete}
+        onDismiss={onDismiss}
         formatCurrency={formatCurrency}
         className={className}
       />
@@ -557,11 +562,23 @@ function PosCartSidebar({
           />
           <Subheading level={3}>Carrito</Subheading>
         </div>
-        {cartLines.length > 0 ? (
-          <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
-            {formatQuantity(itemCount)} {itemCount === 1 ? 'artículo' : 'artículos'}
-          </span>
-        ) : null}
+        <div className="flex items-center gap-2">
+          {cartLines.length > 0 ? (
+            <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
+              {formatQuantity(itemCount)} {itemCount === 1 ? 'artículo' : 'artículos'}
+            </span>
+          ) : null}
+          {onDismiss ? (
+            <button
+              type="button"
+              onClick={onDismiss}
+              className="flex size-9 items-center justify-center rounded-full bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
+              aria-label="Cerrar carrito"
+            >
+              <XMarkIcon className="size-5" aria-hidden="true" />
+            </button>
+          ) : null}
+        </div>
       </div>
 
       {cartLines.length === 0 ? (
@@ -622,8 +639,7 @@ export function PosPanel({ orgSlug, products, customers }: PosPanelProps) {
   )
   const [cartLines, setCartLines] = usePersistedPosCart(orgSlug, products)
   const posLayout = usePosLayout()
-  const mobileCartRef = useRef<HTMLDivElement>(null)
-  const previousItemCountRef = useRef(0)
+  const [isCartSheetOpen, setIsCartSheetOpen] = useState(false)
 
   const categoryNames = useMemo(
     () => uniqueSortedNames(products.map((product) => product.categoryName)),
@@ -663,10 +679,9 @@ export function PosPanel({ orgSlug, products, customers }: PosPanelProps) {
   }, [itemCount, posLayout])
 
   useEffect(() => {
-    if (itemCount > previousItemCountRef.current && itemCount > 0) {
-      mobileCartRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    if (itemCount === 0) {
+      setIsCartSheetOpen(false)
     }
-    previousItemCountRef.current = itemCount
   }, [itemCount])
 
   const cartQuantityByProductId = useMemo(() => {
@@ -759,6 +774,7 @@ export function PosPanel({ orgSlug, products, customers }: PosPanelProps) {
     setCartLines([])
     setSelectedCategories(new Set())
     setSelectedTags(new Set())
+    setIsCartSheetOpen(false)
   }, [])
 
   const cartProps = {
@@ -881,7 +897,7 @@ export function PosPanel({ orgSlug, products, customers }: PosPanelProps) {
             </div>
           ) : (
             <div className="mt-4 min-h-0 flex-1 overflow-y-auto overscroll-contain pb-2">
-              <ul className="grid auto-rows-fr grid-cols-2 items-stretch gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+              <ul className="grid auto-rows-fr grid-cols-2 items-stretch gap-4 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-5">
                 {filteredProducts.map((product, index) => (
                   <li
                     key={product.id}
@@ -901,24 +917,35 @@ export function PosPanel({ orgSlug, products, customers }: PosPanelProps) {
             </div>
           )}
 
-          {/* Carrito en flujo para pantallas menores a lg */}
-          <div
-            ref={mobileCartRef}
-            aria-hidden={!cartColumnVisible}
-            style={{ transitionDuration: `${POS_CART_TRANSITION_MS}ms` }}
-            className={clsx(
-              'grid shrink-0 overflow-hidden transition-[grid-template-rows,opacity,margin-top] ease-in-out lg:hidden',
-              cartColumnVisible ? 'mt-8 grid-rows-[1fr] opacity-100' : 'mt-0 grid-rows-[0fr] opacity-0'
-            )}
-          >
-            <div className="min-h-0 overflow-hidden">
-              <PosCartSidebar
-                {...cartProps}
-                className="flex flex-col rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900"
-              />
-            </div>
+          <div className="mt-3 shrink-0 xl:hidden">
+            <button
+              type="button"
+              onClick={() => setIsCartSheetOpen(true)}
+              className="flex w-full items-center gap-3 rounded-2xl bg-zinc-900 px-4 py-3.5 text-white transition hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+            >
+              <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-zinc-700 text-sm font-semibold dark:bg-zinc-300">
+                {itemCount}
+              </span>
+              <span className="min-w-0 flex-1 text-left text-base font-semibold">
+                Ver carrito
+              </span>
+              <span className="shrink-0 text-base font-semibold tabular-nums">
+                {formatCurrency(subtotal)}
+              </span>
+            </button>
           </div>
       </div>
+
+      <PosCartSheet
+        open={isCartSheetOpen}
+        onClose={() => setIsCartSheetOpen(false)}
+      >
+        <PosCartSidebar
+          {...cartProps}
+          onDismiss={() => setIsCartSheetOpen(false)}
+          className="flex h-full min-h-0 flex-col"
+        />
+      </PosCartSheet>
     </>
   )
 }

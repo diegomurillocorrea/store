@@ -1,8 +1,8 @@
 import { SuppliersPanel } from '@/components/proveedores/suppliers-panel'
+import { ListPageFrame } from '@/components/list-page-frame'
 import { requireViewAccess } from '@/lib/auth/access'
 import { getSuppliersByOrganizationId } from '@/lib/data/suppliers'
 import { getViewActionFlags } from '@/lib/permissions/views'
-import { Heading } from '@/styles/catalyst-ui-kit/heading'
 
 interface ProveedoresPageProps {
   params: Promise<{ orgSlug: string }>
@@ -15,9 +15,8 @@ export default async function ProveedoresPage({ params }: ProveedoresPageProps) 
   const actions = getViewActionFlags(access.permissions, 'proveedores')
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8">
-      <Heading>Proveedores</Heading>
+    <ListPageFrame title="Proveedores">
       <SuppliersPanel orgSlug={orgSlug} suppliers={suppliers} actions={actions} />
-    </div>
+    </ListPageFrame>
   )
 }

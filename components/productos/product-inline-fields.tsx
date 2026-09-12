@@ -7,6 +7,7 @@ import {
 } from '@/lib/actions/product-actions'
 import type { ProductRow } from '@/lib/data/product-types'
 import { useFormActionSuccess } from '@/lib/hooks/use-form-action-success'
+import { listCellCompactClass } from '@/lib/ui/list-chrome'
 import { formatUnitPriceInput, sanitizeDecimalInput } from '@/lib/utils/money'
 
 const initialState: ProductFormState = { error: null, ok: false }
@@ -81,13 +82,13 @@ export function ProductInlineFields({
   if (!canEdit) {
     return (
       <>
-        <td className="px-3 py-4 text-center text-sm whitespace-nowrap text-foreground!">
+        <td className={`${listCellCompactClass} whitespace-nowrap text-foreground!`}>
           {formatUnitPriceInput(product.salePrice)}
         </td>
-        <td className="px-3 py-4 text-center text-sm whitespace-nowrap text-foreground!">
+        <td className="hidden px-3 py-4 text-center text-sm whitespace-nowrap text-foreground! lg:table-cell">
           {product.costPrice != null ? formatUnitPriceInput(product.costPrice) : '—'}
         </td>
-        <td className="px-3 py-4 text-center text-sm whitespace-nowrap text-foreground!">
+        <td className={`${listCellCompactClass} whitespace-nowrap text-foreground!`}>
           {product.availableQuantity}
         </td>
       </>
@@ -96,7 +97,7 @@ export function ProductInlineFields({
 
   return (
     <>
-      <td className="px-3 py-4 text-center text-sm whitespace-nowrap text-foreground!">
+      <td className={`${listCellCompactClass} whitespace-nowrap text-foreground!`}>
         <input
           type="text"
           inputMode="decimal"
@@ -110,7 +111,7 @@ export function ProductInlineFields({
           className={inputClassName}
         />
       </td>
-      <td className="px-3 py-4 text-center text-sm whitespace-nowrap text-foreground!">
+      <td className="hidden px-3 py-4 text-center text-sm whitespace-nowrap text-foreground! lg:table-cell">
         <input
           type="text"
           inputMode="decimal"
@@ -125,7 +126,7 @@ export function ProductInlineFields({
           className={inputClassName}
         />
       </td>
-      <td className="px-3 py-4 text-center text-sm whitespace-nowrap text-foreground!">
+      <td className={`${listCellCompactClass} whitespace-nowrap text-foreground!`}>
         <input
           type="text"
           inputMode="decimal"

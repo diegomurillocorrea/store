@@ -149,7 +149,7 @@ function TransactionRow({
           : undefined
       }
     >
-      <td className="w-14 px-4 py-4">
+      <td className="w-12 px-3 py-2.5 md:w-14 md:px-4 md:py-4">
         <div
           className={`flex size-10 items-center justify-center rounded-full ${
             isSale
@@ -164,7 +164,7 @@ function TransactionRow({
           )}
         </div>
       </td>
-      <td className="px-4 py-4">
+      <td className="px-3 py-2.5 md:px-4 md:py-4">
         <div className="font-medium text-zinc-900 dark:text-zinc-100">{row.concept}</div>
         {!isSale && row.counterpartyName ? (
           <div className="mt-0.5 truncate text-sm text-zinc-500 dark:text-zinc-400">
@@ -172,15 +172,15 @@ function TransactionRow({
           </div>
         ) : null}
       </td>
-      <td className="px-4 py-4 text-center font-semibold text-zinc-900 dark:text-zinc-100">
+      <td className="px-3 py-2.5 text-center font-semibold text-zinc-900 md:px-4 md:py-4 dark:text-zinc-100">
         {formatCurrency(row.amount)}
       </td>
-      <td className="px-4 py-4 text-center text-sm text-zinc-500 dark:text-zinc-400">
+      <td className="hidden px-4 py-4 text-center text-sm text-zinc-500 md:table-cell dark:text-zinc-400">
         {row.paymentMethod
           ? PAYMENT_METHOD_LABELS[row.paymentMethod] ?? row.paymentMethod
           : '—'}
       </td>
-      <td className="px-4 py-4 whitespace-nowrap text-center text-sm text-zinc-500 dark:text-zinc-400">
+      <td className="hidden px-4 py-4 whitespace-nowrap text-center text-sm text-zinc-500 xl:table-cell dark:text-zinc-400">
         {formatDateTime(row.occurredAt, timeZone)}
       </td>
     </tr>
@@ -470,21 +470,21 @@ export function BalancePanel({
     }
 
     return (
-      <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-        <table className="min-w-full divide-y divide-zinc-200 dark:divide-zinc-800">
+      <div className="overflow-x-auto rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+        <table className="min-w-0 w-full divide-y divide-zinc-200 dark:divide-zinc-800">
           <thead className="bg-zinc-50 dark:bg-zinc-800/80">
             <tr>
-              <th className="w-14 px-4 py-3" aria-hidden="true" />
-              <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-zinc-500 uppercase">
+              <th className="w-12 px-3 py-2.5 md:w-14 md:px-4 md:py-3" aria-hidden="true" />
+              <th className="min-w-0 px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-zinc-500 uppercase md:px-4 md:py-3">
                 Venta
               </th>
-              <th className="px-4 py-3 text-center text-xs font-semibold tracking-wide text-zinc-500 uppercase">
+              <th className="px-3 py-2.5 text-center text-xs font-semibold tracking-wide text-zinc-500 uppercase md:px-4 md:py-3">
                 Precio
               </th>
-              <th className="px-4 py-3 text-center text-xs font-semibold tracking-wide text-zinc-500 uppercase whitespace-nowrap">
+              <th className="hidden px-4 py-3 text-center text-xs font-semibold tracking-wide text-zinc-500 uppercase whitespace-nowrap md:table-cell">
                 Método de pago
               </th>
-              <th className="px-4 py-3 text-center text-xs font-semibold tracking-wide text-zinc-500 uppercase">
+              <th className="hidden px-4 py-3 text-center text-xs font-semibold tracking-wide text-zinc-500 uppercase xl:table-cell">
                 Fecha y hora
               </th>
             </tr>
@@ -516,17 +516,17 @@ export function BalancePanel({
     }
 
     return (
-      <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-        <table className="min-w-full divide-y divide-zinc-200 dark:divide-zinc-800">
+      <div className="overflow-x-auto rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+        <table className="min-w-0 w-full divide-y divide-zinc-200 dark:divide-zinc-800">
           <thead className="bg-zinc-50 dark:bg-zinc-800/80">
             <tr>
-              <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-zinc-500 uppercase">
+              <th className="min-w-0 px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-zinc-500 uppercase md:px-4 md:py-3">
                 Cliente
               </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-zinc-500 uppercase">
+              <th className="hidden px-4 py-3 text-left text-xs font-semibold tracking-wide text-zinc-500 uppercase md:table-cell">
                 Documento
               </th>
-              <th className="px-4 py-3 text-right text-xs font-semibold tracking-wide text-zinc-500 uppercase">
+              <th className="px-3 py-2.5 text-right text-xs font-semibold tracking-wide text-zinc-500 uppercase md:px-4 md:py-3">
                 Saldo
               </th>
             </tr>
@@ -534,13 +534,13 @@ export function BalancePanel({
           <tbody className="divide-y divide-zinc-200 bg-white dark:divide-zinc-800 dark:bg-zinc-900">
             {receivables.map((row) => (
               <tr key={row.id}>
-                <td className="px-4 py-4 font-medium text-zinc-900 dark:text-zinc-100">
+                <td className="min-w-0 px-3 py-2.5 font-medium text-zinc-900 md:px-4 md:py-4 dark:text-zinc-100">
                   {row.customerName}
                 </td>
-                <td className="px-4 py-4 text-sm text-zinc-500 dark:text-zinc-400">
+                <td className="hidden px-4 py-4 text-sm text-zinc-500 md:table-cell dark:text-zinc-400">
                   {row.documentNumber ?? '—'}
                 </td>
-                <td className="px-4 py-4 text-right font-semibold text-emerald-600 dark:text-emerald-400">
+                <td className="px-3 py-2.5 text-right font-semibold text-emerald-600 md:px-4 md:py-4 dark:text-emerald-400">
                   {formatCurrency(row.balanceDue)}
                 </td>
               </tr>
@@ -563,17 +563,17 @@ export function BalancePanel({
     }
 
     return (
-      <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-        <table className="min-w-full divide-y divide-zinc-200 dark:divide-zinc-800">
+      <div className="overflow-x-auto rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+        <table className="min-w-0 w-full divide-y divide-zinc-200 dark:divide-zinc-800">
           <thead className="bg-zinc-50 dark:bg-zinc-800/80">
             <tr>
-              <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-zinc-500 uppercase">
+              <th className="min-w-0 px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-zinc-500 uppercase md:px-4 md:py-3">
                 Proveedor
               </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-zinc-500 uppercase">
+              <th className="hidden px-4 py-3 text-left text-xs font-semibold tracking-wide text-zinc-500 uppercase md:table-cell">
                 Documento
               </th>
-              <th className="px-4 py-3 text-right text-xs font-semibold tracking-wide text-zinc-500 uppercase">
+              <th className="px-3 py-2.5 text-right text-xs font-semibold tracking-wide text-zinc-500 uppercase md:px-4 md:py-3">
                 Saldo
               </th>
             </tr>
@@ -581,13 +581,13 @@ export function BalancePanel({
           <tbody className="divide-y divide-zinc-200 bg-white dark:divide-zinc-800 dark:bg-zinc-900">
             {payables.map((row) => (
               <tr key={row.id}>
-                <td className="px-4 py-4 font-medium text-zinc-900 dark:text-zinc-100">
+                <td className="min-w-0 px-3 py-2.5 font-medium text-zinc-900 md:px-4 md:py-4 dark:text-zinc-100">
                   {row.supplierName}
                 </td>
-                <td className="px-4 py-4 text-sm text-zinc-500 dark:text-zinc-400">
+                <td className="hidden px-4 py-4 text-sm text-zinc-500 md:table-cell dark:text-zinc-400">
                   {row.documentNumber ?? '—'}
                 </td>
-                <td className="px-4 py-4 text-right font-semibold text-red-600 dark:text-red-400">
+                <td className="px-3 py-2.5 text-right font-semibold text-red-600 md:px-4 md:py-4 dark:text-red-400">
                   {formatCurrency(row.balanceDue)}
                 </td>
               </tr>
@@ -610,17 +610,17 @@ export function BalancePanel({
     }
 
     return (
-      <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-        <table className="min-w-full divide-y divide-zinc-200 dark:divide-zinc-800">
+      <div className="overflow-x-auto rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+        <table className="min-w-0 w-full divide-y divide-zinc-200 dark:divide-zinc-800">
           <thead className="bg-zinc-50 dark:bg-zinc-800/80">
             <tr>
-              <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-zinc-500 uppercase">
+              <th className="min-w-0 px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-zinc-500 uppercase md:px-4 md:py-3">
                 Cierre
               </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-zinc-500 uppercase">
+              <th className="hidden px-4 py-3 text-left text-xs font-semibold tracking-wide text-zinc-500 uppercase md:table-cell">
                 Apertura
               </th>
-              <th className="px-4 py-3 text-right text-xs font-semibold tracking-wide text-zinc-500 uppercase">
+              <th className="px-3 py-2.5 text-right text-xs font-semibold tracking-wide text-zinc-500 uppercase md:px-4 md:py-3">
                 Diferencia
               </th>
             </tr>
@@ -628,7 +628,7 @@ export function BalancePanel({
           <tbody className="divide-y divide-zinc-200 bg-white dark:divide-zinc-800 dark:bg-zinc-900">
             {cashClosings.map((row) => (
               <tr key={row.id}>
-                <td className="px-4 py-4">
+                <td className="min-w-0 px-3 py-2.5 md:px-4 md:py-4">
                   <div className="font-medium text-zinc-900 dark:text-zinc-100">
                     {row.closedAt ? formatDateTime(row.closedAt, timeZone) : '—'}
                   </div>
@@ -636,12 +636,12 @@ export function BalancePanel({
                     {row.closedByName ?? row.openedByName ?? '—'}
                   </div>
                 </td>
-                <td className="px-4 py-4 text-sm text-zinc-500 dark:text-zinc-400">
+                <td className="hidden px-4 py-4 text-sm text-zinc-500 md:table-cell dark:text-zinc-400">
                   {formatCurrency(row.openingAmount)} →{' '}
                   {row.closingAmount != null ? formatCurrency(row.closingAmount) : '—'}
                 </td>
                 <td
-                  className={`px-4 py-4 text-right font-semibold ${
+                  className={`px-3 py-2.5 text-right font-semibold md:px-4 md:py-4 ${
                     (row.difference ?? 0) < 0
                       ? 'text-red-600 dark:text-red-400'
                       : (row.difference ?? 0) > 0
@@ -661,9 +661,9 @@ export function BalancePanel({
 
   return (
     <>
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between md:gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
+          <h1 className="sr-only text-2xl font-semibold tracking-tight text-zinc-900 md:not-sr-only dark:text-zinc-100">
             Balance
           </h1>
           <Text className="mt-1 text-zinc-500 dark:text-zinc-400">
@@ -698,7 +698,7 @@ export function BalancePanel({
         </div>
       </div>
 
-      <div className="mt-8 flex w-full rounded-xl border border-zinc-200 bg-zinc-100 p-1 dark:border-zinc-700 dark:bg-zinc-800">
+      <div className="mt-4 flex w-full rounded-xl border border-zinc-200 bg-zinc-100 p-1 md:mt-8 dark:border-zinc-700 dark:bg-zinc-800">
         {mainTabs.map((tab) => {
           const isActive = mainTab === tab.id
           return (
@@ -720,7 +720,7 @@ export function BalancePanel({
 
       {mainTab === 'transacciones' ? (
         <>
-          <div className="mt-6 flex w-full flex-nowrap items-center gap-2">
+          <div className="mt-6 flex w-full flex-wrap items-center gap-2">
             <Dropdown>
               <DropdownButton
                 outline
@@ -779,7 +779,7 @@ export function BalancePanel({
               </span>
             </span>
 
-            <div className={`ml-auto min-w-0 flex-1 rounded-xl ${balanceSurfaceClass}`}>
+            <div className={`w-full min-w-0 basis-full rounded-xl md:ml-auto md:basis-0 md:flex-1 ${balanceSurfaceClass}`}>
               <InputGroup className="[&_input]:border-0! [&_input]:bg-transparent! [&_input]:shadow-none! dark:[&_input]:bg-transparent!">
                 <MagnifyingGlassIcon data-slot="icon" aria-hidden="true" />
                 <Input
@@ -815,7 +815,7 @@ export function BalancePanel({
             />
           </div>
 
-          <div className="mt-8 w-full overflow-x-auto">
+          <div className="mt-4 w-full overflow-x-auto md:mt-8">
             <div
               className="isolate flex w-full rounded-md shadow-xs"
               role="tablist"

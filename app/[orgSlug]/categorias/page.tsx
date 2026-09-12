@@ -1,8 +1,8 @@
 import { CategoriesPanel } from '@/components/categorias/categories-panel'
+import { ListPageFrame } from '@/components/list-page-frame'
 import { requireViewAccess } from '@/lib/auth/access'
 import { getCategoriesByOrganizationId } from '@/lib/data/categories'
 import { getViewActionFlags } from '@/lib/permissions/views'
-import { Heading } from '@/styles/catalyst-ui-kit/heading'
 
 interface CategoriasPageProps {
   params: Promise<{ orgSlug: string }>
@@ -15,11 +15,8 @@ export default async function CategoriasPage({ params }: CategoriasPageProps) {
   const actions = getViewActionFlags(access.permissions, 'categorias')
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8">
-      <Heading>Categorías</Heading>
-      <div className="mt-8">
-        <CategoriesPanel orgSlug={orgSlug} categories={categories} actions={actions} />
-      </div>
-    </div>
+    <ListPageFrame title="Categorías" spaced>
+      <CategoriesPanel orgSlug={orgSlug} categories={categories} actions={actions} />
+    </ListPageFrame>
   )
 }

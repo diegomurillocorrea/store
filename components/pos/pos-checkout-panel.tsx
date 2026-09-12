@@ -10,6 +10,7 @@ import {
   CreditCardIcon,
   PrinterIcon,
   Squares2X2Icon,
+  XMarkIcon,
 } from '@heroicons/react/24/outline'
 import clsx from 'clsx'
 import { useRouter } from 'next/navigation'
@@ -58,6 +59,7 @@ interface PosCheckoutPanelProps {
   customers: CustomerRow[]
   onBack: () => void
   onSaleComplete: () => void
+  onDismiss?: () => void
   formatCurrency: (value: number) => string
   className?: string
 }
@@ -145,6 +147,7 @@ export function PosCheckoutPanel ({
   customers,
   onBack,
   onSaleComplete,
+  onDismiss,
   formatCurrency,
   className = '',
 }: PosCheckoutPanelProps) {
@@ -284,6 +287,16 @@ export function PosCheckoutPanel ({
             Los campos marcados con asterisco (*) son obligatorios
           </p>
         </div>
+        {onDismiss ? (
+          <button
+            type="button"
+            onClick={onDismiss}
+            className="ml-auto flex size-9 shrink-0 items-center justify-center rounded-full bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
+            aria-label="Cerrar carrito"
+          >
+            <XMarkIcon className="size-5" aria-hidden="true" />
+          </button>
+        ) : null}
       </div>
 
       <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">

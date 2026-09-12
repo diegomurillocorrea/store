@@ -22,7 +22,7 @@ export interface SidebarLayoutProps {
   mobileActions?: React.ReactNode
   /** Imagen de fondo del área de contenido (configuración de marca) */
   panelWallpaperUrl?: string | null
-  /** Monta la columna derecha fija (lg+) */
+  /** Monta la columna derecha fija (xl+) */
   reserveSecondaryColumn?: boolean
   /** Controla visibilidad animada de la columna derecha */
   secondaryColumnOpen?: boolean
@@ -50,7 +50,7 @@ export function SidebarLayout({
   const panelGlassClass = hasWallpaper ? 'glass-surface-wallpaper' : 'glass-surface'
   const contentWidthClass = contentWidth === 'full' ? 'max-w-none' : 'max-w-6xl'
   const innerContentPaddingClass =
-    contentPadding === 'none' ? 'p-0' : 'p-6 lg:p-10'
+    contentPadding === 'none' ? 'p-0' : 'p-3 md:p-6 lg:p-10'
 
   return (
     <>
@@ -113,13 +113,13 @@ export function SidebarLayout({
           <div
             className={clsx(
               'relative mx-2 mb-3 flex min-h-0 grow flex-col overflow-hidden rounded-2xl transition-[margin-right] duration-200 ease-in-out sm:mx-3 lg:mx-0 lg:mb-0',
-              reserveSecondaryColumn && isSecondaryColumnOpen && 'lg:mr-2'
+              reserveSecondaryColumn && isSecondaryColumnOpen && 'xl:mr-2'
             )}
           >
             <div
               className={clsx(
                 'transition-[padding-right] duration-200 ease-in-out',
-                reserveSecondaryColumn && isSecondaryColumnOpen && 'lg:pr-96'
+                reserveSecondaryColumn && isSecondaryColumnOpen && 'xl:pr-96'
               )}
             >
               <div className="relative flex h-[calc(100dvh-4.5rem)] min-h-0 flex-col overflow-hidden rounded-2xl lg:h-[calc(100dvh-1rem)]">
@@ -167,7 +167,7 @@ export function SidebarLayout({
           aria-hidden={!isSecondaryColumnOpen}
           style={{ transitionDuration: `${SECONDARY_COLUMN_TRANSITION_MS}ms` }}
           className={clsx(
-            'glass-surface fixed inset-y-0 right-0 z-40 hidden w-96 flex-col overflow-hidden border-l border-white/15 lg:flex dark:border-white/10',
+            'glass-surface fixed inset-y-0 right-0 z-40 hidden w-96 flex-col overflow-hidden border-l border-white/15 xl:flex dark:border-white/10',
             'transition-[transform,opacity] ease-in-out',
             isSecondaryColumnOpen
               ? 'translate-x-0 opacity-100 will-change-transform'

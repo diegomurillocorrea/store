@@ -38,7 +38,7 @@ export function Dialog({
             className={clsx(
               className,
               sizes[size],
-              'glass-modal-panel row-start-2 w-full min-w-0 rounded-t-3xl p-(--gutter) [--gutter:--spacing(8)] sm:mb-auto sm:rounded-3xl forced-colors:outline',
+              'glass-modal-panel row-start-2 w-full min-w-0 max-h-[90dvh] overflow-y-auto rounded-t-3xl p-(--gutter) [--gutter:--spacing(8)] sm:mb-auto sm:rounded-3xl forced-colors:outline',
               'transition duration-100 will-change-transform data-closed:translate-y-12 data-closed:opacity-0 data-enter:ease-out data-leave:ease-in sm:data-closed:translate-y-0 sm:data-closed:data-enter:scale-95'
             )}
           >

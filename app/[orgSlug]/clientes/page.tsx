@@ -1,8 +1,8 @@
 import { CustomersPanel } from '@/components/clientes/customers-panel'
+import { ListPageFrame } from '@/components/list-page-frame'
 import { requireViewAccess } from '@/lib/auth/access'
 import { getCustomersByOrganizationId } from '@/lib/data/customers'
 import { getViewActionFlags } from '@/lib/permissions/views'
-import { Heading } from '@/styles/catalyst-ui-kit/heading'
 
 interface ClientesPageProps {
   params: Promise<{ orgSlug: string }>
@@ -15,9 +15,8 @@ export default async function ClientesPage({ params }: ClientesPageProps) {
   const actions = getViewActionFlags(access.permissions, 'clientes')
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8">
-      <Heading>Clientes</Heading>
+    <ListPageFrame title="Clientes">
       <CustomersPanel orgSlug={orgSlug} customers={customers} actions={actions} />
-    </div>
+    </ListPageFrame>
   )
 }

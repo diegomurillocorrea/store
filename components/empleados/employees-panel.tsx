@@ -12,6 +12,20 @@ import {
 } from '@/lib/data/employee-types'
 import type { RoleOption } from '@/lib/data/roles'
 import type { ViewActionFlags } from '@/lib/permissions/views'
+import {
+  listActionsRowClass,
+  listDescriptionClass,
+  listEmptyWrapClass,
+  listHeaderActionsClass,
+  listSearchClass,
+  listTableWrapClass,
+  listTdActionsClass,
+  listTdPrimaryClass,
+  listTdSecondaryClass,
+  listThActionsClass,
+  listThPrimaryClass,
+  listThSecondaryClass,
+} from '@/lib/ui/list-chrome'
 import { formatPhoneLabel, formatPhoneTelHref } from '@/lib/utils/phone'
 import { Button } from '@/styles/catalyst-ui-kit/button'
 import { Input, InputGroup } from '@/styles/catalyst-ui-kit/input'
@@ -85,11 +99,11 @@ export function EmployeesPanel({
       <div className="sm:flex sm:items-center">
         <div className="sm:flex-auto">
           <Subheading level={3}>Listado de empleados</Subheading>
-          <Text className="mt-2 max-w-2xl">
+          <Text className={listDescriptionClass}>
             Personal de tu organización. Puedes buscar, crear, editar o eliminar.
           </Text>
         </div>
-        <div className="mt-4 sm:mt-0 sm:ml-16 sm:flex-none">
+        <div className={listHeaderActionsClass}>
           {actions.canCreate ? (
             <Button type="button" color="dark/zinc" onClick={handleOpenCreate}>
               <PlusIcon data-slot="icon" aria-hidden="true" />
@@ -99,7 +113,7 @@ export function EmployeesPanel({
         </div>
       </div>
 
-      <div className="mt-6 max-w-md">
+      <div className={listSearchClass}>
         <InputGroup>
           <MagnifyingGlassIcon data-slot="icon" aria-hidden="true" />
           <Input
@@ -114,7 +128,7 @@ export function EmployeesPanel({
       </div>
 
       {filteredEmployees.length === 0 ? (
-        <div className="glass-surface mt-8 rounded-xl p-8 text-center sm:rounded-2xl">
+        <div className={listEmptyWrapClass}>
           <Subheading level={3}>
             {employees.length === 0 ? 'Sin empleados' : 'Sin resultados'}
           </Subheading>
@@ -125,38 +139,29 @@ export function EmployeesPanel({
           </Text>
         </div>
       ) : (
-        <div className="glass-surface mt-8 overflow-hidden rounded-xl sm:rounded-2xl">
+        <div className={listTableWrapClass}>
           <div className="overflow-x-auto">
-            <table className="relative min-w-full divide-y divide-border">
+            <table className="relative min-w-0 w-full divide-y divide-border">
               <thead>
                 <tr>
-                  <th
-                    scope="col"
-                    className="py-3.5 pr-3 pl-4 text-left text-sm font-semibold text-foreground! sm:pl-6"
-                  >
+                  <th scope="col" className={listThPrimaryClass}>
                     Nombres
                   </th>
-                  <th
-                    scope="col"
-                    className="px-3 py-3.5 text-left text-sm font-semibold text-foreground!"
-                  >
+                  <th scope="col" className={listThSecondaryClass}>
                     Apellidos
                   </th>
-                  <th
-                    scope="col"
-                    className="px-3 py-3.5 text-left text-sm font-semibold text-foreground!"
-                  >
+                  <th scope="col" className={listThSecondaryClass}>
                     Teléfono
                   </th>
                   <th
                     scope="col"
-                    className="px-3 py-3.5 text-left text-sm font-semibold text-foreground!"
+                    className="hidden px-3 py-3.5 text-left text-sm font-semibold text-foreground! xl:table-cell"
                   >
                     Correo
                   </th>
                   <th
                     scope="col"
-                    className="px-3 py-3.5 text-left text-sm font-semibold text-foreground!"
+                    className="px-2 py-2.5 text-left text-sm font-semibold text-foreground! md:px-3 md:py-3.5"
                   >
                     Estado
                   </th>
@@ -166,7 +171,7 @@ export function EmployeesPanel({
                   >
                     Rol
                   </th>
-                  <th scope="col" className="py-3.5 pr-4 pl-3 sm:pr-6">
+                  <th scope="col" className={listThActionsClass}>
                     <span className="sr-only">Acciones</span>
                   </th>
                 </tr>
@@ -177,13 +182,13 @@ export function EmployeesPanel({
 
                   return (
                     <tr key={employee.id}>
-                      <td className="py-4 pr-3 pl-4 text-sm font-medium whitespace-nowrap text-foreground! sm:pl-6">
+                      <td className={`${listTdPrimaryClass} text-foreground!`}>
                         {employee.firstName}
                       </td>
-                      <td className="px-3 py-4 text-sm whitespace-nowrap text-foreground!">
+                      <td className={listTdSecondaryClass}>
                         {employee.lastName}
                       </td>
-                      <td className="px-3 py-4 text-sm whitespace-nowrap text-foreground!">
+                      <td className={listTdSecondaryClass}>
                         {employee.phone ? (
                           <a
                             href={formatPhoneTelHref(employee.phone) ?? undefined}
@@ -195,7 +200,7 @@ export function EmployeesPanel({
                           '—'
                         )}
                       </td>
-                      <td className="px-3 py-4 text-sm whitespace-nowrap text-foreground!">
+                      <td className="hidden px-3 py-4 text-sm whitespace-nowrap text-foreground! xl:table-cell">
                         {employee.email ? (
                           <a
                             href={`mailto:${employee.email}`}
@@ -207,15 +212,15 @@ export function EmployeesPanel({
                           '—'
                         )}
                       </td>
-                      <td className="px-3 py-4 text-sm whitespace-nowrap">
+                      <td className="px-2 py-2.5 text-sm whitespace-nowrap md:px-3 md:py-4">
                         <StatusBadge status={employee.status} />
                       </td>
                       <td className="hidden px-3 py-4 text-sm whitespace-nowrap text-foreground! lg:table-cell">
                         {employee.roleName ?? '—'}
                       </td>
-                      <td className="py-4 pr-4 pl-3 text-right text-sm font-medium whitespace-nowrap sm:pr-6">
+                      <td className={listTdActionsClass}>
                         {actions.canEdit || actions.canDelete ? (
-                          <div className="flex items-center justify-end gap-4">
+                          <div className={listActionsRowClass}>
                             {actions.canEdit ? (
                               <button
                                 type="button"

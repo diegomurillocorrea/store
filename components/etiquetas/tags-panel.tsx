@@ -6,6 +6,18 @@ import { CreateTagDialog } from '@/components/etiquetas/create-tag-dialog'
 import { DeleteTagDialog } from '@/components/etiquetas/delete-tag-dialog'
 import { EditTagDialog } from '@/components/etiquetas/edit-tag-dialog'
 import type { TagRow } from '@/lib/data/tags'
+import {
+  listActionsRowClass,
+  listDescriptionClass,
+  listEmptyWrapClass,
+  listHeaderActionsClass,
+  listSearchClass,
+  listTableWrapClass,
+  listTdActionsClass,
+  listTdPrimaryClass,
+  listThActionsClass,
+  listThPrimaryClass,
+} from '@/lib/ui/list-chrome'
 import type { ViewActionFlags } from '@/lib/permissions/views'
 import { Button } from '@/styles/catalyst-ui-kit/button'
 import { Input, InputGroup } from '@/styles/catalyst-ui-kit/input'
@@ -35,12 +47,12 @@ export function TagsPanel({ orgSlug, tags, actions }: TagsPanelProps) {
       <div className="sm:flex sm:items-center">
         <div className="sm:flex-auto">
           <Subheading level={3}>Listado de etiquetas</Subheading>
-          <Text className="mt-2 max-w-2xl">
+          <Text className={listDescriptionClass}>
             Etiqueta productos de forma independiente a la categoría. Un producto puede tener
             varias etiquetas.
           </Text>
         </div>
-        <div className="mt-4 sm:mt-0 sm:ml-16 sm:flex-none">
+        <div className={listHeaderActionsClass}>
           {actions.canCreate ? (
             <Button type="button" color="dark/zinc" onClick={() => setIsCreateOpen(true)}>
               <PlusIcon data-slot="icon" aria-hidden="true" />
@@ -50,7 +62,7 @@ export function TagsPanel({ orgSlug, tags, actions }: TagsPanelProps) {
         </div>
       </div>
 
-      <div className="mt-6 max-w-md">
+      <div className={listSearchClass}>
         <InputGroup>
           <MagnifyingGlassIcon data-slot="icon" aria-hidden="true" />
           <Input
@@ -65,7 +77,7 @@ export function TagsPanel({ orgSlug, tags, actions }: TagsPanelProps) {
       </div>
 
       {filteredTags.length === 0 ? (
-        <div className="glass-surface mt-8 rounded-xl p-8 text-center sm:rounded-2xl">
+        <div className={listEmptyWrapClass}>
           <Subheading level={3}>
             {tags.length === 0 ? 'Sin etiquetas' : 'Sin resultados'}
           </Subheading>
@@ -76,18 +88,15 @@ export function TagsPanel({ orgSlug, tags, actions }: TagsPanelProps) {
           </Text>
         </div>
       ) : (
-        <div className="glass-surface mt-8 overflow-hidden rounded-xl sm:rounded-2xl">
+        <div className={listTableWrapClass}>
           <div className="overflow-x-auto">
-            <table className="relative min-w-full divide-y divide-border">
+            <table className="relative min-w-0 w-full divide-y divide-border">
               <thead>
                 <tr>
-                  <th
-                    scope="col"
-                    className="py-3.5 pr-3 pl-4 text-left text-sm font-semibold text-foreground! sm:pl-6"
-                  >
+                  <th scope="col" className={listThPrimaryClass}>
                     Nombre
                   </th>
-                  <th scope="col" className="py-3.5 pr-4 pl-3 sm:pr-6">
+                  <th scope="col" className={listThActionsClass}>
                     <span className="sr-only">Acciones</span>
                   </th>
                 </tr>
@@ -95,12 +104,12 @@ export function TagsPanel({ orgSlug, tags, actions }: TagsPanelProps) {
               <tbody className="divide-y divide-border">
                 {filteredTags.map((tag) => (
                   <tr key={tag.id}>
-                    <td className="py-4 pr-3 pl-4 text-sm font-medium whitespace-nowrap text-foreground! sm:pl-6">
+                    <td className={`${listTdPrimaryClass} text-foreground!`}>
                       {tag.name}
                     </td>
-                    <td className="py-4 pr-4 pl-3 text-right text-sm font-medium whitespace-nowrap sm:pr-6">
+                    <td className={listTdActionsClass}>
                       {actions.canEdit || actions.canDelete ? (
-                        <div className="flex items-center justify-end gap-4">
+                        <div className={listActionsRowClass}>
                           {actions.canEdit ? (
                             <button
                               type="button"

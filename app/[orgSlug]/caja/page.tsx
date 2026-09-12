@@ -1,4 +1,5 @@
 import { BalancePanel } from '@/components/caja/balance-panel'
+import { ListPageFrame } from '@/components/list-page-frame'
 import { requireViewAccess } from '@/lib/auth/access'
 import {
   getBalanceSummary,
@@ -70,7 +71,7 @@ export default async function CajaPage({ params, searchParams }: CajaPageProps) 
   ])
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8">
+    <ListPageFrame>
       <BalancePanel
         orgSlug={orgSlug}
         organizationName={access.organization.name}
@@ -97,6 +98,6 @@ export default async function CajaPage({ params, searchParams }: CajaPageProps) 
           canDelete: saleActions.canDelete,
         }}
       />
-    </div>
+    </ListPageFrame>
   )
 }

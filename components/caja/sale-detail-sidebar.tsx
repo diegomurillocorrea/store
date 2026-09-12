@@ -195,7 +195,7 @@ export function SaleDetailSidebar ({
     <>
       <div
         className={clsx(
-          'fixed inset-0 z-40 bg-zinc-900/40 backdrop-blur-sm transition-opacity duration-300 dark:bg-black/60 lg:hidden',
+          'fixed inset-0 z-40 bg-zinc-900/40 backdrop-blur-sm transition-opacity duration-300 dark:bg-black/60',
           open ? 'opacity-100' : 'pointer-events-none opacity-0'
         )}
         onClick={onClose}
@@ -206,7 +206,7 @@ export function SaleDetailSidebar ({
         aria-label="Detalle de la venta"
         aria-hidden={!open}
         className={clsx(
-          'fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col border-l border-zinc-200 bg-white shadow-2xl transition-transform duration-300 ease-in-out dark:border-zinc-800 dark:bg-zinc-900',
+          'fixed inset-y-0 right-0 z-50 flex w-full flex-col border-l border-zinc-200 bg-white shadow-2xl transition-transform duration-300 ease-in-out sm:max-w-md dark:border-zinc-800 dark:bg-zinc-900',
           open ? 'translate-x-0' : 'pointer-events-none translate-x-full'
         )}
       >
